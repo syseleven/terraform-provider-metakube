@@ -434,9 +434,11 @@ type clusterPreserveValues struct {
 }
 
 type clusterOpenstackPreservedValues struct {
-	openstackUsername interface{}
-	openstackPassword interface{}
-	openstackTenant   interface{}
+	openstackUsername                     interface{}
+	openstackPassword                     interface{}
+	openstackTenant                       interface{}
+	openstackApplicationCredentialsID     interface{}
+	openstackApplicationCredentialsSecret interface{}
 }
 
 func readClusterPreserveValues(d *schema.ResourceData) clusterPreserveValues {
@@ -446,9 +448,11 @@ func readClusterPreserveValues(d *schema.ResourceData) clusterPreserveValues {
 	var openstack *clusterOpenstackPreservedValues
 	if _, ok := d.GetOk(key("openstack.0")); ok {
 		openstack = &clusterOpenstackPreservedValues{
-			openstackUsername: d.Get(key("openstack.0.username")),
-			openstackPassword: d.Get(key("openstack.0.password")),
-			openstackTenant:   d.Get(key("openstack.0.tenant")),
+			openstackUsername:                     d.Get(key("openstack.0.username")),
+			openstackPassword:                     d.Get(key("openstack.0.password")),
+			openstackTenant:                       d.Get(key("openstack.0.tenant")),
+			openstackApplicationCredentialsID:     d.Get(key("openstack.0.application_credentials_id")),
+			openstackApplicationCredentialsSecret: d.Get(key("openstack.0.application_credentials_secret")),
 		}
 	}
 

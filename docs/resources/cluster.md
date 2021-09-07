@@ -77,14 +77,18 @@ One of the following must be selected.
 ### `openstack`
 
 #### Arguments
-* `tenant` - (Required) The project to use for billing. You can set it using environment variable `OS_PROJECT`.
-* `username` - (Required) The account's username. You can set it using environment variable `OS_USERNAME`.
-* `password` - (Required) The account's password. You can set it using environment variable `OS_PASSWORD`.
 * `floating_ip_pool` - (Required) The floating ip pool used by all worker nodes to receive a public ip.
 * `security_group` - (Optional) When specified, all worker nodes will be attached to this security group. If not specified, a security group will be created.
 * `network` - (Optional) When specified, all worker nodes will be attached to this network. If not specified, a network, subnet & router will be created.
 * `subnet_id` - (Optional) When specified, all worker nodes will be attached to this subnet of specified network. If not specified, a network, subnet & router will be created.
 * `subnet_cidr` - Change this to configure a different internal IP range for Nodes. Default: `192.168.1.0/24`.
+When using password based auth
+* `tenant` - (Optional) The project to use for billing. You can set it using environment variable `OS_PROJECT`. Must be omit if application credentials are used.
+* `username` - (Optional) The account's username. You can set it using environment variable `OS_USERNAME`. Must be omit if application credentials are used.
+* `password` - (Optional) The account's password. You can set it using environment variable `OS_PASSWORD`. Must be omit if application credentials are used.
+When using application credentials
+* `application_credentials_id` - (Opitonal) Application credentials ID to use. Must be omit if username/password/tenant are used.
+* `application_credentials_secret` - (Opitonal) Application credentials Secret to use. Must be omit if username/password/tenant are used.
 
 ### `aws`
 

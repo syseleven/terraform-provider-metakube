@@ -2,8 +2,8 @@ DOMAIN=syseleven.de
 NAMESPACE=syseleven
 PKG_NAME=metakube
 BINARY=terraform-provider-${PKG_NAME}
-VERSION=0.4.4
-PLATFORM?=$(shell uname -s | tr A-Z a-z)_$(shell uname -m)
+VERSION=0.6.0
+PLATFORM=darwin_amd64
 SWEEP_DIR?=./metakube
 SWEEP?=all
 
@@ -36,10 +36,9 @@ testacc:
 # METAKUBE_ANOTHER_USER_EMAIL - email of an existing user to test cluster access sharing
 # METAKUBE_K8S_VERSION - the kubernetes version
 # METAKUBE_K8S_OLDER_VERSION - lower kubernetes version then METAKUBE_K8S_VERSION
-# OS_PROJECT - Openstack project name
-# OS_AUTH_URL - Openstack auth url
-# OS_USERNAME - Openstack username
-# OS_PASSWORD - Openstack password
+# METAKUBE_OPENSTACK_AUTH_URL
+# METAKUBE_OPENSTACK_APPLICATION_CREDENTIALS_ID
+# METAKUBE_OPENSTACK_APPLICATION_CREDENTIALS_SECRET
 # METAKUBE_OPENSTACK_IMAGE - an image available for openstack clusters
 # METAKUBE_OPENSTACK_IMAGE2 - another image available for openstack clusters
 # METAKUBE_OPENSTACK_FLAVOR - openstack flavor to use
@@ -47,6 +46,8 @@ testacc:
 # METAKUBE_OPENSTACK_PASSWORD - openstack credentials password
 # METAKUBE_OPENSTACK_TENANT - openstack tenant to use
 # METAKUBE_OPENSTACK_NODE_DC - openstack node datacenter name
+# METAKUBE_OPENSTACK_APPLICATION_CREDENTIALS_ID - openstack application credentials id
+# METAKUBE_OPENSTACK_APPLICATION_CREDENTIALS_SECRET - openstack application credentials secret
 # METAKUBE_AZURE_NODE_DC - azure node datacenter name
 # METAKUBE_AZURE_NODE_SIZE
 # METAKUBE_AZURE_CLIENT_ID

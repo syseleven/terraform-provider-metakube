@@ -19,6 +19,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 
 	clusterName := makeRandomString()
 	resourceName := "metakube_cluster.acctest_cluster"
+	authurl := os.Getenv(testEnvOpenstackAuthUrl)
 	username := os.Getenv(testEnvOpenstackUsername)
 	password := os.Getenv(testEnvOpenstackPassword)
 	tenant := os.Getenv(testEnvOpenstackTenant)
@@ -27,9 +28,6 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
 			testAccPreCheckForOpenstack(t)
-			checkEnv(t, "OS_AUTH_URL")
-			checkEnv(t, "OS_USERNAME")
-			checkEnv(t, "OS_PASSWORD")
 		},
 		Providers: testAccProviders,
 		ExternalProviders: map[string]resource.ExternalProvider{
@@ -40,7 +38,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 		CheckDestroy: testAccCheckMetaKubeClusterDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCheckMetaKubeClusterOpenstackBasic(clusterName, username, password, tenant, nodeDC, versionK8s17),
+				Config: testAccCheckMetaKubeClusterOpenstackBasic(clusterName, authurl, username, password, tenant, nodeDC, versionK8s17),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeClusterExists(&cluster),
 					testAccCheckMetaKubeClusterOpenstackAttributes(&cluster, clusterName, nodeDC, versionK8s17, false),
@@ -114,7 +112,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 				),
 			},
 			{
-				Config: testAccCheckMetaKubeClusterOpenstackBasic2(clusterName+"-changed", username, password, tenant, nodeDC, versionK8s17),
+				Config: testAccCheckMetaKubeClusterOpenstackBasic2(clusterName+"-changed", authurl, username, password, tenant, nodeDC, versionK8s17),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeClusterExists(&cluster),
 					testAccCheckMetaKubeClusterOpenstackAttributes(&cluster, clusterName+"-changed", nodeDC, versionK8s17, true),
@@ -210,16 +208,47 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 	})
 }
 
+func TestAccMetakubeCluster_Openstack_ApplicationCredentials(t *testing.T) {
+	var cluster models.Cluster
+	clusterName := makeRandomString()
+	resourceName := "metakube_cluster.acctest_cluster"
+	nodeDC := os.Getenv(testEnvOpenstackNodeDC)
+	credentialsID := os.Getenv(testEnvOpenstackApplicationCredentialsID)
+	credentialsSecret := os.Getenv(testEnvOpenstackApplicationCredentialsSecret)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:  func() { testAccPreCheckForOpenstack(t) },
+		Providers: testAccProviders,
+		ExternalProviders: map[string]resource.ExternalProvider{
+			"openstack": {
+				Source: "terraform-provider-openstack/openstack",
+			},
+		},
+		CheckDestroy: testAccCheckMetaKubeClusterDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCheckMetaKubeClusterOpenstackBasicApplicationCredentials(clusterName, credentialsID, credentialsSecret, nodeDC, os.Getenv(testEnvK8sVersion)),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testAccCheckMetaKubeClusterExists(&cluster),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.0.application_credentials_id", credentialsID),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.0.application_credentials_secret", credentialsSecret),
+				),
+			},
+		},
+	})
+}
+
 func TestAccMetakubeCluster_Openstack_UpgradeVersion(t *testing.T) {
 	var cluster models.Cluster
 	clusterName := makeRandomString()
 	resourceName := "metakube_cluster.acctest_cluster"
+	authurl := os.Getenv(testEnvOpenstackAuthUrl)
 	username := os.Getenv(testEnvOpenstackUsername)
 	password := os.Getenv(testEnvOpenstackPassword)
 	tenant := os.Getenv(testEnvOpenstackTenant)
 	nodeDC := os.Getenv(testEnvOpenstackNodeDC)
 	versionedConfig := func(version string) string {
-		return testAccCheckMetaKubeClusterOpenstackBasic(clusterName, username, password, tenant, nodeDC, version)
+		return testAccCheckMetaKubeClusterOpenstackBasic(clusterName, authurl, username, password, tenant, nodeDC, version)
 	}
 	versionK8s16 := os.Getenv(testEnvK8sOlderVersion)
 	versionK8s17 := os.Getenv(testEnvK8sVersion)
@@ -251,7 +280,8 @@ func TestAccMetakubeCluster_Openstack_UpgradeVersion(t *testing.T) {
 		},
 	})
 }
-func testAccCheckMetaKubeClusterOpenstackBasic(clusterName, username, password, tenant, nodeDC, version string) string {
+
+func testAccCheckMetaKubeClusterOpenstackBasic(clusterName, authurl, username, password, tenant, nodeDC, version string) string {
 	config := `
 	terraform {
 		required_providers {
@@ -259,6 +289,13 @@ func testAccCheckMetaKubeClusterOpenstackBasic(clusterName, username, password, 
 				source = "terraform-provider-openstack/openstack"
 			}
 		}
+	}
+
+	provider "openstack" {
+		auth_url = "%s"
+		user_name = "%s"
+		password = "%s"
+		tenant_name = "%s"
 	}
 
 	resource "metakube_project" "acctest_project" {
@@ -315,10 +352,10 @@ func testAccCheckMetaKubeClusterOpenstackBasic(clusterName, username, password, 
 	}
 `
 
-	return fmt.Sprintf(config, clusterName, clusterName, nodeDC, version, tenant, username, password, clusterName, clusterName, clusterName)
+	return fmt.Sprintf(config, authurl, username, password, tenant, clusterName, clusterName, nodeDC, version, tenant, username, password, clusterName, clusterName, clusterName)
 }
 
-func testAccCheckMetaKubeClusterOpenstackBasic2(clusterName, username, password, tenant, nodeDC, k8sVersion string) string {
+func testAccCheckMetaKubeClusterOpenstackBasicApplicationCredentials(clusterName, credentialsID, credentialsSecret, nodeDC, version string) string {
 	config := `
 	terraform {
 		required_providers {
@@ -327,6 +364,57 @@ func testAccCheckMetaKubeClusterOpenstackBasic2(clusterName, username, password,
 			}
 		}
 	}
+
+	resource "metakube_project" "acctest_project" {
+		name = "%s"
+	}
+
+	resource "metakube_cluster" "acctest_cluster" {
+		name = "%s"
+		dc_name = "%s"
+		project_id = metakube_project.acctest_project.id
+		
+		labels = {
+			"a" = "b"
+		  	"c" = "d"
+		}
+
+		spec {
+			version = "%s"
+			update_window {
+			  start = "Tue 02:00"
+			  length = "2h"
+			}
+			cloud {
+				openstack {
+			                application_credentials_id="%s"
+			                application_credentials_secret="%s"
+				}
+			}
+		}
+	}
+`
+
+	return fmt.Sprintf(config, clusterName, clusterName, nodeDC, version, credentialsID, credentialsSecret)
+}
+
+func testAccCheckMetaKubeClusterOpenstackBasic2(clusterName, authurl, username, password, tenant, nodeDC, k8sVersion string) string {
+	config := `
+	terraform {
+		required_providers {
+			openstack = {
+				source = "terraform-provider-openstack/openstack"
+			}
+		}
+	}
+
+	provider "openstack" {
+		auth_url = "%s"
+		user_name = "%s"
+		password = "%s"
+		tenant_name = "%s"
+	}
+
 	resource "metakube_project" "acctest_project" {
 		name = "%s"
 	}
@@ -385,7 +473,7 @@ func testAccCheckMetaKubeClusterOpenstackBasic2(clusterName, username, password,
 	  cidr = "192.168.0.0/16"
 	  ip_version = 4
 	}`
-	return fmt.Sprintf(config, clusterName, clusterName, nodeDC, k8sVersion, tenant, username, password, clusterName, clusterName, clusterName)
+	return fmt.Sprintf(config, authurl, username, password, tenant, clusterName, clusterName, nodeDC, k8sVersion, tenant, username, password, clusterName, clusterName, clusterName)
 }
 
 func testAccCheckMetaKubeClusterOpenstackAttributes(cluster *models.Cluster, name, nodeDC, k8sVersion string, auditLogging bool) resource.TestCheckFunc {
