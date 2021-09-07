@@ -196,6 +196,12 @@ func flattenOpenstackSpec(values *clusterOpenstackPreservedValues, in *models.Op
 		if values.openstackPassword != nil {
 			att["password"] = values.openstackPassword
 		}
+		if values.openstackApplicationCredentialsID != nil {
+			att["application_credentials_id"] = values.openstackApplicationCredentialsID
+		}
+		if values.openstackApplicationCredentialsSecret != nil {
+			att["application_credentials_secret"] = values.openstackApplicationCredentialsSecret
+		}
 	}
 
 	return []interface{}{att}
@@ -562,6 +568,18 @@ func expandOpenstackCloudSpec(p []interface{}) *models.OpenstackCloudSpec {
 	if v, ok := in["subnet_cidr"]; ok {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.SubnetCIDR = vv
+		}
+	}
+
+	if v, ok := in["application_credentials_id"]; ok {
+		if vv, ok := v.(string); ok && vv != "" {
+			obj.ApplicationCredentialID = vv
+		}
+	}
+
+	if v, ok := in["application_credentials_secret"]; ok {
+		if vv, ok := v.(string); ok && vv != "" {
+			obj.ApplicationCredentialSecret = vv
 		}
 	}
 
