@@ -3,7 +3,7 @@ NAMESPACE=syseleven
 PKG_NAME=metakube
 BINARY=terraform-provider-${PKG_NAME}
 VERSION=0.6.0
-PLATFORM=darwin_amd64
+PLATFORM?=darwin_arm64
 SWEEP_DIR?=./metakube
 SWEEP?=all
 

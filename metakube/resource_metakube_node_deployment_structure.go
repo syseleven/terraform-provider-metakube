@@ -302,6 +302,7 @@ func metakubeNodeDeploymentExpandSpec(p []interface{}) *models.NodeDeploymentSpe
 	if v, ok := in["min_replicas"]; ok {
 		if vv, ok := v.(int); ok {
 			obj.MinReplicas = int32(vv)
+			obj.Replicas = int32ToPtr(obj.MinReplicas)
 		}
 	}
 
@@ -311,7 +312,7 @@ func metakubeNodeDeploymentExpandSpec(p []interface{}) *models.NodeDeploymentSpe
 		}
 	}
 
-	if v, ok := in["replicas"]; ok {
+	if v, ok := in["replicas"]; ok && obj.MinReplicas == 0 {
 		if vv, ok := v.(int); ok {
 			obj.Replicas = int32ToPtr(int32(vv))
 		}
