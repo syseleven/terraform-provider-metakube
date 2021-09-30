@@ -157,6 +157,10 @@ func metakubeResourceClusterCreate(ctx context.Context, d *schema.ResourceData, 
 		})
 	}
 
+	if len(retDiags) > 0 {
+		return retDiags
+	}
+
 	projectID := d.Get("project_id").(string)
 	p := project.NewCreateClusterV2Params().WithProjectID(projectID).WithBody(createClusterSpec)
 	r, err := meta.client.Project.CreateClusterV2(p, meta.auth)
@@ -244,6 +248,14 @@ func metakubeResourceClusterIsAWS(d *schema.ResourceData) bool {
 
 func metakubeResourceClusterRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	k := m.(*metakubeProviderMeta)
+
+	retDiags := metakubeResourceClusterValidateClusterFields(ctx, d, k)
+	_, diagnostics := metakubeResourceClusterFindDatacenterByName(k, d)
+	retDiags = append(retDiags, diagnostics...)
+	if len(retDiags) > 0 {
+		return retDiags
+	}
+
 	projectID := d.Get("project_id").(string)
 	if projectID == "" {
 		var err error
@@ -503,7 +515,7 @@ func metakubeResourceClusterUpdate(ctx context.Context, d *schema.ResourceData, 
 	_, diagnostics := metakubeResourceClusterFindDatacenterByName(k, d)
 	// TODO: delete composed diagnostics, seems to be useless at the moment.
 	retDiags = append(retDiags, diagnostics...)
-	if len(retDiags) != 0 {
+	if len(retDiags) > 0 {
 		return retDiags
 	}
 

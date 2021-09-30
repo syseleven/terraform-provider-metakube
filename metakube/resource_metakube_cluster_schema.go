@@ -280,7 +280,6 @@ func metakubeResourceClusterOpenstackCloudSpecFields() map[string]*schema.Schema
 		"tenant": {
 			Type:          schema.TypeString,
 			Optional:      true,
-			RequiredWith:  []string{"spec.0.cloud.0.openstack.0.username", "spec.0.cloud.0.openstack.0.password"},
 			ConflictsWith: []string{"spec.0.cloud.0.openstack.0.application_credentials_id", "spec.0.cloud.0.openstack.0.application_credentials_secret"},
 			DefaultFunc:   schema.EnvDefaultFunc("OS_PROJECT", nil),
 			Description:   "The opestack project to use for billing",
@@ -289,7 +288,6 @@ func metakubeResourceClusterOpenstackCloudSpecFields() map[string]*schema.Schema
 			Type:          schema.TypeString,
 			DefaultFunc:   schema.EnvDefaultFunc("OS_USERNAME", nil),
 			Optional:      true,
-			RequiredWith:  []string{"spec.0.cloud.0.openstack.0.tenant", "spec.0.cloud.0.openstack.0.password"},
 			ConflictsWith: []string{"spec.0.cloud.0.openstack.0.application_credentials_id", "spec.0.cloud.0.openstack.0.application_credentials_secret"},
 			Sensitive:     true,
 			Description:   "The openstack account's username",
@@ -297,7 +295,6 @@ func metakubeResourceClusterOpenstackCloudSpecFields() map[string]*schema.Schema
 		"password": {
 			Type:          schema.TypeString,
 			DefaultFunc:   schema.EnvDefaultFunc("OS_PASSWORD", nil),
-			RequiredWith:  []string{"spec.0.cloud.0.openstack.0.tenant", "spec.0.cloud.0.openstack.0.username"},
 			ConflictsWith: []string{"spec.0.cloud.0.openstack.0.application_credentials_id", "spec.0.cloud.0.openstack.0.application_credentials_secret"},
 			Optional:      true,
 			Sensitive:     true,
@@ -305,17 +302,15 @@ func metakubeResourceClusterOpenstackCloudSpecFields() map[string]*schema.Schema
 		},
 		"application_credentials_id": {
 			Type:          schema.TypeString,
-			RequiredWith:  []string{"spec.0.cloud.0.openstack.0.application_credentials_secret"},
 			ConflictsWith: []string{"spec.0.cloud.0.openstack.0.username", "spec.0.cloud.0.openstack.0.password", "spec.0.cloud.0.openstack.0.tenant"},
 			Optional:      true,
 			Description:   "Openstack application credentials ID",
 		},
 		"application_credentials_secret": {
-			Type:         schema.TypeString,
-			RequiredWith: []string{"spec.0.cloud.0.openstack.0.application_credentials_id"},
-			Optional:     true,
-			Sensitive:    true,
-			Description:  "Openstack application credentials secret",
+			Type:        schema.TypeString,
+			Optional:    true,
+			Sensitive:   true,
+			Description: "Openstack application credentials secret",
 		},
 		"floating_ip_pool": {
 			Type:        schema.TypeString,

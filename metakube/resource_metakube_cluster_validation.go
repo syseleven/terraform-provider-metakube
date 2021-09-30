@@ -3,6 +3,7 @@ package metakube
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/go-cty/cty"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -13,13 +14,15 @@ import (
 )
 
 type metakubeResourceClusterOpenstackValidationData struct {
-	dcName   *string
-	domain   *string
-	username *string
-	password *string
-	tenant   *string
-	network  *string
-	subnetID *string
+	dcName                       *string
+	domain                       *string
+	username                     *string
+	password                     *string
+	tenant                       *string
+	applicationCredentialsID     *string
+	applicationCredentialsSecret *string
+	network                      *string
+	subnetID                     *string
 }
 
 type metakubeResourceClusterGeneralOpenstackRequestParams interface {
@@ -29,6 +32,8 @@ type metakubeResourceClusterGeneralOpenstackRequestParams interface {
 	SetUsername(*string)
 	SetPassword(*string)
 	SetTenant(*string)
+	SetApplicationCredentialID(*string)
+	SetApplicationCredentialSecret(*string)
 	SetContext(context.Context)
 }
 
@@ -38,18 +43,22 @@ func (data *metakubeResourceClusterOpenstackValidationData) setParams(ctx contex
 	p.SetUsername(data.username)
 	p.SetPassword(data.password)
 	p.SetTenant(data.tenant)
+	p.SetApplicationCredentialID(data.applicationCredentialsID)
+	p.SetApplicationCredentialSecret(data.applicationCredentialsSecret)
 	p.SetContext(ctx)
 }
 
 func newOpenstackValidationData(d *schema.ResourceData) metakubeResourceClusterOpenstackValidationData {
 	return metakubeResourceClusterOpenstackValidationData{
-		dcName:   toStrPtrOrNil(d.Get("dc_name")),
-		domain:   strToPtr("Default"),
-		username: toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.username")),
-		password: toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.password")),
-		tenant:   toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.tenant")),
-		network:  toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.network")),
-		subnetID: toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.subnet_id")),
+		dcName:                       toStrPtrOrNil(d.Get("dc_name")),
+		domain:                       strToPtr("Default"),
+		username:                     toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.username")),
+		password:                     toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.password")),
+		tenant:                       toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.tenant")),
+		applicationCredentialsID:     toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.application_credentials_id")),
+		applicationCredentialsSecret: toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.application_credentials_secret")),
+		network:                      toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.network")),
+		subnetID:                     toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.subnet_id")),
 	}
 }
 
@@ -67,6 +76,7 @@ func metakubeResourceClusterValidateClusterFields(ctx context.Context, d *schema
 	}
 	ret = append(ret, metakubeResourceClusterValidateFloatingIPPool(ctx, d, k)...)
 	ret = append(ret, metakubeResourceClusterValidateOpenstackNetwork(ctx, d, k)...)
+	ret = append(ret, metakubeResourceClusterValidateAccessCredentialsSet(d)...)
 	return append(ret, diagnoseOpenstackSubnetWithIDExistsIfSet(ctx, d, k)...)
 }
 
@@ -114,6 +124,60 @@ func metakubeResourceClusterValidateFloatingIPPool(ctx context.Context, d *schem
 			Detail:        diagnoseDetail,
 		}}
 	}
+	return nil
+}
+
+func metakubeResourceClusterValidateAccessCredentialsSet(d *schema.ResourceData) diag.Diagnostics {
+	data := newOpenstackValidationData(d)
+	username := data.username != nil && *data.username != ""
+	password := data.password != nil && *data.password != ""
+	tenant := data.tenant != nil && *data.tenant != ""
+	applicationCredentialsID := data.applicationCredentialsID != nil && *data.applicationCredentialsID != ""
+	applicationCredentialsSecret := data.applicationCredentialsSecret != nil && *data.applicationCredentialsSecret != ""
+
+	if (username || password || tenant) && (applicationCredentialsID || applicationCredentialsSecret) {
+		return diag.Diagnostics{{
+			Severity:      diag.Error,
+			Summary:       "Please use either username, password, tenant or application_credentials_id, application_credentials_secret, not both",
+			AttributePath: cty.GetAttrPath("spec").IndexInt(0).GetAttr("cloud").IndexInt(0).GetAttr("openstack").IndexInt(0),
+		}}
+	}
+
+	if (username || password || tenant) && (!username || !password || !tenant) {
+		var details []string
+		if !username {
+			details = append(details, "username not set")
+		}
+		if !password {
+			details = append(details, "password not set")
+		}
+		if !tenant {
+			details = append(details, "tenant not set")
+		}
+		return diag.Diagnostics{{
+			Severity:      diag.Error,
+			Summary:       "Please set all username, password, tenant fields or use application_credentials_id, application_credentials_secret fields",
+			AttributePath: cty.GetAttrPath("spec").IndexInt(0).GetAttr("cloud").IndexInt(0).GetAttr("openstack").IndexInt(0),
+			Detail:        strings.Join(details, ", "),
+		}}
+	}
+
+	if (applicationCredentialsID || applicationCredentialsSecret) && (!applicationCredentialsID || !applicationCredentialsSecret) {
+		var details []string
+		if !applicationCredentialsID {
+			details = append(details, "application_credentials_id not set")
+		}
+		if !applicationCredentialsSecret {
+			details = append(details, "application_credentials_secret not set")
+		}
+		return diag.Diagnostics{{
+			Severity:      diag.Error,
+			Summary:       "Please set both application_credentials_id, application_credentials_secret fields",
+			AttributePath: cty.GetAttrPath("spec").IndexInt(0).GetAttr("cloud").IndexInt(0).GetAttr("openstack").IndexInt(0),
+			Detail:        strings.Join(details, ", "),
+		}}
+	}
+
 	return nil
 }
 
