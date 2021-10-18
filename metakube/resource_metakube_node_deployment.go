@@ -144,14 +144,26 @@ func metakubeResourceNodeDeploymentCreate(ctx context.Context, d *schema.Resourc
 		return diag.Errorf("nodedeployments API is not ready: %v", err)
 	}
 
-	r, err := k.client.Project.CreateMachineDeployment(p, k.auth)
+	var id string
+	err = resource.RetryContext(ctx, d.Timeout(schema.TimeoutCreate), func() *resource.RetryError {
+		r, err := k.client.Project.CreateMachineDeployment(p, k.auth)
+		if err != nil {
+			e := stringifyResponseError(err)
+			if strings.Contains(e, "failed calling webhook") {
+				return resource.RetryableError(fmt.Errorf(e))
+			}
+			return resource.NonRetryableError(fmt.Errorf(e))
+		}
+		id = r.Payload.ID
+		return nil
+	})
 	if err != nil {
-		return diag.Errorf("unable to create a node deployment: %v", stringifyResponseError(err))
+		return diag.Errorf("create a node deployment: %v", err)
 	}
-	d.SetId(r.Payload.ID)
+	d.SetId(id)
 	d.Set("project_id", projectID)
 
-	if err := metakubeResourceNodeDeploymentWaitForReady(ctx, k, d.Timeout(schema.TimeoutCreate), projectID, clusterID, r.Payload.ID, 0); err != nil {
+	if err := metakubeResourceNodeDeploymentWaitForReady(ctx, k, d.Timeout(schema.TimeoutCreate), projectID, clusterID, id, 0); err != nil {
 		return diag.FromErr(err)
 	}
 
