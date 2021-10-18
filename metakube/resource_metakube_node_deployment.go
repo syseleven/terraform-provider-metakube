@@ -149,7 +149,7 @@ func metakubeResourceNodeDeploymentCreate(ctx context.Context, d *schema.Resourc
 		r, err := k.client.Project.CreateMachineDeployment(p, k.auth)
 		if err != nil {
 			e := stringifyResponseError(err)
-			if strings.Contains(e, "failed calling webhook") {
+			if strings.Contains(e, "failed calling webhook") || strings.Contains(e, "Cluster components are not ready yet") {
 				return resource.RetryableError(fmt.Errorf(e))
 			}
 			return resource.NonRetryableError(fmt.Errorf(e))
