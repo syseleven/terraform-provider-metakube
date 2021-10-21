@@ -17,7 +17,7 @@ func metakubeResourceClusterSpecFields() map[string]*schema.Schema {
 		},
 		"enable_ssh_agent": {
 			Type:        schema.TypeBool,
-			Computed:    true,
+			Default:     true,
 			Optional:    true,
 			Description: "SSH Agent as a daemon running on each node that can manage ssh keys. Disable it if you want to manage keys manually",
 		},
