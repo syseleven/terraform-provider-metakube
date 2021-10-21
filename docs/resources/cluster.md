@@ -37,7 +37,7 @@ The following arguments are supported:
 * `name` - (Required) Cluster name.
 * `spec` - (Required) Cluster specification.
 * `labels` - (Optional) Labels added to cluster.
-* `sshkeys` - (Optional) SSH keys attached to nodes.
+* `sshkeys` - (Optional) IDs of SSH keys to be attached to nodes. Ideally you want to use this along with [metakube_sshkey](./sshkey.md).
 
 ## Attributes
 
