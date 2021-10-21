@@ -91,7 +91,7 @@ func metakubeResourceValidateVersionExistence(ctx context.Context, d *schema.Res
 	available := make([]string, 0)
 	for _, v := range r.Payload {
 		available = append(available, v.Version.(string))
-		if s, ok := v.Version.(string); ok && s == version {
+		if v.Version.(string) == version {
 			return nil
 		}
 	}

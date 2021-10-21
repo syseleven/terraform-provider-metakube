@@ -71,6 +71,7 @@ func testAccPreCheckForOpenstack(t *testing.T) {
 	checkEnv(t, testEnvOpenstackImage)
 	checkEnv(t, testEnvOpenstackImage2)
 	checkEnv(t, testEnvOpenstackFlavor)
+	checkEnv(t, testEnvOpenstackAuthUrl)
 }
 
 func testAccPreCheckForAzure(t *testing.T) {
