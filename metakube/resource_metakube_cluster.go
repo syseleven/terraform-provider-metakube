@@ -226,11 +226,19 @@ func metakubeResourceClusterFindDatacenterByName(k *metakubeProviderMeta, d *sch
 		}
 	}
 
+	var summary, details string
+	if name == "" {
+		summary = "Datacenter name not set"
+	}
+	if len(available) > 0 {
+		details = fmt.Sprintf("Please set one of available datacenters for the provider - %v", available)
+	}
+
 	return nil, diag.Diagnostics{{
 		Severity:      diag.Error,
-		Summary:       "Unknown datacenter",
+		Summary:       summary,
 		AttributePath: cty.Path{cty.GetAttrStep{Name: "dc_name"}},
-		Detail:        fmt.Sprintf("Please select one of available datacenters for the provider - %v", available),
+		Detail:        details,
 	}}
 }
 
@@ -248,13 +256,6 @@ func metakubeResourceClusterIsAWS(d *schema.ResourceData) bool {
 
 func metakubeResourceClusterRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	k := m.(*metakubeProviderMeta)
-
-	retDiags := metakubeResourceClusterValidateClusterFields(ctx, d, k)
-	_, diagnostics := metakubeResourceClusterFindDatacenterByName(k, d)
-	retDiags = append(retDiags, diagnostics...)
-	if len(retDiags) > 0 {
-		return retDiags
-	}
 
 	projectID := d.Get("project_id").(string)
 	if projectID == "" {
