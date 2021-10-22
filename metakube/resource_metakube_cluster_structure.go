@@ -17,7 +17,7 @@ func metakubeResourceClusterFlattenSpec(values clusterPreserveValues, in *models
 		att["version"] = in.Version
 	}
 
-	if in.UpdateWindow != nil {
+	if in.UpdateWindow != nil && (in.UpdateWindow.Start != "" || in.UpdateWindow.Length != "") {
 		att["update_window"] = flattenUpdateWindow(in.UpdateWindow)
 	}
 

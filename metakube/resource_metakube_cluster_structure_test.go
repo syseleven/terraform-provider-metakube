@@ -62,7 +62,9 @@ func TestMetakubeClusterFlattenSpec(t *testing.T) {
 			},
 		},
 		{
-			&models.ClusterSpec{},
+			&models.ClusterSpec{
+				UpdateWindow: &models.UpdateWindow{},
+			},
 			[]interface{}{
 				map[string]interface{}{
 					"audit_logging":       false,
