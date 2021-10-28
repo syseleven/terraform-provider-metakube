@@ -12,7 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
 
-func matakubeResourceNodeDeploymentLabelOrTagReserved(path string) bool {
+func matakubeResourceLabelOrTagReserved(path string) bool {
 	for _, substr := range []string{
 		"metakube-cluster",
 		"system-project",
@@ -29,7 +29,7 @@ func matakubeResourceNodeDeploymentLabelOrTagReserved(path string) bool {
 	return false
 }
 
-func matakubeResourceNodeDeploymentValidateLabelOrTag(key string) error {
+func matakubeResourceValidateLabelOrTag(key string) error {
 	r := regexp.MustCompile(`^(syseleven\.de|metakube|system|kubernetes\.io)([/\-])`)
 	if r.MatchString(key) {
 		return fmt.Errorf("forbidden tag or label prefix %s", key)
@@ -189,12 +189,12 @@ func matakubeResourceNodeDeploymentSpecFields() map[string]*schema.Schema {
 							Type: schema.TypeString,
 						},
 						DiffSuppressFunc: func(k, _, _ string, _ *schema.ResourceData) bool {
-							return matakubeResourceNodeDeploymentLabelOrTagReserved(k)
+							return matakubeResourceLabelOrTagReserved(k)
 						},
 						ValidateFunc: func(v interface{}, k string) (strings []string, errors []error) {
 							l := v.(map[string]interface{})
 							for key := range l {
-								if err := matakubeResourceNodeDeploymentValidateLabelOrTag(key); err != nil {
+								if err := matakubeResourceValidateLabelOrTag(key); err != nil {
 									errors = append(errors, err)
 								}
 							}
@@ -280,12 +280,12 @@ func matakubeResourceNodeDeploymentAWSSchema() map[string]*schema.Schema {
 				Type: schema.TypeString,
 			},
 			DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
-				return matakubeResourceNodeDeploymentLabelOrTagReserved(k)
+				return matakubeResourceLabelOrTagReserved(k)
 			},
 			ValidateFunc: func(v interface{}, k string) (strings []string, errors []error) {
 				l := v.(map[string]interface{})
 				for key := range l {
-					if err := matakubeResourceNodeDeploymentValidateLabelOrTag(key); err != nil {
+					if err := matakubeResourceValidateLabelOrTag(key); err != nil {
 						errors = append(errors, err)
 					}
 				}
@@ -322,12 +322,12 @@ func matakubeResourceNodeDeploymentCloudOpenstackSchema() map[string]*schema.Sch
 				Type: schema.TypeString,
 			},
 			DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
-				return matakubeResourceNodeDeploymentLabelOrTagReserved(k)
+				return matakubeResourceLabelOrTagReserved(k)
 			},
 			ValidateFunc: func(v interface{}, k string) (strings []string, errors []error) {
 				l := v.(map[string]interface{})
 				for key := range l {
-					if err := matakubeResourceNodeDeploymentValidateLabelOrTag(key); err != nil {
+					if err := matakubeResourceValidateLabelOrTag(key); err != nil {
 						errors = append(errors, err)
 					}
 				}
@@ -427,12 +427,12 @@ func metakubeResourceNodeDeploymentAzureSchema() *schema.Schema {
 						Type: schema.TypeString,
 					},
 					DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
-						return matakubeResourceNodeDeploymentLabelOrTagReserved(k)
+						return matakubeResourceLabelOrTagReserved(k)
 					},
 					ValidateFunc: func(v interface{}, k string) (strings []string, errors []error) {
 						l := v.(map[string]interface{})
 						for key := range l {
-							if err := matakubeResourceNodeDeploymentValidateLabelOrTag(key); err != nil {
+							if err := matakubeResourceValidateLabelOrTag(key); err != nil {
 								errors = append(errors, err)
 							}
 						}
