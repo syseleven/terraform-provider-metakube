@@ -3,7 +3,6 @@ package metakube
 import (
 	"fmt"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/hashicorp/go-cty/cty"
@@ -12,29 +11,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
 
-func matakubeResourceLabelOrTagReserved(path string) bool {
-	for _, substr := range []string{
-		"metakube-cluster",
-		"system-project",
-		"system-cluster",
-		"system/cluster",
-		"system/project",
-		"kubernetes.io",
-		"syseleven.de",
-	} {
-		if strings.Contains(path, substr) {
-			return true
-		}
-	}
-	return false
-}
-
-func matakubeResourceValidateLabelOrTag(key string) error {
+func metakubeResourceSystemLabelOrTag(key string) bool {
 	r := regexp.MustCompile(`^(syseleven\.de|metakube|system|kubernetes\.io)([/\-])`)
-	if r.MatchString(key) {
-		return fmt.Errorf("forbidden tag or label prefix %s", key)
-	}
-	return nil
+	return r.MatchString(key)
 }
 
 func matakubeResourceNodeDeploymentSpecFields() map[string]*schema.Schema {
@@ -189,13 +168,13 @@ func matakubeResourceNodeDeploymentSpecFields() map[string]*schema.Schema {
 							Type: schema.TypeString,
 						},
 						DiffSuppressFunc: func(k, _, _ string, _ *schema.ResourceData) bool {
-							return matakubeResourceLabelOrTagReserved(k)
+							return metakubeResourceSystemLabelOrTag(k)
 						},
 						ValidateFunc: func(v interface{}, k string) (strings []string, errors []error) {
 							l := v.(map[string]interface{})
 							for key := range l {
-								if err := matakubeResourceValidateLabelOrTag(key); err != nil {
-									errors = append(errors, err)
+								if metakubeResourceSystemLabelOrTag(key) {
+									errors = append(errors, fmt.Errorf("%s is reserved for system and can't be used", key))
 								}
 							}
 							return
@@ -280,13 +259,13 @@ func matakubeResourceNodeDeploymentAWSSchema() map[string]*schema.Schema {
 				Type: schema.TypeString,
 			},
 			DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
-				return matakubeResourceLabelOrTagReserved(k)
+				return metakubeResourceSystemLabelOrTag(k)
 			},
 			ValidateFunc: func(v interface{}, k string) (strings []string, errors []error) {
 				l := v.(map[string]interface{})
 				for key := range l {
-					if err := matakubeResourceValidateLabelOrTag(key); err != nil {
-						errors = append(errors, err)
+					if metakubeResourceSystemLabelOrTag(key) {
+						errors = append(errors, fmt.Errorf("%s is reserved for system and can't be used", key))
 					}
 				}
 				return
@@ -322,13 +301,13 @@ func matakubeResourceNodeDeploymentCloudOpenstackSchema() map[string]*schema.Sch
 				Type: schema.TypeString,
 			},
 			DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
-				return matakubeResourceLabelOrTagReserved(k)
+				return metakubeResourceSystemLabelOrTag(k)
 			},
 			ValidateFunc: func(v interface{}, k string) (strings []string, errors []error) {
 				l := v.(map[string]interface{})
 				for key := range l {
-					if err := matakubeResourceValidateLabelOrTag(key); err != nil {
-						errors = append(errors, err)
+					if metakubeResourceSystemLabelOrTag(key) {
+						errors = append(errors, fmt.Errorf("%s is reserved for system and can't be used", key))
 					}
 				}
 				return
@@ -427,13 +406,13 @@ func metakubeResourceNodeDeploymentAzureSchema() *schema.Schema {
 						Type: schema.TypeString,
 					},
 					DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
-						return matakubeResourceLabelOrTagReserved(k)
+						return metakubeResourceSystemLabelOrTag(k)
 					},
 					ValidateFunc: func(v interface{}, k string) (strings []string, errors []error) {
 						l := v.(map[string]interface{})
 						for key := range l {
-							if err := matakubeResourceValidateLabelOrTag(key); err != nil {
-								errors = append(errors, err)
+							if metakubeResourceSystemLabelOrTag(key) {
+								errors = append(errors, fmt.Errorf("%s is reserved for system and can't be used", key))
 							}
 						}
 						return

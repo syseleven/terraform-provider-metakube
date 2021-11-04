@@ -54,13 +54,13 @@ func metakubeResourceCluster() *schema.Resource {
 					Type: schema.TypeString,
 				},
 				DiffSuppressFunc: func(k, _, _ string, d *schema.ResourceData) bool {
-					return matakubeResourceLabelOrTagReserved(k)
+					return metakubeResourceSystemLabelOrTag(k)
 				},
 				ValidateFunc: func(v interface{}, k string) (strings []string, errors []error) {
 					l := v.(map[string]interface{})
 					for key := range l {
-						if err := matakubeResourceValidateLabelOrTag(key); err != nil {
-							errors = append(errors, err)
+						if metakubeResourceSystemLabelOrTag(key) {
+							errors = append(errors, fmt.Errorf("'%s' contains reserved string and can't be used", key))
 						}
 					}
 					return
@@ -305,7 +305,19 @@ func metakubeResourceClusterRead(ctx context.Context, d *schema.ResourceData, m 
 	_ = d.Set("dc_name", r.Payload.Spec.Cloud.DatacenterName)
 	_ = d.Set("name", r.Payload.Name)
 	if len(r.Payload.Labels) > 0 {
-		_ = d.Set("labels", r.Payload.Labels)
+		labels, diagnostics := metakubeResourceClusterExcludeProjectLabels(k, projectID, r.Payload.Labels)
+		if diagnostics != nil {
+			return diagnostics
+		}
+		if len(labels) > 0 {
+			if err := d.Set("labels", labels); err != nil {
+				return diag.Diagnostics{{
+					Severity:      diag.Error,
+					Summary:       "Invalid value",
+					AttributePath: cty.Path{cty.GetAttrStep{Name: "labels"}},
+				}}
+			}
+		}
 	}
 
 	values := readClusterPreserveValues(d)
@@ -397,6 +409,22 @@ func metakubeResourceClusterResponseNotFound(err error) bool {
 
 	// All api replies and errors, that nevertheless indicate cluster was deleted.
 	return e.Code() == http.StatusNotFound
+}
+
+// metakubeResourceClusterExcludeProjectLabels excludes labels defined in project.
+// Project labels propagated to clusters. For better predictability of
+// cluster's labels changes, project's labels are excluded from cluster state.
+func metakubeResourceClusterExcludeProjectLabels(k *metakubeProviderMeta, projectID string, labels map[string]string) (map[string]string, diag.Diagnostics) {
+	p := project.NewGetProjectParams().WithProjectID(projectID)
+	r, err := k.client.Project.GetProject(p, k.auth)
+	if err != nil {
+		return nil, diag.Errorf("get project details %v", stringifyResponseError(err))
+	}
+	for key := range r.Payload.Labels {
+		delete(labels, key)
+	}
+
+	return labels, nil
 }
 
 func metakubeClusterGetAssignedSSHKeys(ctx context.Context, d *schema.ResourceData, k *metakubeProviderMeta) ([]string, diag.Diagnostics) {
