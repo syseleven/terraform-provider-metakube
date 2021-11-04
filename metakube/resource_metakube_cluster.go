@@ -681,7 +681,7 @@ func metakubeResourceClusterWaitForReady(ctx context.Context, k *metakubeProvide
 			return nil
 		}
 
-		k.log.Debugf("waiting for cluster '%s' to be ready, %+v", d.Id(), r.Payload)
+		k.log.Debugf("waiting for cluster '%s' to be ready, %+v", clusterID, r.Payload)
 		return resource.RetryableError(fmt.Errorf("waiting for cluster '%s' to be ready", d.Id()))
 	})
 }
