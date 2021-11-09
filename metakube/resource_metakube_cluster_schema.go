@@ -59,14 +59,6 @@ func metakubeResourceClusterSpecFields() map[string]*schema.Schema {
 			Description: "Cloud provider specification",
 			Elem: &schema.Resource{
 				Schema: map[string]*schema.Schema{
-					"bringyourown": {
-						Type:          schema.TypeList,
-						Optional:      true,
-						MaxItems:      1,
-						Elem:          &schema.Resource{},
-						Description:   "Bring your own infrastructure",
-						ConflictsWith: []string{"spec.0.cloud.0.aws", "spec.0.cloud.0.openstack", "spec.0.cloud.0.azure"},
-					},
 					"aws": {
 						Type:        schema.TypeList,
 						Optional:    true,
@@ -75,7 +67,7 @@ func metakubeResourceClusterSpecFields() map[string]*schema.Schema {
 						Elem: &schema.Resource{
 							Schema: metakubeResourceCluserAWSCloudSpecFields(),
 						},
-						ConflictsWith: []string{"spec.0.cloud.0.bringyourown", "spec.0.cloud.0.openstack", "spec.0.cloud.0.azure"},
+						ConflictsWith: []string{"spec.0.cloud.0.openstack", "spec.0.cloud.0.azure"},
 					},
 					"openstack": {
 						Type:        schema.TypeList,
@@ -85,7 +77,7 @@ func metakubeResourceClusterSpecFields() map[string]*schema.Schema {
 						Elem: &schema.Resource{
 							Schema: metakubeResourceClusterOpenstackCloudSpecFields(),
 						},
-						ConflictsWith: []string{"spec.0.cloud.0.aws", "spec.0.cloud.0.bringyourown", "spec.0.cloud.0.azure"},
+						ConflictsWith: []string{"spec.0.cloud.0.aws", "spec.0.cloud.0.azure"},
 					},
 					"azure": {
 						Type:        schema.TypeList,
@@ -95,7 +87,7 @@ func metakubeResourceClusterSpecFields() map[string]*schema.Schema {
 						Elem: &schema.Resource{
 							Schema: metakubeResourceClusterAzureSpecFields(),
 						},
-						ConflictsWith: []string{"spec.0.cloud.0.aws", "spec.0.cloud.0.openstack", "spec.0.cloud.0.bringyourown"},
+						ConflictsWith: []string{"spec.0.cloud.0.aws", "spec.0.cloud.0.openstack"},
 					},
 				},
 			},
@@ -219,7 +211,7 @@ func metakubeResourceClusterAzureSpecFields() map[string]*schema.Schema {
 		"openstack_billing_tenant": {
 			Type:         schema.TypeString,
 			Required:     true,
-			DefaultFunc:  schema.EnvDefaultFunc("OS_PROJECT", ""),
+			DefaultFunc:  schema.EnvDefaultFunc("OS_PROJECT_NAME", nil),
 			ValidateFunc: validation.NoZeroValues,
 			Description:  "Openstack tenant/project name for the account",
 		},
@@ -268,7 +260,7 @@ func metakubeResourceCluserAWSCloudSpecFields() map[string]*schema.Schema {
 		"openstack_billing_tenant": {
 			Type:         schema.TypeString,
 			Required:     true,
-			DefaultFunc:  schema.EnvDefaultFunc("OS_PROJECT", ""),
+			DefaultFunc:  schema.EnvDefaultFunc("OS_PROJECT_NAME", nil),
 			ValidateFunc: validation.NoZeroValues,
 			Description:  "Openstack tenant/project name for the account",
 		},
@@ -281,7 +273,7 @@ func metakubeResourceClusterOpenstackCloudSpecFields() map[string]*schema.Schema
 			Type:          schema.TypeString,
 			Optional:      true,
 			ConflictsWith: []string{"spec.0.cloud.0.openstack.0.application_credentials_id", "spec.0.cloud.0.openstack.0.application_credentials_secret"},
-			DefaultFunc:   schema.EnvDefaultFunc("OS_PROJECT", nil),
+			DefaultFunc:   schema.EnvDefaultFunc("OS_PROJECT_NAME", nil),
 			Description:   "The opestack project to use for billing",
 		},
 		"username": {

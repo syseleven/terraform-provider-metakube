@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"text/template"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -19,11 +20,13 @@ const (
 	testEnvK8sVersion      = "METAKUBE_K8S_VERSION"
 	testEnvK8sOlderVersion = "METAKUBE_K8S_OLDER_VERSION"
 
+	testEnvProjectID = "METAKUBE_PROJECT_ID"
+
 	testEnvOpenstackNodeDC                       = "METAKUBE_OPENSTACK_NODE_DC"
 	testEnvOpenstackApplicationCredentialsID     = "METAKUBE_OPENSTACK_APPLICATION_CREDENTIALS_ID"
 	testEnvOpenstackApplicationCredentialsSecret = "METAKUBE_OPENSTACK_APPLICATION_CREDENTIALS_SECRET"
 	testEnvOpenstackUsername                     = "METAKUBE_OPENSTACK_USERNAME"
-	testEnvOpenstackAuthUrl                      = "METAKUBE_OPENSTACK_AUTH_URL"
+	testEnvOpenstackAuthURL                      = "METAKUBE_OPENSTACK_AUTH_URL"
 	testEnvOpenstackPassword                     = "METAKUBE_OPENSTACK_PASSWORD"
 	testEnvOpenstackTenant                       = "METAKUBE_OPENSTACK_TENANT"
 	testEnvOpenstackImage                        = "METAKUBE_OPENSTACK_IMAGE"
@@ -53,6 +56,16 @@ var (
 	testAccProvider  *schema.Provider
 )
 
+func init() {
+	resource.AddTestSweepers("metakube_cluster", &resource.Sweeper{
+		Name: "metakube_cluster",
+		F:    testSweepClusters,
+	})
+	resource.AddTestSweepers("metakube_sshkey", &resource.Sweeper{
+		Name: "metakube_sshkey",
+		F:    testSweepSSHKeys,
+	})
+}
 func TestMain(m *testing.M) {
 	testAccProvider = Provider()
 	testAccProviders = map[string]*schema.Provider{
@@ -71,7 +84,7 @@ func testAccPreCheckForOpenstack(t *testing.T) {
 	checkEnv(t, testEnvOpenstackImage)
 	checkEnv(t, testEnvOpenstackImage2)
 	checkEnv(t, testEnvOpenstackFlavor)
-	checkEnv(t, testEnvOpenstackAuthUrl)
+	checkEnv(t, testEnvOpenstackAuthURL)
 }
 
 func testAccPreCheckForAzure(t *testing.T) {
@@ -100,6 +113,7 @@ func testAccPreCheck(t *testing.T) {
 	checkEnv(t, "METAKUBE_TOKEN")
 	checkEnv(t, testEnvK8sVersion)
 	checkEnv(t, testEnvK8sOlderVersion)
+	checkEnv(t, testEnvProjectID)
 }
 
 func checkEnv(t *testing.T, n string) {
@@ -109,8 +123,8 @@ func checkEnv(t *testing.T, n string) {
 	}
 }
 
-func makeRandomString() string {
-	return randomName(testNamePrefix, 10)
+func makeRandomName() string {
+	return randomName(testNamePrefix, 5)
 }
 
 func randomName(prefix string, length int) string {
@@ -131,4 +145,12 @@ func testResourceInstanceState(name string, check func(*terraform.InstanceState)
 		return fmt.Errorf("not found: %s", name)
 
 	}
+}
+
+func mustParse(name, text string) *template.Template {
+	r, err := template.New(name).Parse(text)
+	if err != nil {
+		panic(err)
+	}
+	return r
 }

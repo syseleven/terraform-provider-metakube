@@ -7,9 +7,6 @@ terraform {
 }
 provider "metakube" {
 }
-resource "metakube_project" "example_project" {
-  name = var.project_name
-}
 data "metakube_k8s_version" "cluster" {
   major = "1"
   minor = var.k8s_minor_version
@@ -17,7 +14,7 @@ data "metakube_k8s_version" "cluster" {
 resource "metakube_cluster" "example_cluster" {
   name       = var.cluster_name
   dc_name    = "syseleven-aws-eu-central-1a"
-  project_id = metakube_project.example_project.id
+  project_id = var.project_id
   spec {
     enable_ssh_agent = true
     version          = data.metakube_k8s_version.cluster.version

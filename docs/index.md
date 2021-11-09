@@ -1,7 +1,7 @@
 # metaKube Provider
 
 The MetaKube provider is used to interact with the resources supported by MetaKube.
-The provider needs to be configured with the proper auth token (`~/.metakube/auth` or `METAKUBE_TOKEN` env var) before it can be used.
+The provider needs to be configured with the proper auth token (`~/.metakube/auth` or `METAKUBE_TOKEN` env var) for an existing project before it can be used. You can create a project and an API Account with a token via UI.
 
 Use the navigation to the left to read about the available resources.
 

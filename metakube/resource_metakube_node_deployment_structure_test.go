@@ -634,7 +634,7 @@ func TestExpandOpenstackNodeSpec(t *testing.T) {
 				map[string]interface{}{
 					"flavor":          "tiny",
 					"image":           "Ubuntu",
-					"use_floating_ip": true,
+					"use_floating_ip": false,
 					"tags": map[string]interface{}{
 						"foo": "bar",
 					},
@@ -644,7 +644,7 @@ func TestExpandOpenstackNodeSpec(t *testing.T) {
 			&models.OpenstackNodeSpec{
 				Flavor:        strToPtr("tiny"),
 				Image:         strToPtr("Ubuntu"),
-				UseFloatingIP: true,
+				UseFloatingIP: false,
 				Tags: map[string]string{
 					"foo": "bar",
 				},

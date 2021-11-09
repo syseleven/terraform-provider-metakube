@@ -98,10 +98,6 @@ func flattenClusterCloudSpec(values clusterPreserveValues, in *models.CloudSpec)
 
 	att := make(map[string]interface{})
 
-	if in.Bringyourown != nil {
-		att["bringyourown"] = []interface{}{in.Bringyourown}
-	}
-
 	if in.Aws != nil {
 		att["aws"] = flattenAWSCloudSpec(values.aws)
 	}
@@ -428,12 +424,6 @@ func expandClusterCloudSpec(p []interface{}, dcName string) *models.CloudSpec {
 
 	obj.DatacenterName = dcName
 
-	if v, ok := in["bringyourown"]; ok {
-		if vv, ok := v.([]interface{}); ok {
-			obj.Bringyourown = expandBringYourOwnCloudSpec(vv)
-		}
-	}
-
 	if v, ok := in["aws"]; ok {
 		if vv, ok := v.([]interface{}); ok {
 			obj.Aws = expandAWSCloudSpec(vv)
@@ -453,14 +443,6 @@ func expandClusterCloudSpec(p []interface{}, dcName string) *models.CloudSpec {
 	}
 
 	return obj
-}
-
-func expandBringYourOwnCloudSpec(p []interface{}) models.BringYourOwnCloudSpec {
-	if len(p) < 1 {
-		return nil
-	}
-	// just to return json object {}
-	return map[string]interface{}{}
 }
 
 func expandAWSCloudSpec(p []interface{}) *models.AWSCloudSpec {

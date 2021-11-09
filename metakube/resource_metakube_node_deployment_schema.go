@@ -12,7 +12,7 @@ import (
 )
 
 func metakubeResourceSystemLabelOrTag(key string) bool {
-	r := regexp.MustCompile(`^(syseleven\.de|metakube|system|kubernetes\.io)([/\-])`)
+	r := regexp.MustCompile(`(syseleven\.de|metakube|system|kubernetes\.io)[/\-]`)
 	return r.MatchString(key)
 }
 
@@ -64,14 +64,6 @@ func matakubeResourceNodeDeploymentSpecFields() map[string]*schema.Schema {
 						Description: "Cloud specification",
 						Elem: &schema.Resource{
 							Schema: map[string]*schema.Schema{
-								"bringyourown": {
-									Optional:    true,
-									Type:        schema.TypeMap,
-									Description: "Bring your own infrastructure",
-									Elem: &schema.Schema{
-										Type: schema.TypeString,
-									},
-								},
 								"aws": {
 									Type:        schema.TypeList,
 									Optional:    true,

@@ -305,18 +305,12 @@ func metakubeResourceClusterRead(ctx context.Context, d *schema.ResourceData, m 
 	_ = d.Set("dc_name", r.Payload.Spec.Cloud.DatacenterName)
 	_ = d.Set("name", r.Payload.Name)
 	if len(r.Payload.Labels) > 0 {
-		labels, diagnostics := metakubeResourceClusterExcludeProjectLabels(k, projectID, r.Payload.Labels)
-		if diagnostics != nil {
-			return diagnostics
-		}
-		if len(labels) > 0 {
-			if err := d.Set("labels", labels); err != nil {
-				return diag.Diagnostics{{
-					Severity:      diag.Error,
-					Summary:       "Invalid value",
-					AttributePath: cty.Path{cty.GetAttrStep{Name: "labels"}},
-				}}
-			}
+		if err := d.Set("labels", r.Payload.Labels); err != nil {
+			return diag.Diagnostics{{
+				Severity:      diag.Error,
+				Summary:       "Invalid value",
+				AttributePath: cty.Path{cty.GetAttrStep{Name: "labels"}},
+			}}
 		}
 	}
 
@@ -378,7 +372,7 @@ func metakubeResourceClusterFindProjectID(ctx context.Context, id string, meta *
 		}
 	}
 
-	meta.log.Info("owner project for cluster with id(%s) not found", id)
+	meta.log.Infof("owner project for cluster with id(%s) not found", id)
 	return "", nil
 }
 
@@ -409,22 +403,6 @@ func metakubeResourceClusterResponseNotFound(err error) bool {
 
 	// All api replies and errors, that nevertheless indicate cluster was deleted.
 	return e.Code() == http.StatusNotFound
-}
-
-// metakubeResourceClusterExcludeProjectLabels excludes labels defined in project.
-// Project labels propagated to clusters. For better predictability of
-// cluster's labels changes, project's labels are excluded from cluster state.
-func metakubeResourceClusterExcludeProjectLabels(k *metakubeProviderMeta, projectID string, labels map[string]string) (map[string]string, diag.Diagnostics) {
-	p := project.NewGetProjectParams().WithProjectID(projectID)
-	r, err := k.client.Project.GetProject(p, k.auth)
-	if err != nil {
-		return nil, diag.Errorf("get project details %v", stringifyResponseError(err))
-	}
-	for key := range r.Payload.Labels {
-		delete(labels, key)
-	}
-
-	return labels, nil
 }
 
 func metakubeClusterGetAssignedSSHKeys(ctx context.Context, d *schema.ResourceData, k *metakubeProviderMeta) ([]string, diag.Diagnostics) {
@@ -605,16 +583,23 @@ func metakubeResourceClusterGetLabelsChange(d *schema.ResourceData) map[string]i
 func updateClusterSSHKeys(ctx context.Context, d *schema.ResourceData, k *metakubeProviderMeta) diag.Diagnostics {
 	projectID := d.Get("project_id").(string)
 	var unassigned, assign []string
-	prev, cur := d.GetChange("sshkeys")
-
-	for _, id := range prev.(*schema.Set).List() {
+	cur := d.Get("sshkeys")
+	prev, diagnostics := metakubeClusterGetAssignedSSHKeys(ctx, d, k)
+	if diagnostics != nil {
+		return diagnostics
+	}
+	for _, id := range prev {
 		if !cur.(*schema.Set).Contains(id) {
-			unassigned = append(unassigned, id.(string))
+			unassigned = append(unassigned, id)
 		}
 	}
 
+	prevset := make(map[string]bool)
+	for _, id := range prev {
+		prevset[id] = true
+	}
 	for _, id := range cur.(*schema.Set).List() {
-		if !prev.(*schema.Set).Contains(id) {
+		if !prevset[id.(string)] {
 			assign = append(assign, id.(string))
 		}
 	}
@@ -629,7 +614,7 @@ func updateClusterSSHKeys(ctx context.Context, d *schema.ResourceData, k *metaku
 			if e, ok := err.(*project.DetachSSHKeyFromClusterV2Default); ok && e.Code() == http.StatusNotFound {
 				continue
 			}
-			return diag.FromErr(err)
+			return diag.FromErr(fmt.Errorf("failed to unassign sshkey: %s", stringifyResponseError(err)))
 		}
 	}
 

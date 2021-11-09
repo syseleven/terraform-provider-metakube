@@ -3,8 +3,11 @@ package metakube
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"regexp"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
@@ -12,9 +15,38 @@ import (
 	"github.com/syseleven/go-metakube/models"
 )
 
+func testSweepSSHKeys(region string) error {
+	meta, err := sharedConfigForRegion(region)
+	if err != nil {
+		return err
+	}
+
+	projectID := os.Getenv(testEnvProjectID)
+	params := project.NewListSSHKeysParams().WithProjectID(projectID)
+	records, err := meta.client.Project.ListSSHKeys(params, meta.auth)
+	if err != nil {
+		return fmt.Errorf("list sshkeys: %v", err)
+	}
+
+	for _, rec := range records.Payload {
+		if !strings.HasPrefix(rec.Name, testNamePrefix) || !time.Time(rec.DeletionTimestamp).IsZero() {
+			continue
+		}
+
+		p := project.NewDeleteSSHKeyParams().
+			WithProjectID(projectID)
+		if _, err := meta.client.Project.DeleteSSHKey(p, meta.auth); err != nil {
+			return fmt.Errorf("delete sshkey: %v", err)
+		}
+	}
+
+	return nil
+}
+
 func TestAccMetakubeSSHKey_Basic(t *testing.T) {
 	var sshkey models.SSHKey
-	testName := makeRandomString()
+	testName := makeRandomName()
+	projectID := os.Getenv(testEnvProjectID)
 	resourceName := "metakube_sshkey.acctest_sshkey"
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
@@ -22,9 +54,9 @@ func TestAccMetakubeSSHKey_Basic(t *testing.T) {
 		CheckDestroy: testAccCheckMetaKubeSSHKeyDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: fmt.Sprintf(testAccCheckMetaKubeSSHKeyConfigBasic, testName, testName),
+				Config: fmt.Sprintf(testAccCheckMetaKubeSSHKeyConfigBasic, projectID, testName),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					testAccCheckMetaKubeSSHKeyExists(resourceName, "metakube_project.acctest_project", &sshkey),
+					testAccCheckMetaKubeSSHKeyExists(resourceName, &sshkey),
 					testAccCheckMetaKubeSSHKeyAttributes(&sshkey, testName),
 					resource.TestCheckResourceAttr(resourceName, "name", testName),
 					resource.TestCheckResourceAttr(resourceName, "public_key", testSSHPubKey),
@@ -50,13 +82,8 @@ func TestAccMetakubeSSHKey_Basic(t *testing.T) {
 const (
 	testSSHPubKey                         = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCzoO6BIidD4Us9a9Kh0GzaUUxosl61GNUZzqcIdmf4EYZDdRtLa+nu88dHPHPQ2dj52BeVV9XVN9EufqdAZCaKpPLj5XxEwMpGcmdrOAl38kk2KKbiswjXkrdhYSBw3w0KkoCPKG/+yNpAUI9z+RJZ9lukeYBvxdDe8nuvUWX7mGRaPaumCpQaBHwYKNn6jMVns2RrumgE9w+Z6jlaKHk1V7T5rCBDcjXwcy6waOX6hKdPPBk84FpUfcfN/SdpwSVGFrcykazrpmzD2nYr71EcOm9T6/yuhBOiIa3H/TOji4G9wr02qtSWuGUpULkqWMFD+BQcYQQA71GSAa+rTZuf user@machine.local"
 	testAccCheckMetaKubeSSHKeyConfigBasic = `
-resource "metakube_project" "acctest_project" {
-	name = "%s"
-	labels = {}
-}
-
 resource "metakube_sshkey" "acctest_sshkey" {
-	project_id = metakube_project.acctest_project.id
+	project_id = "%s"
 
 	name = "%s"
 	public_key = "` + testSSHPubKey + `"
@@ -104,7 +131,7 @@ func testAccCheckMetaKubeSSHKeyDestroy(s *terraform.State) error {
 	return nil
 }
 
-func testAccCheckMetaKubeSSHKeyExists(sshkeyN, projectN string, rec *models.SSHKey) resource.TestCheckFunc {
+func testAccCheckMetaKubeSSHKeyExists(sshkeyN string, rec *models.SSHKey) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		rs, ok := s.RootModule().Resources[sshkeyN]
 
@@ -116,19 +143,9 @@ func testAccCheckMetaKubeSSHKeyExists(sshkeyN, projectN string, rec *models.SSHK
 			return fmt.Errorf("No Record ID is set")
 		}
 
-		rsPrj, ok := s.RootModule().Resources[projectN]
-
-		if !ok {
-			return fmt.Errorf("Not found: %s", sshkeyN)
-		}
-
-		if rsPrj.Primary.ID == "" {
-			return fmt.Errorf("No Record ID is set")
-		}
-
 		k := testAccProvider.Meta().(*metakubeProviderMeta)
 		p := project.NewListSSHKeysParams()
-		p.SetProjectID(rsPrj.Primary.ID)
+		p.SetProjectID(rs.Primary.Attributes["project_id"])
 
 		ret, err := k.client.Project.ListSSHKeys(p, k.auth)
 		if err != nil {

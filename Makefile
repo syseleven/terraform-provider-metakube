@@ -2,7 +2,7 @@ DOMAIN=syseleven.de
 NAMESPACE=syseleven
 PKG_NAME=metakube
 BINARY=terraform-provider-${PKG_NAME}
-VERSION=0.6.7
+VERSION=1.0.0
 PLATFORM?=darwin_arm64
 SWEEP_DIR?=./metakube
 SWEEP?=all
@@ -32,6 +32,7 @@ test: fmtcheck
 testacc:
 # Require following environment variables to be set:
 # METAKUBE_TOKEN - access token
+# METAKUBE_PROJECT_ID - id of the project
 # METAKUBE_HOST - example https://metakube.syseleven.de
 # METAKUBE_ANOTHER_USER_EMAIL - email of an existing user to test cluster access sharing
 # METAKUBE_K8S_VERSION - the kubernetes version
@@ -62,7 +63,7 @@ testacc:
 # METAKUBE_AWS_SUBNET_ID
 # METAKUBE_AWS_AVAILABILITY_ZONE
 # METAKUBE_AWS_DISK_SIZE
-	TF_ACC=1 go test ./$(PKG_NAME) -v $(TESTARGS) -timeout 120m
+	TF_ACC=1 go test ./$(PKG_NAME) -v -timeout 120m $(TESTARGS)
 
 sweep:
 	@echo "WARNING: This will destroy infrastructure. Use only in development accounts."

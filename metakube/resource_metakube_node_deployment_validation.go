@@ -38,8 +38,6 @@ func validateNodeSpecMatchesCluster() schema.CustomizeDiffFunc {
 
 func getClusterCloudProvider(c *models.Cluster) (string, error) {
 	switch {
-	case c.Spec.Cloud.Bringyourown != nil:
-		return "bringyourown", nil
 	case c.Spec.Cloud.Aws != nil:
 		return "aws", nil
 	case c.Spec.Cloud.Openstack != nil:
@@ -53,7 +51,7 @@ func getClusterCloudProvider(c *models.Cluster) (string, error) {
 }
 
 func validateProviderMatchesCluster(d *schema.ResourceDiff, clusterProvider string) error {
-	var availableProviders = []string{"bringyourown", "aws", "openstack", "azure"}
+	var availableProviders = []string{"aws", "openstack", "azure"}
 	var provider string
 
 	for _, p := range availableProviders {

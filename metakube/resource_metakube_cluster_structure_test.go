@@ -25,7 +25,7 @@ func TestMetakubeClusterFlattenSpec(t *testing.T) {
 				AuditLogging:          &models.AuditLoggingSettings{},
 				Cloud: &models.CloudSpec{
 					DatacenterName: "eu-west-1",
-					Bringyourown:   map[string]interface{}{},
+					Openstack:      &models.OpenstackCloudSpec{},
 				},
 				ClusterNetwork: &models.ClusterNetworkingConfig{
 					DNSDomain: "foocluster.local",
@@ -55,7 +55,7 @@ func TestMetakubeClusterFlattenSpec(t *testing.T) {
 					"enable_ssh_agent":    true,
 					"cloud": []interface{}{
 						map[string]interface{}{
-							"bringyourown": []interface{}{map[string]interface{}{}},
+							"openstack": []interface{}{map[string]interface{}{}},
 						},
 					},
 				},
@@ -100,18 +100,6 @@ func TestFlattenClusterCloudSpec(t *testing.T) {
 			[]interface{}{
 				map[string]interface{}{
 					"aws": []interface{}{},
-				},
-			},
-		},
-		{
-			&models.CloudSpec{
-				Bringyourown: map[string]interface{}{},
-			},
-			[]interface{}{
-				map[string]interface{}{
-					"bringyourown": []interface{}{
-						map[string]interface{}{},
-					},
 				},
 			},
 		},
@@ -391,7 +379,7 @@ func TestExpandClusterSpec(t *testing.T) {
 					"domain_name":         "foocluster.local",
 					"cloud": []interface{}{
 						map[string]interface{}{
-							"bringyourown": []interface{}{
+							"openstack": []interface{}{
 								map[string]interface{}{},
 							},
 						},
@@ -419,7 +407,9 @@ func TestExpandClusterSpec(t *testing.T) {
 				},
 				Cloud: &models.CloudSpec{
 					DatacenterName: "eu-west-1",
-					Bringyourown:   map[string]interface{}{},
+					Openstack: &models.OpenstackCloudSpec{
+						Domain: "Default",
+					},
 				},
 			},
 			"eu-west-1",
@@ -455,20 +445,6 @@ func TestExpandClusterCloudSpec(t *testing.T) {
 		{
 			[]interface{}{
 				map[string]interface{}{
-					"bringyourown": []interface{}{
-						map[string]interface{}{},
-					},
-				},
-			},
-			&models.CloudSpec{
-				DatacenterName: "eu-west-1",
-				Bringyourown:   map[string]interface{}{},
-			},
-			"eu-west-1",
-		},
-		{
-			[]interface{}{
-				map[string]interface{}{
 					"aws": []interface{}{
 						map[string]interface{}{},
 					},
@@ -498,31 +474,6 @@ func TestExpandClusterCloudSpec(t *testing.T) {
 
 	for _, tc := range cases {
 		output := expandClusterCloudSpec(tc.Input, tc.DCName)
-		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
-			t.Fatalf("Unexpected output from expander: mismatch (-want +got):\n%s", diff)
-		}
-	}
-}
-
-func TestExpandBringYourOwnCloud(t *testing.T) {
-	cases := []struct {
-		Input          []interface{}
-		ExpectedOutput models.BringYourOwnCloudSpec
-	}{
-		{
-			[]interface{}{
-				map[string]interface{}{},
-			},
-			map[string]interface{}{},
-		},
-		{
-			[]interface{}{},
-			nil,
-		},
-	}
-
-	for _, tc := range cases {
-		output := expandBringYourOwnCloudSpec(tc.Input)
 		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
 			t.Fatalf("Unexpected output from expander: mismatch (-want +got):\n%s", diff)
 		}

@@ -78,12 +78,9 @@ func Provider() *schema.Provider {
 		},
 
 		ResourcesMap: map[string]*schema.Resource{
-			"metakube_project":               metakubeResourceProject(),
-			"metakube_cluster":               metakubeResourceCluster(),
-			"metakube_node_deployment":       metakubeResourceNodeDeployment(),
-			"metakube_sshkey":                metakubeResourceSSHKey(),
-			"metakube_service_account":       metakubeResourceServiceAccount(),
-			"metakube_service_account_token": metakubeResourceServiceAccountToken(),
+			"metakube_cluster":         metakubeResourceCluster(),
+			"metakube_node_deployment": metakubeResourceNodeDeployment(),
+			"metakube_sshkey":          metakubeResourceSSHKey(),
 		},
 
 		DataSourcesMap: map[string]*schema.Resource{

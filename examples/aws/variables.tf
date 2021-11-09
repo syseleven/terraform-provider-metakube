@@ -1,5 +1,5 @@
-variable "project_name" {
-  description = "Name of the MetaKube project"
+variable "project_id" {
+  description = "ID of the MetaKube project"
   type        = string
 }
 

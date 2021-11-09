@@ -117,20 +117,13 @@ data "openstack_images_image_v2" "image" {
   }
 }
 
-resource "metakube_project" "project" {
-  name = var.project_name
-  labels = {
-    "foo" = "bar"
-  }
-}
-
 # Read local sshkey's public part and publish it to MetaKube.
 data "local_file" "public_sshkey" {
   filename = pathexpand(var.public_sshkey_file)
 }
 
 resource "metakube_sshkey" "local" {
-  project_id = metakube_project.project.id
+  project_id = var.project_id
 
   name       = "local SSH key"
   public_key = data.local_file.public_sshkey.content
@@ -144,7 +137,7 @@ data "metakube_k8s_version" "cluster" {
 resource "metakube_cluster" "cluster" {
   name       = var.cluster_name
   dc_name    = var.dc_name
-  project_id = metakube_project.project.id
+  project_id = var.project_id
 
   sshkeys = [metakube_sshkey.local.id]
 

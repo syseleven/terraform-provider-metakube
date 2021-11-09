@@ -4,6 +4,7 @@ This is fork of https://github.com/kubermatic/terraform-provider-kubermatic whic
 
 - Documentation: https://registry.terraform.io/providers/syseleven/metakube/latest/docs
 <!-- TODO - Mailing list: [Google Groups](https://groups.google.com/forum/#!forum/syseleven-dev) -->
+- Check the [examples](./examples) for quick start.
 
 ## Overview
 
@@ -14,12 +15,6 @@ This is fork of https://github.com/kubermatic/terraform-provider-kubermatic whic
 ## Troubleshooting
 
 If you encounter issues [file an issue][1]
-
-## Contributing
-
-Thanks for taking the time to join our community and start contributing!
-
-Feedback and discussion are available on [the mailing list][11].
 
 ### Before you start
 

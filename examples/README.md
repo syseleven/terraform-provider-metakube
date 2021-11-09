@@ -15,3 +15,8 @@ $ cd terraform-provider-metakube/examples/aws
 $ terraform apply
 ...
 ```
+
+By cloud provider:
+- [AWS](./aws)
+- [Azure](./azure)
+- [Openstack](./openstack)
