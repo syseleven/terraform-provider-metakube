@@ -127,12 +127,23 @@ func metakubeResourceClusterCreate(ctx context.Context, d *schema.ResourceData, 
 	spec := d.Get("spec").([]interface{})
 	dcname := d.Get("dc_name").(string)
 	clusterSpec := metakubeResourceClusterExpandSpec(spec, dcname)
+	clusterLabels := metakubeResourceClusterLabels(d)
+	resourceProject, err := getProject(meta, d.Get("project_id").(string))
+	if err != nil {
+		return diag.FromErr(err)
+	}
+	if key := mapFirstContains(clusterLabels, resourceProject.Labels); key != "" {
+		return diag.Diagnostics{{
+			Summary:       fmt.Sprintf("The label '%s' used by project and cannot be used here", key),
+			AttributePath: cty.GetAttrPath("labels"),
+		}}
+	}
 	createClusterSpec := &models.CreateClusterSpec{
 		Cluster: &models.Cluster{
 			Name:   d.Get("name").(string),
 			Spec:   clusterSpec,
 			Type:   "kubernetes",
-			Labels: metakubeResourceClusterLabels(d),
+			Labels: mapExclude(clusterLabels, resourceProject.Labels),
 		},
 	}
 	if n := clusterSpec.ClusterNetwork; n != nil {
@@ -305,12 +316,18 @@ func metakubeResourceClusterRead(ctx context.Context, d *schema.ResourceData, m 
 	_ = d.Set("dc_name", r.Payload.Spec.Cloud.DatacenterName)
 	_ = d.Set("name", r.Payload.Name)
 	if len(r.Payload.Labels) > 0 {
-		if err := d.Set("labels", r.Payload.Labels); err != nil {
-			return diag.Diagnostics{{
-				Severity:      diag.Error,
-				Summary:       "Invalid value",
-				AttributePath: cty.Path{cty.GetAttrStep{Name: "labels"}},
-			}}
+		resourceProject, err := getProject(k, projectID)
+		if err != nil {
+			return diag.FromErr(err)
+		}
+		if labels := mapExclude(r.Payload.Labels, resourceProject.Labels); len(labels) > 0 {
+			if err := d.Set("labels", labels); err != nil {
+				return diag.Diagnostics{{
+					Severity:      diag.Error,
+					Summary:       "Invalid value",
+					AttributePath: cty.Path{cty.GetAttrStep{Name: "labels"}},
+				}}
+			}
 		}
 	}
 
@@ -726,4 +743,31 @@ func metakubeResourceClusterDelete(ctx context.Context, d *schema.ResourceData, 
 		return diag.FromErr(err)
 	}
 	return nil
+}
+
+func getProject(meta *metakubeProviderMeta, id string) (*models.Project, error) {
+	ret, err := meta.client.Project.GetProject(project.NewGetProjectParams().WithProjectID(id), meta.auth)
+	if err != nil {
+		return nil, err
+	}
+	return ret.Payload, nil
+}
+
+func mapFirstContains(a, b map[string]string) string {
+	for k := range a {
+		if _, ok := b[k]; ok {
+			return k
+		}
+	}
+	return ""
+}
+
+func mapExclude(from, exclude map[string]string) map[string]string {
+	result := make(map[string]string)
+	for k, v := range from {
+		if _, ok := exclude[k]; !ok {
+			result[k] = v
+		}
+	}
+	return result
 }

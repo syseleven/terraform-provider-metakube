@@ -25,6 +25,9 @@ resource "metakube_node_deployment" "example_node" {
           dist_upgrade_on_boot = true
         }
       }
+	  versions {
+	    kubelet = "1.21.3"
+	  }
     }
   }
 }
@@ -73,7 +76,6 @@ One of the following must be selected.
 
 #### Arguments
 
-* `bringyourown` - (Optional) User defined specification.
 * `openstack` - (Optional) Openstack node deployment specification.
 * `aws` - (Optional) AWS node deployment specification.
 * `azure` - (Optional) Azure node deployment specification.

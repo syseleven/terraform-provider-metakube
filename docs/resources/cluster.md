@@ -69,7 +69,6 @@ One of the following must be selected.
 
 #### Arguments
 
-* `bringyourown` - (Optional) User defined infrastructure.
 * `openstack` - (Optional) Opestack infrastructure.
 * `aws` - (Optional) Amazon Web Services infrastructure.
 * `azure` - (Optional) Azure infrastructure.
@@ -96,7 +95,7 @@ When using application credentials
 
 * `access_key_id` - (Required) Access key id, can be passed as AWS_ACCESS_KEY_ID env.
 * `secret_access_key` - (Required) Secret access key, can be passed as AWS_SECRET_ACCESS_KEY env.
-* `vpc_id` - (Optional) Virtual private cloud identifier.
+* `vpc_id` - (Required) Virtual private cloud identifier.
 * `security_group_id` - (Optional) Security group identifier.
 * `route_table_id` - (Optional) Route table identifier.
 * `instance_profile_name` - (Optional) Instance profile name.

@@ -12,9 +12,33 @@ provider "metakube" {
   host = "https://metakube-api-address"
 }
 
-# Example project configuration
-resource "metakube_project" "project" {
-  name = "terraform-project"
+provider "metakube" {
+  host     = "https://metakube.syseleven.de"
+}
+
+data "metakube_k8s_version" "cluster" {
+  major = "1"
+  minor = "21"
+}
+
+resource "metakube_cluster" "cluster" {
+  name       = "cluster-via-terraform"
+  dc_name    = "syseleven-cbk1"
+  project_id = "YOUR_PROJECT_ID"
+  labels = { 
+    "foo" = "bar"
+  }
+
+  spec {
+    enable_ssh_agent = true
+    version          = data.metakube_k8s_version.cluster.version
+    cloud {
+      openstack {
+        application_credentials_id     = "YOUR_CREDENTIAL_ID"
+        application_credentials_secret = "YOU_CREDENTIAL_SECRET"
+      }
+    }
+  }
 }
 ```
 
@@ -25,7 +49,7 @@ it is possible to change the token location by setting `token_path` argument.
 Another way of authentication is to pass `METAKUBE_TOKEN` env or set `token` param,
 the last option is not recommended due to possible secret leaking.
 
-At the moment global access tokens are not supported by MetaKube API. We **can't manage resources outside their project** using tokens. We suggest to use UI to create project and API Account/Token that is capable to manage resources **inside the project**.
+You have to have a Project and API Account with a token created via UI before using provider.
 
 ## Argument Reference
 
