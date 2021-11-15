@@ -709,11 +709,13 @@ func metakubeResourceClusterDelete(ctx context.Context, d *schema.ResourceData, 
 			if e, ok := err.(*project.GetClusterV2Default); ok && e.Code() == http.StatusNotFound {
 				k.log.Debugf("cluster '%s' has been destroyed, returned http code: %d", d.Id(), e.Code())
 				return nil
+			} else if e.Code() == http.StatusInternalServerError {
+				return resource.RetryableError(err)
 			}
 			if _, ok := err.(*project.GetClusterV2Forbidden); ok {
-				return nil
+				return resource.RetryableError(err)
 			}
-			return resource.NonRetryableError(fmt.Errorf("unable to get cluster '%s': %s", d.Id(), stringifyResponseError(err)))
+			return resource.NonRetryableError(fmt.Errorf("unable to get cluster '%s': %v", d.Id(), err))
 		}
 
 		k.log.Debugf("cluster '%s' deletion in progress, deletionTimestamp: %s",
