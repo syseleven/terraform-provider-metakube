@@ -37,11 +37,6 @@ variable "cluster_domain" {
   default     = "cluster.local"
 }
 
-variable "k8s_minor_version" {
-  description = "The minor part of Kubernetes version, eg 21 for v1.21.2"
-  type        = string
-}
-
 variable "dc_name" {
   description = "Datacenter where the cluster should be deployed to. Get a list of possible option with `curl -s -H \"authorization: Bearer $METAKUBE_TOKEN\" https://metakube.syseleven.de/api/v1/dc | jq -r '.[] | select(.seed!=true) | .metadata.name'`"
   type        = string
@@ -82,12 +77,6 @@ variable "node_image" {
   description = "Name of the image which should be used for worker nodes"
   type        = string
   default     = null
-}
-
-variable "node_replicas" {
-  description = "Amount of worker nodes in this node deployment"
-  type        = string
-  default     = 3
 }
 
 variable "node_max_replicas" {

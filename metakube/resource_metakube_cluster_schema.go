@@ -234,7 +234,7 @@ func metakubeResourceCluserAWSCloudSpecFields() map[string]*schema.Schema {
 		},
 		"vpc_id": {
 			Type:        schema.TypeString,
-			Optional:    true,
+			Required:    true,
 			Description: "Virtual private cloud identifier",
 		},
 		"security_group_id": {

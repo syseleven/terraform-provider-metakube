@@ -131,7 +131,7 @@ resource "metakube_sshkey" "local" {
 
 data "metakube_k8s_version" "cluster" {
   major = "1"
-  minor = var.k8s_minor_version
+  minor = "21"
 }
 
 resource "metakube_cluster" "cluster" {
@@ -141,9 +141,6 @@ resource "metakube_cluster" "cluster" {
 
   sshkeys = [metakube_sshkey.local.id]
 
-
-  type = "kubernetes"
-  # should not introduce any change hence type should be computed to this value anyway
 
   # add labels
   labels = {
@@ -187,7 +184,6 @@ resource "metakube_node_deployment" "acctest_nd" {
   name       = null # auto generate
 
   spec {
-    replicas     = var.node_replicas
     min_replicas = var.node_min_replicas
     max_replicas = var.node_max_replicas
 

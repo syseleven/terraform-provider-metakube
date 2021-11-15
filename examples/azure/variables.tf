@@ -8,11 +8,6 @@ variable "cluster_name" {
   type        = string
 }
 
-variable "k8s_minor_version" {
-  description = "The minor part of Kubernetes version, eg 21 for v1.21.2"
-  type        = string
-}
-
 variable "azure_client_id" {
   description = "Azure Client ID"
   type        = string
@@ -30,5 +25,9 @@ variable "azure_tenant_id" {
 
 variable "azure_client_secret" {
   description = "Azure Client Secret"
+  type        = string
+}
+variable "openstack_billing_tenant" {
+  description = "Openstack project that metakube fees should be belled to"
   type        = string
 }

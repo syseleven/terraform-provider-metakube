@@ -12,11 +12,6 @@ variable "cluster_name" {
   type        = string
 }
 
-variable "k8s_minor_version" {
-  description = "The minor part of Kubernetes version, eg 21 for v1.21.2"
-  type        = string
-}
-
 variable "dc_name" {
   description = "Datacenter where the cluster should be deployed to. Get a list of possible option with `curl -s -H \"authorization: Bearer $METAKUBE_TOKEN\" https://metakube.syseleven.de/api/v1/dc | jq -r '.[] | select(.seed!=true) | .metadata.name'`"
   type        = string

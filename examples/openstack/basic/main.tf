@@ -49,7 +49,7 @@ resource "metakube_sshkey" "local" {
 
 data "metakube_k8s_version" "cluster" {
   major = "1"
-  minor = var.k8s_minor_version
+  minor = "21"
 }
 
 resource "metakube_cluster" "cluster" {
@@ -79,7 +79,6 @@ resource "local_file" "kubeconfig" {
 }
 
 resource "metakube_node_deployment" "node_deployment" {
-  name       = null // auto generate
   cluster_id = metakube_cluster.cluster.id
   spec {
     replicas = var.node_replicas

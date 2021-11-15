@@ -8,11 +8,6 @@ variable "cluster_name" {
   type        = string
 }
 
-variable "k8s_minor_version" {
-  description = "The minor part of Kubernetes version, eg 21 for v1.21.2"
-  type        = string
-}
-
 variable "aws_access_key_id" {
   description = "AWS Access Key ID"
   type        = string
@@ -23,7 +18,8 @@ variable "aws_secret_access_key" {
   type        = string
 }
 
-variable "aws_subnet_id" {
-  description = "AWS Subnet ID"
+variable "openstack_billing_tenant" {
+  description = "Openstack project that metakube fees should be belled to"
   type        = string
 }
+
