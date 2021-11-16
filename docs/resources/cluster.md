@@ -73,6 +73,15 @@ One of the following must be selected.
 * `aws` - (Optional) Amazon Web Services infrastructure.
 * `azure` - (Optional) Azure infrastructure.
 
+
+### `update_window`
+
+When set, start time and length must be configured.
+
+#### Arguments
+* `start` - (Required) Node reboot window start time. Example: `Thu 02:35`.
+* `length` - (Required) Node reboot window duration. Example: `1h30m`
+
 ### `openstack`
 
 #### Arguments
