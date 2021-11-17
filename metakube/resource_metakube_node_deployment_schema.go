@@ -12,7 +12,7 @@ import (
 )
 
 func metakubeResourceSystemLabelOrTag(key string) bool {
-	r := regexp.MustCompile(`(syseleven\.de|metakube|system|kubernetes\.io)[/\-]`)
+	r := regexp.MustCompile(`(metakube|system|kubernetes\.io)[/\-]`)
 	return r.MatchString(key)
 }
 
