@@ -2,7 +2,7 @@ package metakube
 
 import (
 	"fmt"
-	"regexp"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/go-cty/cty"
@@ -12,8 +12,12 @@ import (
 )
 
 func metakubeResourceSystemLabelOrTag(key string) bool {
-	r := regexp.MustCompile(`(metakube|system|kubernetes\.io)[/\-]`)
-	return r.MatchString(key)
+	for _, s := range []string{"labels.%", "metakube", "system/", "kubernetes.io"} {
+		if strings.Contains(key, s) {
+			return true
+		}
+	}
+	return false
 }
 
 func matakubeResourceNodeDeploymentSpecFields() map[string]*schema.Schema {
@@ -153,7 +157,6 @@ func matakubeResourceNodeDeploymentSpecFields() map[string]*schema.Schema {
 					"labels": {
 						Type:     schema.TypeMap,
 						Optional: true,
-						Computed: true,
 						Description: "Map of string keys and values that can be used to organize and categorize (scope and select) objects. " +
 							"It will be applied to Nodes allowing users run their apps on specific Node using labelSelector.",
 						Elem: &schema.Schema{

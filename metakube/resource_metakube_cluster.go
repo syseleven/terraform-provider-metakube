@@ -53,7 +53,7 @@ func metakubeResourceCluster() *schema.Resource {
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
-				DiffSuppressFunc: func(k, _, _ string, d *schema.ResourceData) bool {
+				DiffSuppressFunc: func(k, _, _ string, _ *schema.ResourceData) bool {
 					return metakubeResourceSystemLabelOrTag(k)
 				},
 				ValidateFunc: func(v interface{}, k string) (strings []string, errors []error) {
