@@ -98,6 +98,14 @@ func metakubeResourceCluster() *schema.Resource {
 				Type:     schema.TypeString,
 				Computed: true,
 			},
+			"oidc_kube_config": {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
+			"kube_login_kube_config": {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
 		},
 		CustomizeDiff: customdiff.All(customdiff.ForceNewIfChange(
 			"spec.0.version",
@@ -195,8 +203,8 @@ func metakubeResourceClusterCreate(ctx context.Context, d *schema.ResourceData, 
 	}
 	d.SetId(r.Payload.ID)
 
-	if diags := assignSSHKeysToCluster(projectID, r.Payload.ID, sshkeys, meta); diags != nil {
-		return diags
+	if err := assignSSHKeysToCluster(projectID, r.Payload.ID, sshkeys, meta); err != nil {
+		return diag.FromErr(err)
 	}
 
 	if err := metakubeResourceClusterWaitForReady(ctx, meta, d, projectID, d.Id()); err != nil {
@@ -224,9 +232,9 @@ func metakubeResourceClusterSSHKeys(d *schema.ResourceData) []string {
 	return ret
 }
 
-func metakubeResourceClusterFindDatacenterByName(k *metakubeProviderMeta, d *schema.ResourceData) (*models.Datacenter, diag.Diagnostics) {
+func metakubeResourceClusterFindDatacenterByName(ctx context.Context, k *metakubeProviderMeta, d *schema.ResourceData) (*models.Datacenter, diag.Diagnostics) {
 	name := d.Get("dc_name").(string)
-	p := datacenter.NewListDatacentersParams()
+	p := datacenter.NewListDatacentersParams().WithContext(ctx)
 	r, err := k.client.Datacenter.ListDatacenters(p, k.auth)
 	if err != nil {
 		return nil, diag.Errorf("Can't list datacenters: %s", stringifyResponseError(err))
@@ -345,32 +353,97 @@ func metakubeResourceClusterRead(ctx context.Context, d *schema.ResourceData, m 
 
 	_ = d.Set("deletion_timestamp", r.Payload.DeletionTimestamp.String())
 
-	keys, diagnostics := metakubeClusterGetAssignedSSHKeys(ctx, d, k)
-	if diagnostics != nil {
-		return diagnostics
+	keys, err := metakubeClusterGetAssignedSSHKeys(ctx, d, k)
+	if err != nil {
+		return diag.FromErr(err)
 	}
 	if len(keys) > 0 {
 		d.Set("sshkeys", keys)
 	}
 
-	kubeConfigParams := project.NewGetClusterKubeconfigV2Params()
-	kubeConfigParams.SetContext(ctx)
-	kubeConfigParams.SetProjectID(projectID)
-	kubeConfigParams.SetClusterID(d.Id())
-	ret, err := k.client.Project.GetClusterKubeconfigV2(kubeConfigParams, k.auth)
-	if err != nil {
+	if conf, err := metakubeClusterUpdateKubeconfig(ctx, k, projectID, d.Id()); err != nil {
 		return diag.Diagnostics{{
 			Severity:      diag.Warning,
-			Summary:       fmt.Sprintf("Failed to get kube_config: %v", stringifyResponseError(err)),
+			Summary:       err.Error(),
 			AttributePath: cty.GetAttrPath("kube_config"),
 		}}
+	} else {
+		err = d.Set("kube_config", conf)
+		if err != nil {
+			k.log.Error(err)
+		}
 	}
-	err = d.Set("kube_config", string(ret.Payload))
-	if err != nil {
-		k.log.Error(err)
+
+	dc, errd := metakubeResourceClusterFindDatacenterByName(ctx, k, d)
+	if errd != nil {
+		return errd
+	}
+
+	if conf, err := metakubeClusterUpdateOIDCKubeconfig(ctx, k, projectID, dc.Spec.Seed, d.Id()); err != nil {
+		return diag.Diagnostics{{
+			Severity:      diag.Warning,
+			Summary:       err.Error(),
+			AttributePath: cty.GetAttrPath("oidc_kube_config"),
+		}}
+	} else {
+		err = d.Set("oidc_kube_config", conf)
+		if err != nil {
+			k.log.Error(err)
+		}
+	}
+
+	if conf, err := metakubeClusterUpdateKubeloginKubeconfig(ctx, k, projectID, dc.Spec.Seed, d.Id()); err != nil {
+		return diag.Diagnostics{{
+			Severity:      diag.Warning,
+			Summary:       err.Error(),
+			AttributePath: cty.GetAttrPath("kube_login_kube_config"),
+		}}
+	} else {
+		err = d.Set("kube_login_kube_config", conf)
+		if err != nil {
+			k.log.Error(err)
+		}
 	}
 
 	return nil
+}
+
+func metakubeClusterUpdateKubeconfig(ctx context.Context, k *metakubeProviderMeta, projectID, clusterID string) (string, error) {
+	kubeConfigParams := project.NewGetClusterKubeconfigV2Params()
+	kubeConfigParams.SetContext(ctx)
+	kubeConfigParams.SetProjectID(projectID)
+	kubeConfigParams.SetClusterID(clusterID)
+	ret, err := k.client.Project.GetClusterKubeconfigV2(kubeConfigParams, k.auth)
+	if err != nil {
+		return "", fmt.Errorf("failed to get kube_config: %s", stringifyResponseError(err))
+	}
+	return string(ret.Payload), nil
+}
+
+func metakubeClusterUpdateOIDCKubeconfig(ctx context.Context, k *metakubeProviderMeta, projectID, seedName, clusterID string) (string, error) {
+	kubeConfigParams := project.NewGetOidcClusterKubeconfigParams()
+	kubeConfigParams.SetContext(ctx)
+	kubeConfigParams.SetProjectID(projectID)
+	kubeConfigParams.SetDC(seedName)
+	kubeConfigParams.SetClusterID(clusterID)
+	ret, err := k.client.Project.GetOidcClusterKubeconfig(kubeConfigParams, k.auth)
+	if err != nil {
+		return "", fmt.Errorf("failed to get oidc_kube_config: %s", stringifyResponseError(err))
+	}
+	return string(ret.Payload), nil
+}
+
+func metakubeClusterUpdateKubeloginKubeconfig(ctx context.Context, k *metakubeProviderMeta, projectID, seedName, clusterID string) (string, error) {
+	kubeConfigParams := project.NewGetKubeLoginClusterKubeconfigParams()
+	kubeConfigParams.SetContext(ctx)
+	kubeConfigParams.SetProjectID(projectID)
+	kubeConfigParams.SetDC(seedName)
+	kubeConfigParams.SetClusterID(clusterID)
+	ret, err := k.client.Project.GetKubeLoginClusterKubeconfig(kubeConfigParams, k.auth)
+	if err != nil {
+		return "", fmt.Errorf("failed to get kube_login_kube_config: %s", stringifyResponseError(err))
+	}
+	return string(ret.Payload), nil
 }
 
 func metakubeResourceClusterFindProjectID(ctx context.Context, id string, meta *metakubeProviderMeta) (string, error) {
@@ -422,16 +495,12 @@ func metakubeResourceClusterResponseNotFound(err error) bool {
 	return e.Code() == http.StatusNotFound
 }
 
-func metakubeClusterGetAssignedSSHKeys(ctx context.Context, d *schema.ResourceData, k *metakubeProviderMeta) ([]string, diag.Diagnostics) {
+func metakubeClusterGetAssignedSSHKeys(ctx context.Context, d *schema.ResourceData, k *metakubeProviderMeta) ([]string, error) {
 	projectID := d.Get("project_id").(string)
-	p := project.NewListSSHKeysAssignedToClusterV2Params().WithProjectID(projectID).WithClusterID(d.Id())
+	p := project.NewListSSHKeysAssignedToClusterV2Params().WithProjectID(projectID).WithClusterID(d.Id()).WithContext(ctx)
 	ret, err := k.client.Project.ListSSHKeysAssignedToClusterV2(p, k.auth)
 	if err != nil {
-		return nil, diag.Diagnostics{{
-			Severity:      diag.Error,
-			Summary:       fmt.Sprintf("List project keys error %v", stringifyResponseError(err)),
-			AttributePath: cty.Path{cty.GetAttrStep{Name: "sshkeys"}},
-		}}
+		return nil, fmt.Errorf("List project keys error %v", stringifyResponseError(err))
 	}
 
 	var ids []string
@@ -519,7 +588,7 @@ func metakubeResourceClusterUpdate(ctx context.Context, d *schema.ResourceData, 
 
 	retDiags := metakubeResourceClusterValidateClusterFields(ctx, d, k)
 
-	_, diagnostics := metakubeResourceClusterFindDatacenterByName(k, d)
+	_, diagnostics := metakubeResourceClusterFindDatacenterByName(ctx, k, d)
 	// TODO: delete composed diagnostics, seems to be useless at the moment.
 	retDiags = append(retDiags, diagnostics...)
 	if len(retDiags) > 0 {
@@ -533,7 +602,7 @@ func metakubeResourceClusterUpdate(ctx context.Context, d *schema.ResourceData, 
 	}
 	if d.HasChange("sshkeys") {
 		if err := updateClusterSSHKeys(ctx, d, k); err != nil {
-			return err
+			return diag.FromErr(err)
 		}
 	}
 
@@ -597,13 +666,13 @@ func metakubeResourceClusterGetLabelsChange(d *schema.ResourceData) map[string]i
 	return newLabelsMap
 }
 
-func updateClusterSSHKeys(ctx context.Context, d *schema.ResourceData, k *metakubeProviderMeta) diag.Diagnostics {
+func updateClusterSSHKeys(ctx context.Context, d *schema.ResourceData, k *metakubeProviderMeta) error {
 	projectID := d.Get("project_id").(string)
 	var unassigned, assign []string
 	cur := d.Get("sshkeys")
-	prev, diagnostics := metakubeClusterGetAssignedSSHKeys(ctx, d, k)
-	if diagnostics != nil {
-		return diagnostics
+	prev, err := metakubeClusterGetAssignedSSHKeys(ctx, d, k)
+	if err != nil {
+		return err
 	}
 	for _, id := range prev {
 		if !cur.(*schema.Set).Contains(id) {
@@ -631,7 +700,7 @@ func updateClusterSSHKeys(ctx context.Context, d *schema.ResourceData, k *metaku
 			if e, ok := err.(*project.DetachSSHKeyFromClusterV2Default); ok && e.Code() == http.StatusNotFound {
 				continue
 			}
-			return diag.FromErr(fmt.Errorf("failed to unassign sshkey: %s", stringifyResponseError(err)))
+			return fmt.Errorf("failed to unassign sshkey: %s", stringifyResponseError(err))
 		}
 	}
 
@@ -642,16 +711,12 @@ func updateClusterSSHKeys(ctx context.Context, d *schema.ResourceData, k *metaku
 	return nil
 }
 
-func assignSSHKeysToCluster(projectID, clusterID string, sshkeyIDs []string, k *metakubeProviderMeta) diag.Diagnostics {
+func assignSSHKeysToCluster(projectID, clusterID string, sshkeyIDs []string, k *metakubeProviderMeta) error {
 	for _, id := range sshkeyIDs {
 		p := project.NewAssignSSHKeyToClusterV2Params().WithProjectID(projectID).WithClusterID(clusterID).WithKeyID(id)
 		_, err := k.client.Project.AssignSSHKeyToClusterV2(p, k.auth)
 		if err != nil {
-			return diag.Diagnostics{{
-				Severity:      diag.Error,
-				Summary:       fmt.Sprintf("Can't assign sshkeys to cluster '%s': %v", clusterID, err),
-				AttributePath: cty.Path{cty.GetAttrStep{Name: "sshkeys"}},
-			}}
+			return fmt.Errorf("Can't assign sshkeys to cluster '%s': %v", clusterID, err)
 		}
 	}
 

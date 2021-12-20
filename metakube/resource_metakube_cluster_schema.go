@@ -92,6 +92,21 @@ func metakubeResourceClusterSpecFields() map[string]*schema.Schema {
 				},
 			},
 		},
+		"sys11auth": {
+			Type:        schema.TypeList,
+			Optional:    true,
+			MaxItems:    1,
+			Description: "Configuration of SysEleven Login over OpenID Connect to authenticate against this cluster",
+			Elem: &schema.Resource{
+				Schema: map[string]*schema.Schema{
+					"realm": {
+						Type:        schema.TypeString,
+						Required:    true,
+						Description: "Realm name",
+					},
+				},
+			},
+		},
 		"machine_networks": {
 			Type:        schema.TypeList,
 			Optional:    true,

@@ -27,6 +27,9 @@ func TestMetakubeClusterFlattenSpec(t *testing.T) {
 					DatacenterName: "eu-west-1",
 					Openstack:      &models.OpenstackCloudSpec{},
 				},
+				Sys11auth: &models.Sys11AuthSettings{
+					Realm: "testrealm",
+				},
 				ClusterNetwork: &models.ClusterNetworkingConfig{
 					DNSDomain: "foocluster.local",
 					Services: &models.NetworkRanges{
@@ -56,6 +59,11 @@ func TestMetakubeClusterFlattenSpec(t *testing.T) {
 					"cloud": []interface{}{
 						map[string]interface{}{
 							"openstack": []interface{}{map[string]interface{}{}},
+						},
+					},
+					"sys11auth": []interface{}{
+						map[string]interface{}{
+							"realm": "testrealm",
 						},
 					},
 				},
@@ -384,6 +392,11 @@ func TestExpandClusterSpec(t *testing.T) {
 							},
 						},
 					},
+					"sys11auth": []interface{}{
+						map[string]interface{}{
+							"realm": "testrealm",
+						},
+					},
 				},
 			},
 			&models.ClusterSpec{
@@ -410,6 +423,9 @@ func TestExpandClusterSpec(t *testing.T) {
 					Openstack: &models.OpenstackCloudSpec{
 						Domain: "Default",
 					},
+				},
+				Sys11auth: &models.Sys11AuthSettings{
+					Realm: "testrealm",
 				},
 			},
 			"eu-west-1",

@@ -52,7 +52,19 @@ func metakubeResourceClusterFlattenSpec(values clusterPreserveValues, in *models
 		att["cloud"] = flattenClusterCloudSpec(values, in.Cloud)
 	}
 
+	if in.Sys11auth != nil {
+		att["sys11auth"] = flattenClusterSys11Auth(in.Sys11auth)
+	}
+
 	return []interface{}{att}
+}
+
+func metakubeResourceClusterFlattenSys11AuthClusterRoleBindings(in []models.ClusterRoleBinding) []interface{} {
+	return nil
+}
+
+func metakubeResourceClusterFlattenSys11AuthRoleBindings(in []models.ClusterRoleBinding) []interface{} {
+	return nil
 }
 
 func flattenUpdateWindow(in *models.UpdateWindow) []interface{} {
@@ -111,6 +123,16 @@ func flattenClusterCloudSpec(values clusterPreserveValues, in *models.CloudSpec)
 	}
 
 	return []interface{}{att}
+}
+
+func flattenClusterSys11Auth(in *models.Sys11AuthSettings) []interface{} {
+	if in == nil || in.Realm == "" {
+		return nil
+	}
+
+	return []interface{}{map[string]interface{}{
+		"realm": in.Realm,
+	}}
 }
 
 func flattenAWSCloudSpec(in *models.AWSCloudSpec) []interface{} {
@@ -350,6 +372,12 @@ func metakubeResourceClusterExpandSpec(p []interface{}, dcName string) *models.C
 		}
 	}
 
+	if v, ok := in["sys11auth"]; ok {
+		if vv, ok := v.([]interface{}); ok {
+			obj.Sys11auth = expandClusterSys11Auth(vv)
+		}
+	}
+
 	return obj
 }
 
@@ -443,6 +471,20 @@ func expandClusterCloudSpec(p []interface{}, dcName string) *models.CloudSpec {
 	}
 
 	return obj
+}
+
+func expandClusterSys11Auth(p []interface{}) *models.Sys11AuthSettings {
+	if len(p) < 1 {
+		return nil
+	}
+	if p[0] == nil {
+		return nil
+	}
+	in := p[0].(map[string]interface{})
+	if v := in["realm"].(string); v != "" {
+		return &models.Sys11AuthSettings{Realm: v}
+	}
+	return nil
 }
 
 func expandAWSCloudSpec(p []interface{}) *models.AWSCloudSpec {

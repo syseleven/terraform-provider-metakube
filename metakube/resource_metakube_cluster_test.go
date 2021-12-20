@@ -106,6 +106,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttrSet(resourceName, "spec.0.cloud.0.openstack.0.network"),
 					resource.TestCheckResourceAttrSet(resourceName, "spec.0.cloud.0.openstack.0.subnet_id"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.0.subnet_cidr", "192.168.2.0/24"),
+					resource.TestCheckResourceAttrSet(resourceName, "kube_config"),
 					// Test spec.0.machine_networks value
 					testResourceInstanceState(resourceName, func(is *terraform.InstanceState) error {
 						n, err := strconv.Atoi(is.Attributes["spec.0.machine_networks.#"])
@@ -180,6 +181,11 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttrSet(resourceName, "spec.0.cloud.0.openstack.0.network"),
 					resource.TestCheckResourceAttrSet(resourceName, "spec.0.cloud.0.openstack.0.subnet_id"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.0.subnet_cidr", "192.168.2.0/24"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.sys11auth.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.sys11auth.0.realm", "syseleven"),
+					resource.TestCheckResourceAttrSet(resourceName, "kube_config"),
+					resource.TestCheckResourceAttrSet(resourceName, "oidc_kube_config"),
+					resource.TestCheckResourceAttrSet(resourceName, "kube_login_kube_config"),
 					// Test spec.0.machine_networks value
 					testResourceInstanceState(resourceName, func(is *terraform.InstanceState) error {
 						n, err := strconv.Atoi(is.Attributes["spec.0.machine_networks.#"])
@@ -504,6 +510,10 @@ resource "metakube_cluster" "acctest_cluster" {
 				subnet_id = openstack_networking_subnet_v2.subnet_tf_test.id
 				subnet_cidr = "192.168.2.0/24"
 			}
+		}
+
+		sys11auth {
+			realm = "syseleven"
 		}
 
 		# enable audit logging
