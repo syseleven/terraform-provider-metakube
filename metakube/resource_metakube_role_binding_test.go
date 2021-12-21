@@ -12,9 +12,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 )
 
-func TestAccMetakubeClusterRoleBinding(t *testing.T) {
-	resourceName := "metakube_cluster_role_binding.acctest"
-	params := &testAccCheckMetaKubeClusterRoleBindingBasicParams{
+func TestAccMetakubeRoleBinding(t *testing.T) {
+	resourceName := "metakube_role_binding.acctest"
+	params := &testAccCheckMetaKubeRoleBindingBasicParams{
 		ClusterName:                          randomName("testacc", 5),
 		DatacenterName:                       os.Getenv(testEnvOpenstackNodeDC),
 		ProjectID:                            os.Getenv(testEnvProjectID),
@@ -22,7 +22,8 @@ func TestAccMetakubeClusterRoleBinding(t *testing.T) {
 		OpenstackApplicationCredentialID:     os.Getenv(testEnvOpenstackApplicationCredentialsID),
 		OpenstackApplicationCredentialSecret: os.Getenv(testEnvOpenstackApplicationCredentialsSecret),
 
-		ClusterRoleName:  "view",
+		Namespace:        "kube-system",
+		RoleName:         "namespace-viewer",
 		UserSubjectName:  "foo.bar@mycompany.xyz",
 		GroupSubjectName: "support-team",
 	}
@@ -32,9 +33,10 @@ func TestAccMetakubeClusterRoleBinding(t *testing.T) {
 		CheckDestroy: testAccCheckMetaKubeSSHKeyDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCheckMetaKubeClusterRoleBindingBasicConfig(t, params),
+				Config: testAccCheckMetaKubeRoleBindingBasicConfig(t, params),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "cluster_role_name", params.ClusterRoleName),
+					resource.TestCheckResourceAttr(resourceName, "namespace", params.Namespace),
+					resource.TestCheckResourceAttr(resourceName, "role_name", params.RoleName),
 					resource.TestCheckResourceAttr(resourceName, "subject.#", "2"),
 					resource.TestCheckResourceAttr(resourceName, "subject.0.kind", "user"),
 					resource.TestCheckResourceAttr(resourceName, "subject.0.name", params.UserSubjectName),
@@ -48,7 +50,7 @@ func TestAccMetakubeClusterRoleBinding(t *testing.T) {
 				ImportStateVerify: true,
 				ImportStateIdFunc: func(s *terraform.State) (string, error) {
 					for _, rs := range s.RootModule().Resources {
-						if rs.Type == "metakube_cluster_role_binding" {
+						if rs.Type == "metakube_role_binding" {
 							return fmt.Sprintf("%s:%s:%s", rs.Primary.Attributes["project_id"], rs.Primary.Attributes["cluster_id"], rs.Primary.ID), nil
 						}
 					}
@@ -62,13 +64,13 @@ func TestAccMetakubeClusterRoleBinding(t *testing.T) {
 				ImportState:       true,
 				ImportStateVerify: false,
 				ImportStateId:     "123abc",
-				ExpectError:       regexp.MustCompile(`please provide resource identifier in format 'project_id:cluster_id:cluster_role_binding_name'`),
+				ExpectError:       regexp.MustCompile(`please provide resource identifier in format 'project_id:cluster_id:role_namespace:role_name'`),
 			},
 		},
 	})
 }
 
-type testAccCheckMetaKubeClusterRoleBindingBasicParams struct {
+type testAccCheckMetaKubeRoleBindingBasicParams struct {
 	ClusterName                          string
 	DatacenterName                       string
 	ProjectID                            string
@@ -76,12 +78,13 @@ type testAccCheckMetaKubeClusterRoleBindingBasicParams struct {
 	OpenstackApplicationCredentialID     string
 	OpenstackApplicationCredentialSecret string
 
-	ClusterRoleName  string
+	Namespace        string
+	RoleName         string
 	UserSubjectName  string
 	GroupSubjectName string
 }
 
-func testAccCheckMetaKubeClusterRoleBindingBasicConfig(t *testing.T, params *testAccCheckMetaKubeClusterRoleBindingBasicParams) string {
+func testAccCheckMetaKubeRoleBindingBasicConfig(t *testing.T, params *testAccCheckMetaKubeRoleBindingBasicParams) string {
 	t.Helper()
 
 	var result strings.Builder
@@ -102,10 +105,11 @@ resource "metakube_cluster" "acctest" {
 	}
 }
 
-resource "metakube_cluster_role_binding" "acctest" {
+resource "metakube_role_binding" "acctest" {
 	project_id = "{{ .ProjectID }}"
 	cluster_id = metakube_cluster.acctest.id
-	cluster_role_name = "{{ .ClusterRoleName }}"
+    namespace = "{{ .Namespace }}"
+	role_name = "{{ .RoleName }}"
 
     subject {
 		kind = "user"

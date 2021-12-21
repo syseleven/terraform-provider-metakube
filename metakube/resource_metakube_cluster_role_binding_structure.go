@@ -22,7 +22,7 @@ func metakubeClusterRoleBindingFlattenSubjects(in []*models.Subject) []interface
 	return result
 }
 
-func metakubeRoleBindingExpandSubjects(p interface{}) []models.ClusterRoleUser {
+func metakubeClusterRoleBindingExpandSubjects(p interface{}) []models.ClusterRoleUser {
 	if p == nil {
 		return nil
 	}

@@ -1,15 +1,16 @@
-# cluster_role_binding Resource
+# role_binding Resource
 
-Cluster role binding resource gives a quick and easy way to manage user and group cluster role bindings. This is useful for clusters using [SysEleven Login](https://docs.syseleven.de/metakube/en/tutorials/external-authentication).
+Role binding resource gives a quick and easy way to manage user and group namespaced role bindings. This is useful for clusters using [SysEleven Login](https://docs.syseleven.de/metakube/en/tutorials/external-authentication).
 
 ## Example Usage
 
 ```hcl
-resource "metakube_cluster_role_binding" "example" {
+resource "metakube_role_binding" "example" {
   project_id = "project id"
   cluster_id = "cluster id"
   
-  cluster_role_name = "kube-admin"
+  role_name = "kube-admin"
+  namespace = "kube-system"
   
   subject {
     kind = "user"
@@ -29,7 +30,8 @@ The following arguments are supported:
 
 * `project_id` - (Required) Reference project identifier.
 * `cluster_id` - (Required) Cluster ID.
-* `cluster_role_name` - (Required) The name of the cluster role to bind to.
+* `namespace` - (Required) The namespace to create binding for.
+* `role_name` - (Required) The name of the role in the namespace to bind to.
 * `subject` - (Required) List of users and groups to bind cluster role to. At least one subject must be specified.
 
 ## Nested Blocks

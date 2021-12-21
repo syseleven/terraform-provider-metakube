@@ -24,7 +24,7 @@ func metakubeResourceNodeDeployment() *schema.Resource {
 		UpdateContext: metakubeResourceNodeDeploymentUpdate,
 		DeleteContext: metakubeResourceNodeDeploymentDelete,
 		Importer: &schema.ResourceImporter{
-			StateContext: importResourceWithProjectAndClusterID(),
+			StateContext: importResourceWithProjectAndClusterID("node_deployment_name"),
 		},
 		CustomizeDiff: customdiff.All(
 			validateNodeSpecMatchesCluster(),
@@ -79,11 +79,11 @@ func metakubeResourceNodeDeployment() *schema.Resource {
 	}
 }
 
-func importResourceWithProjectAndClusterID() func(ctx context.Context, d *schema.ResourceData, m interface{}) ([]*schema.ResourceData, error) {
+func importResourceWithProjectAndClusterID(identifierName string) func(ctx context.Context, d *schema.ResourceData, m interface{}) ([]*schema.ResourceData, error) {
 	return func(ctx context.Context, d *schema.ResourceData, m interface{}) ([]*schema.ResourceData, error) {
 		parts := strings.Split(d.Id(), ":")
 		if len(parts) != 3 {
-			return nil, fmt.Errorf("please provide resource identifier in format 'project_id:cluster_id:name'")
+			return nil, fmt.Errorf("please provide resource identifier in format 'project_id:cluster_id:%s'", identifierName)
 		}
 		d.Set("project_id", parts[0])
 		d.Set("cluster_id", parts[1])

@@ -3,6 +3,7 @@ package metakube
 import (
 	"context"
 	"fmt"
+
 	"github.com/syseleven/go-metakube/client/project"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -16,7 +17,7 @@ func metakubeResourceClusterRoleBinding() *schema.Resource {
 		ReadContext:   metakubeResourceClusterRoleBindingRead,
 		DeleteContext: metakubeResourceClusterRoleBindingDelete,
 		Importer: &schema.ResourceImporter{
-			StateContext: importResourceWithProjectAndClusterID(),
+			StateContext: importResourceWithProjectAndClusterID("cluster_role_binding_name"),
 		},
 
 		Schema: map[string]*schema.Schema{
@@ -71,7 +72,7 @@ func metakubeResourceClusterRoleBinding() *schema.Resource {
 func metakubeResourceClusterRoleBindingCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	k := m.(*metakubeProviderMeta)
 
-	subjects := metakubeRoleBindingExpandSubjects(d.Get("subject"))
+	subjects := metakubeClusterRoleBindingExpandSubjects(d.Get("subject"))
 	for _, sub := range subjects {
 		params := project.NewBindUserToClusterRoleV2Params().
 			WithContext(ctx).
@@ -123,7 +124,7 @@ func metakubeResourceClusterRoleBindingRead(ctx context.Context, d *schema.Resou
 func metakubeResourceClusterRoleBindingDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	k := m.(*metakubeProviderMeta)
 
-	subjects := metakubeRoleBindingExpandSubjects(d.Get("subject"))
+	subjects := metakubeClusterRoleBindingExpandSubjects(d.Get("subject"))
 	for _, sub := range subjects {
 		params := project.NewUnbindUserFromClusterRoleBindingV2Params().
 			WithContext(ctx).
