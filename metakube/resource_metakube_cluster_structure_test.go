@@ -61,7 +61,7 @@ func TestMetakubeClusterFlattenSpec(t *testing.T) {
 							"openstack": []interface{}{map[string]interface{}{}},
 						},
 					},
-					"sys11auth": []interface{}{
+					"syseleven_auth": []interface{}{
 						map[string]interface{}{
 							"realm": "testrealm",
 						},
@@ -392,7 +392,7 @@ func TestExpandClusterSpec(t *testing.T) {
 							},
 						},
 					},
-					"sys11auth": []interface{}{
+					"syseleven_auth": []interface{}{
 						map[string]interface{}{
 							"realm": "testrealm",
 						},

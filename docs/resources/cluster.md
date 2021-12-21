@@ -41,7 +41,9 @@ The following arguments are supported:
 
 ## Attributes
 
-* `kube_config` - Kube config raw content which can be dumped to a file using [local_file](https://registry.terraform.io/providers/hashicorp/local/latest/docs/resources/file).
+* `kube_config` - Admin kube config raw content which can be dumped to a file using [local_file](https://registry.terraform.io/providers/hashicorp/local/latest/docs/resources/file). You might want to use `oidc_kube_config` or `kube_login_kube_config` together with `syseleven_auth` configured for better security.
+* `oidc_kube_config` - Plain Open ID Connect kube config raw content which can be dumped to a file using [local_file](https://registry.terraform.io/providers/hashicorp/local/latest/docs/resources/file). To use `syseleven_auth` should be configured too.
+* `kube_login_kube_config` - The `kubelogin` config content which can be dumped to a file using [local_file](https://registry.terraform.io/providers/hashicorp/local/latest/docs/resources/file). To use `syseleven_auth` should be configured too.
 * `creation_timestamp` - Timestamp of resource creation.
 * `deletion_timestamp` - Timestamp of resource deletion.
 
@@ -59,6 +61,7 @@ The following arguments are supported:
 * `audit_logging` - (Optional) Audit logging settings.
 * `pod_security_policy` - (Optional) Pod security policies allow detailed authorization of pod creation and updates.
 * `pod_node_selector` - (Optional) Configure PodNodeSelector admission plugin at the apiserver
+* `syseleven_auth` - (Optional) Useful for authenticating against [SysEleven Login](https://docs.syseleven.de/metakube/en/tutorials/external-authentication).
 * `services_cidr` - (Optional) Internal IP range for ClusterIP Services.
 * `pods_cidr` - (Optional) Internal IP range for Pods.
 * `domain_name` - (Optional) Cluster domain name.
@@ -125,3 +128,10 @@ When using application credentials
 * `subnet` - (Optional) Subnet.
 * `vnet` - (Optional) Vnet.
 * `openstack_billing_tenant` - (Required) Openstack Tenant/Project name for the account.
+
+### syseleven_auth
+
+Configure [SysEleven Login](https://docs.syseleven.de/metakube/en/tutorials/external-authentication) Realm to use.
+
+#### Arguments
+* `realm` - (Required) The name of the realm.

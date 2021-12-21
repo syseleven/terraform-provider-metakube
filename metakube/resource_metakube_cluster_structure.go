@@ -53,7 +53,7 @@ func metakubeResourceClusterFlattenSpec(values clusterPreserveValues, in *models
 	}
 
 	if in.Sys11auth != nil {
-		att["sys11auth"] = flattenClusterSys11Auth(in.Sys11auth)
+		att["syseleven_auth"] = flattenClusterSys11Auth(in.Sys11auth)
 	}
 
 	return []interface{}{att}
@@ -372,7 +372,7 @@ func metakubeResourceClusterExpandSpec(p []interface{}, dcName string) *models.C
 		}
 	}
 
-	if v, ok := in["sys11auth"]; ok {
+	if v, ok := in["syseleven_auth"]; ok {
 		if vv, ok := v.([]interface{}); ok {
 			obj.Sys11auth = expandClusterSys11Auth(vv)
 		}

@@ -92,7 +92,7 @@ func metakubeResourceClusterSpecFields() map[string]*schema.Schema {
 				},
 			},
 		},
-		"sys11auth": {
+		"syseleven_auth": {
 			Type:        schema.TypeList,
 			Optional:    true,
 			MaxItems:    1,
