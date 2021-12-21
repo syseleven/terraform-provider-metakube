@@ -24,16 +24,7 @@ func metakubeResourceNodeDeployment() *schema.Resource {
 		UpdateContext: metakubeResourceNodeDeploymentUpdate,
 		DeleteContext: metakubeResourceNodeDeploymentDelete,
 		Importer: &schema.ResourceImporter{
-			StateContext: func(ctx context.Context, d *schema.ResourceData, m interface{}) ([]*schema.ResourceData, error) {
-				parts := strings.Split(d.Id(), ":")
-				if len(parts) != 3 {
-					return nil, fmt.Errorf("Please provide node deployment identifier in format 'project_id:cluster_id:node_deployment_name'")
-				}
-				d.Set("project_id", parts[0])
-				d.Set("cluster_id", parts[1])
-				d.SetId(parts[2])
-				return []*schema.ResourceData{d}, nil
-			},
+			StateContext: importResourceWithProjectAndClusterID(),
 		},
 		CustomizeDiff: customdiff.All(
 			validateNodeSpecMatchesCluster(),
@@ -85,6 +76,19 @@ func metakubeResourceNodeDeployment() *schema.Resource {
 				Description: "Deletion timestamp",
 			},
 		},
+	}
+}
+
+func importResourceWithProjectAndClusterID() func(ctx context.Context, d *schema.ResourceData, m interface{}) ([]*schema.ResourceData, error) {
+	return func(ctx context.Context, d *schema.ResourceData, m interface{}) ([]*schema.ResourceData, error) {
+		parts := strings.Split(d.Id(), ":")
+		if len(parts) != 3 {
+			return nil, fmt.Errorf("please provide resource identifier in format 'project_id:cluster_id:name'")
+		}
+		d.Set("project_id", parts[0])
+		d.Set("cluster_id", parts[1])
+		d.SetId(parts[2])
+		return []*schema.ResourceData{d}, nil
 	}
 }
 

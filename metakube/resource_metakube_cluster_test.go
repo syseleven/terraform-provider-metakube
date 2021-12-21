@@ -358,7 +358,7 @@ type clusterOpenstackBasicData struct {
 	Version        string
 }
 
-var clusterOpenstackBasicTemplate = mustParse("clusterOpenstackBasic", `
+var clusterOpenstackBasicTemplate = mustParseTemplate("clusterOpenstackBasic", `
 terraform {
 	required_providers {
 		openstack = {
@@ -432,7 +432,7 @@ type clusterOpenstackApplicationCredentailsData struct {
 	OpenstackApplicationCredentialSecret string
 }
 
-var clusterOpenstackApplicationCredentialsBasicTemplate = mustParse("clusterOpenstackApplicationCredentials", `
+var clusterOpenstackApplicationCredentialsBasicTemplate = mustParseTemplate("clusterOpenstackApplicationCredentials", `
 terraform {
 	required_providers {
 		openstack = {
@@ -467,7 +467,7 @@ resource "metakube_cluster" "acctest_cluster" {
 }
 `)
 
-var clusterOpenstackBasicTemplate2 = mustParse("clusterOpenstackBasic2", `
+var clusterOpenstackBasicTemplate2 = mustParseTemplate("clusterOpenstackBasic2", `
 terraform {
 	required_providers {
 		openstack = {
@@ -638,7 +638,7 @@ type clusterOpenstackWithSSHKeyData struct {
 	OpenstackPassword string
 }
 
-var clusterOpenstackTemplateWithSSHKey1 = mustParse("clusterOpenstackWithSSHKey1", `
+var clusterOpenstackTemplateWithSSHKey1 = mustParseTemplate("clusterOpenstackWithSSHKey1", `
 resource "metakube_cluster" "acctest_cluster" {
 	name = "{{ .Name }}"
 	dc_name = "{{ .DatacenterName }}"
@@ -668,7 +668,7 @@ resource "metakube_sshkey" "acctest_sshkey1" {
 	public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCut5oRyqeqYci3E9m6Z6mtxfqkiyb+xNFJM6+/sllhnMDX0vzrNj8PuIFfGkgtowKY//QWLgoB+RpvXqcD4bb4zPkLdXdJPtUf1eAoMh/qgyThUjBs3n7BXvXMDg1Wdj0gq/sTnPLvXsfrSVPjiZvWN4h0JdID2NLnwYuKIiltIn+IbUa6OnyFfOEpqb5XJ7H7LK1mUKTlQ/9CFROxSQf3YQrR9UdtASIeyIZL53WgYgU31Yqy7MQaY1y0fGmHsFwpCK6qFZj1DNruKl/IR1lLx/Bg3z9sDcoBnHKnzSzVels9EVlDOG6bW738ho269QAIrWQYBtznsvWKu5xZPuuj user@machine"
 	}`)
 
-var clusterOpenstackTemplateWithSSHKey2 = mustParse("clusterOpenstackWithSSHKey2", `
+var clusterOpenstackTemplateWithSSHKey2 = mustParseTemplate("clusterOpenstackWithSSHKey2", `
 resource "metakube_cluster" "acctest_cluster" {
 	name = "{{ .Name }}"
 	dc_name = "{{ .DatacenterName }}"
@@ -801,7 +801,7 @@ type clusterAzureBasicData struct {
 	OpenstackTenant string
 }
 
-var testAccCheckMetaKubeClusterAzureBasic = mustParse("clusterAzureBasic", `
+var testAccCheckMetaKubeClusterAzureBasic = mustParseTemplate("clusterAzureBasic", `
 resource "metakube_cluster" "acctest_cluster" {
 	name = "{{ .Name }}"
 	dc_name = "{{ .DatacenterName }}"
@@ -883,7 +883,7 @@ type clusterAWSBasicData struct {
 	OpenstackTenant string
 }
 
-var testAccCheckMetaKubeClusterAWSBasic = mustParse("clusterAWSBasic", `
+var testAccCheckMetaKubeClusterAWSBasic = mustParseTemplate("clusterAWSBasic", `
 resource "metakube_cluster" "acctest_cluster" {
 	name = "{{ .Name }}"
 	dc_name = "{{ .DatacenterName }}"

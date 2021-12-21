@@ -66,7 +66,6 @@ func validateProviderMatchesCluster(d *schema.ResourceDiff, clusterProvider stri
 		return fmt.Errorf("provider for node deployment must (%s) match cluster provider (%s)", provider, clusterProvider)
 	}
 	return nil
-
 }
 
 func metakubeGetCluster(ctx context.Context, proj, cls string, k *metakubeProviderMeta) (*models.Cluster, error) {

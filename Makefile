@@ -2,7 +2,7 @@ DOMAIN=syseleven.de
 NAMESPACE=syseleven
 PKG_NAME=metakube
 BINARY=terraform-provider-${PKG_NAME}
-VERSION=1.1.0
+VERSION=1.2.0
 PLATFORM?=darwin_arm64
 SWEEP_DIR?=./metakube
 SWEEP?=all
@@ -13,7 +13,7 @@ export GO111MODULE=on
 
 default: install
 
-build: fmtcheck
+build: goimportscheck
 	go build -v -o ${BINARY}
 
 install: build
@@ -26,7 +26,7 @@ reset:
 	make install
 	terraform init
 
-test: fmtcheck
+test: goimportscheck
 	go test ./$(PKG_NAME)
 
 testacc:
@@ -77,11 +77,11 @@ vet:
 		exit 1; \
 	fi
 
-fmt:
-	@echo "==> Fixing source code with gofmt..."
-	gofmt -s -w $(PKG_NAME)
+goimports:
+	@echo "==> Fixing source code with goimports..."
+	goimports -w $(PKG_NAME)
 
-fmtcheck:
-	@sh -c "'$(CURDIR)/scripts/gofmtcheck.sh'"
+goimportscheck:
+	@sh -c "'$(CURDIR)/scripts/goimportscheck.sh'"
 
-.PHONY: build install test testacc sweep vet fmt fmtcheck
+.PHONY: build install test testacc sweep vet goimports goimportscheck

@@ -147,7 +147,7 @@ func testResourceInstanceState(name string, check func(*terraform.InstanceState)
 	}
 }
 
-func mustParse(name, text string) *template.Template {
+func mustParseTemplate(name, text string) *template.Template {
 	r, err := template.New(name).Parse(text)
 	if err != nil {
 		panic(err)
