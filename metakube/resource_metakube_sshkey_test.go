@@ -34,7 +34,8 @@ func testSweepSSHKeys(region string) error {
 		}
 
 		p := project.NewDeleteSSHKeyParams().
-			WithProjectID(projectID)
+			WithProjectID(projectID).
+			WithSSHKeyID(rec.ID)
 		if _, err := meta.client.Project.DeleteSSHKey(p, meta.auth); err != nil {
 			return fmt.Errorf("delete sshkey: %v", err)
 		}

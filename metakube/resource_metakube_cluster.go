@@ -374,34 +374,36 @@ func metakubeResourceClusterRead(ctx context.Context, d *schema.ResourceData, m 
 		}
 	}
 
-	dc, errd := metakubeResourceClusterFindDatacenterByName(ctx, k, d)
-	if errd != nil {
-		return errd
-	}
-
-	if conf, err := metakubeClusterUpdateOIDCKubeconfig(ctx, k, projectID, dc.Spec.Seed, d.Id()); err != nil {
-		return diag.Diagnostics{{
-			Severity:      diag.Warning,
-			Summary:       err.Error(),
-			AttributePath: cty.GetAttrPath("oidc_kube_config"),
-		}}
-	} else {
-		err = d.Set("oidc_kube_config", conf)
-		if err != nil {
-			k.log.Error(err)
+	if _, ok := d.GetOk("spec.0.syseleven_auth.0.realm"); ok {
+		dc, errd := metakubeResourceClusterFindDatacenterByName(ctx, k, d)
+		if errd != nil {
+			return errd
 		}
-	}
 
-	if conf, err := metakubeClusterUpdateKubeloginKubeconfig(ctx, k, projectID, dc.Spec.Seed, d.Id()); err != nil {
-		return diag.Diagnostics{{
-			Severity:      diag.Warning,
-			Summary:       err.Error(),
-			AttributePath: cty.GetAttrPath("kube_login_kube_config"),
-		}}
-	} else {
-		err = d.Set("kube_login_kube_config", conf)
-		if err != nil {
-			k.log.Error(err)
+		if conf, err := metakubeClusterUpdateOIDCKubeconfig(ctx, k, projectID, dc.Spec.Seed, d.Id()); err != nil {
+			return diag.Diagnostics{{
+				Severity:      diag.Warning,
+				Summary:       err.Error(),
+				AttributePath: cty.GetAttrPath("oidc_kube_config"),
+			}}
+		} else {
+			err = d.Set("oidc_kube_config", conf)
+			if err != nil {
+				k.log.Error(err)
+			}
+		}
+
+		if conf, err := metakubeClusterUpdateKubeloginKubeconfig(ctx, k, projectID, dc.Spec.Seed, d.Id()); err != nil {
+			return diag.Diagnostics{{
+				Severity:      diag.Warning,
+				Summary:       err.Error(),
+				AttributePath: cty.GetAttrPath("kube_login_kube_config"),
+			}}
+		} else {
+			err = d.Set("kube_login_kube_config", conf)
+			if err != nil {
+				k.log.Error(err)
+			}
 		}
 	}
 
@@ -471,7 +473,7 @@ func metakubeResourceClusterBelongsToProject(ctx context.Context, prj, id string
 	res, err := meta.client.Project.ListClustersV2(prms, meta.auth)
 	if err != nil {
 		meta.log.Debugf("lookup owner project: list clusters: %v", err)
-		return false, fmt.Errorf("list clusters: %v", err)
+		return false, fmt.Errorf("list clusters: %s", stringifyResponseError(err))
 	}
 	for _, item := range res.Payload {
 		if item.ID == id {

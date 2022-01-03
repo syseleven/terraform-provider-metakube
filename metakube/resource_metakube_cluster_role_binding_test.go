@@ -27,7 +27,16 @@ func TestAccMetakubeClusterRoleBinding(t *testing.T) {
 		GroupSubjectName: "support-team",
 	}
 	resource.Test(t, resource.TestCase{
-		PreCheck:     func() { testAccPreCheck(t) },
+		PreCheck: func() {
+			checkEnv(t, "METAKUBE_HOST")
+			checkEnv(t, "METAKUBE_TOKEN")
+			checkEnv(t, testEnvK8sVersion)
+			checkEnv(t, testEnvOpenstackNodeDC)
+			checkEnv(t, testEnvOpenstackApplicationCredentialsID)
+			checkEnv(t, testEnvOpenstackApplicationCredentialsSecret)
+			checkEnv(t, testEnvK8sVersion)
+			checkEnv(t, testEnvProjectID)
+		},
 		Providers:    testAccProviders,
 		CheckDestroy: testAccCheckMetaKubeSSHKeyDestroy,
 		Steps: []resource.TestStep{

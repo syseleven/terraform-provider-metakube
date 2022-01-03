@@ -96,6 +96,7 @@ func testAccPreCheckForAzure(t *testing.T) {
 	checkEnv(t, testEnvAzureTenantID)
 	checkEnv(t, testEnvAzureNodeDC)
 	checkEnv(t, testEnvAzureNodeSize)
+	checkEnv(t, testEnvOpenstackTenant)
 }
 
 func testAccPreCheckForAWS(t *testing.T) {

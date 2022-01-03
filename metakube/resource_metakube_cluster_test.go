@@ -26,7 +26,7 @@ func testSweepClusters(region string) error {
 	params := project.NewListClustersV2Params().WithProjectID(projectID)
 	records, err := meta.client.Project.ListClustersV2(params, meta.auth)
 	if err != nil {
-		return fmt.Errorf("list clusters: %v", err)
+		return fmt.Errorf("sweep list clusters: %s", stringifyResponseError(err))
 	}
 
 	for _, rec := range records.Payload {
@@ -41,7 +41,7 @@ func testSweepClusters(region string) error {
 			WithDeleteVolumes(&t).
 			WithClusterID(rec.ID)
 		if _, err := meta.client.Project.DeleteClusterV2(p, meta.auth); err != nil {
-			return fmt.Errorf("delete cluster: %v", err)
+			return fmt.Errorf("delete cluster: %v", stringifyResponseError(err))
 		}
 	}
 

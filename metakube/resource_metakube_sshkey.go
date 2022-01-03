@@ -136,6 +136,7 @@ func metakubeResourceSSHKeyFindByID(ctx context.Context, d *schema.ResourceData,
 
 	return nil, nil
 }
+
 func metakubeResourceSSHKeyFindProjectID(ctx context.Context, id string, meta *metakubeProviderMeta) (string, error) {
 	r, err := meta.client.Project.ListProjects(project.NewListProjectsParams(), meta.auth)
 	if err != nil {
@@ -152,7 +153,7 @@ func metakubeResourceSSHKeyFindProjectID(ctx context.Context, id string, meta *m
 		}
 	}
 
-	meta.log.Info("owner project for service account with id(%s) not found", id)
+	meta.log.Infof("owner project for service account with id(%s) not found", id)
 	return "", nil
 }
 

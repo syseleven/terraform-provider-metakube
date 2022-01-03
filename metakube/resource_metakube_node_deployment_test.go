@@ -63,7 +63,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 						return nil
 					}),
 					testAccCheckMetaKubeNodeDeploymentExists(resourceName, &ndepl),
-					testAccCheckMetaKubeNodeDeploymentFields(&ndepl, flavor, image2, k8sVersionNew, 1, 123, true),
+					testAccCheckMetaKubeNodeDeploymentFields(&ndepl, flavor, image2, k8sVersionNew, 1, 8, true),
 					resource.TestCheckResourceAttr(resourceName, "name", testName),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.replicas", "1"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.labels.%", "3"),
@@ -71,7 +71,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.flavor", flavor),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.image", image2),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.use_floating_ip", "true"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.disk_size", "123"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.disk_size", "8"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.operating_system.0.ubuntu.0.dist_upgrade_on_boot", "true"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.versions.0.kubelet", k8sVersionNew),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.dynamic_config", "true"),
@@ -95,7 +95,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.flavor", flavor),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.image", imageFlatcar),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.use_floating_ip", "true"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.disk_size", "123"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.disk_size", "8"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.operating_system.0.flatcar.0.disable_auto_update", "true"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.versions.0.kubelet", k8sVersionNew),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.dynamic_config", "true"),
@@ -166,7 +166,7 @@ func testAccCheckMetaKubeNodeDeploymentBasic(projectID, testName, nodeDC, userna
 						image = "%s"
 						use_floating_ip = false
 						instance_ready_check_period = "10s"
-						instance_ready_check_timeout = "2m"
+						instance_ready_check_timeout = "4m"
 					}
 				}
 				operating_system {
@@ -216,10 +216,10 @@ func testAccCheckMetaKubeNodeDeploymentBasic2(projectID, testName, nodeDC, usern
 					openstack {
 						flavor = "%s"
 						image = "%s"
-						disk_size = 123
+						disk_size = 8
 						use_floating_ip = true
 						instance_ready_check_period = "10s"
-						instance_ready_check_timeout = "2m"
+						instance_ready_check_timeout = "4m"
 					}
 				}
 				operating_system {
@@ -271,10 +271,10 @@ func testAccCheckMetaKubeNodeDeploymentBasic3(projectID, testName, nodeDC, usern
 					openstack {
 						flavor = "%s"
 						image = "%s"
-						disk_size = 123
+						disk_size = 8
 						use_floating_ip = true
 						instance_ready_check_period = "10s"
-						instance_ready_check_timeout = "2m"
+						instance_ready_check_timeout = "4m"
 					}
 				}
 				operating_system {
