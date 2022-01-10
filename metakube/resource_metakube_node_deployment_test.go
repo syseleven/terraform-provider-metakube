@@ -95,7 +95,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.flavor", flavor),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.image", imageFlatcar),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.use_floating_ip", "true"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.disk_size", "8"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.disk_size", "10"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.operating_system.0.flatcar.0.disable_auto_update", "true"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.versions.0.kubelet", k8sVersionNew),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.dynamic_config", "true"),
@@ -271,7 +271,7 @@ func testAccCheckMetaKubeNodeDeploymentBasic3(projectID, testName, nodeDC, usern
 					openstack {
 						flavor = "%s"
 						image = "%s"
-						disk_size = 8
+						disk_size = 10
 						use_floating_ip = true
 						instance_ready_check_period = "10s"
 						instance_ready_check_timeout = "4m"
