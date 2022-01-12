@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/hashicorp/go-cty/cty"
 	"github.com/hashicorp/go-version"
@@ -207,7 +208,7 @@ func metakubeResourceClusterCreate(ctx context.Context, d *schema.ResourceData, 
 		return diag.FromErr(err)
 	}
 
-	if err := metakubeResourceClusterWaitForReady(ctx, meta, d, projectID, d.Id()); err != nil {
+	if err := metakubeResourceClusterWaitForReady(ctx, meta, d.Timeout(schema.TimeoutCreate), projectID, d.Id()); err != nil {
 		return diag.Errorf("cluster '%s' is not ready: %v", r.Payload.ID, err)
 	}
 
@@ -608,7 +609,7 @@ func metakubeResourceClusterUpdate(ctx context.Context, d *schema.ResourceData, 
 		}
 	}
 
-	if err := metakubeResourceClusterWaitForReady(ctx, k, d, projectID, d.Id()); err != nil {
+	if err := metakubeResourceClusterWaitForReady(ctx, k, d.Timeout(schema.TimeoutUpdate), projectID, d.Id()); err != nil {
 		return diag.Errorf("cluster '%s' is not ready: %v", d.Id(), err)
 	}
 
@@ -725,8 +726,8 @@ func assignSSHKeysToCluster(projectID, clusterID string, sshkeyIDs []string, k *
 	return nil
 }
 
-func metakubeResourceClusterWaitForReady(ctx context.Context, k *metakubeProviderMeta, d *schema.ResourceData, projectID, clusterID string) error {
-	return resource.RetryContext(ctx, d.Timeout(schema.TimeoutCreate), func() *resource.RetryError {
+func metakubeResourceClusterWaitForReady(ctx context.Context, k *metakubeProviderMeta, timeout time.Duration, projectID, clusterID string) error {
+	return resource.RetryContext(ctx, timeout, func() *resource.RetryError {
 
 		p := project.NewGetClusterHealthV2Params()
 		p.SetContext(ctx)
@@ -735,7 +736,7 @@ func metakubeResourceClusterWaitForReady(ctx context.Context, k *metakubeProvide
 
 		r, err := k.client.Project.GetClusterHealthV2(p, k.auth)
 		if err != nil {
-			return resource.RetryableError(fmt.Errorf("unable to get cluster '%s' health: %s", d.Id(), stringifyResponseError(err)))
+			return resource.RetryableError(fmt.Errorf("unable to get cluster '%s' health: %s", clusterID, stringifyResponseError(err)))
 		}
 
 		const up models.HealthStatus = 1
@@ -751,7 +752,7 @@ func metakubeResourceClusterWaitForReady(ctx context.Context, k *metakubeProvide
 		}
 
 		k.log.Debugf("waiting for cluster '%s' to be ready, %+v", clusterID, r.Payload)
-		return resource.RetryableError(fmt.Errorf("waiting for cluster '%s' to be ready", d.Id()))
+		return resource.RetryableError(fmt.Errorf("waiting for cluster '%s' to be ready", clusterID))
 	})
 }
 

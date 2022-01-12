@@ -123,7 +123,7 @@ func metakubeResourceNodeDeploymentCreate(ctx context.Context, d *schema.Resourc
 		WithClusterID(clusterID).
 		WithBody(nodeDeployment)
 
-	if err := metakubeResourceClusterWaitForReady(ctx, k, d, projectID, clusterID); err != nil {
+	if err := metakubeResourceClusterWaitForReady(ctx, k, d.Timeout(schema.TimeoutCreate), projectID, clusterID); err != nil {
 		return diag.Errorf("cluster is not ready: %v", err)
 	}
 
@@ -167,7 +167,7 @@ func metakubeResourceNodeDeploymentCreate(ctx context.Context, d *schema.Resourc
 	d.SetId(id)
 	d.Set("project_id", projectID)
 
-	if err := metakubeResourceNodeDeploymentWaitForReady(ctx, k, d.Timeout(schema.TimeoutCreate), projectID, clusterID, id, 0); err != nil {
+	if err := metakubeResourceNodeDeploymentWaitForReady(ctx, k, d.Timeout(schema.TimeoutCreate), projectID, clusterID, id); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -230,7 +230,7 @@ func metakubeResourceNodeDeploymentUpdate(ctx context.Context, d *schema.Resourc
 	p.SetClusterID(clusterID)
 	p.SetMachineDeploymentID(d.Id())
 	p.SetPatch(nodeDeployment)
-	res, err := k.client.Project.PatchMachineDeployment(p, k.auth)
+	_, err := k.client.Project.PatchMachineDeployment(p, k.auth)
 	if err != nil {
 		return diag.Errorf("unable to update a node deployment: %v", stringifyResponseError(err))
 	}
@@ -280,7 +280,7 @@ func metakubeResourceNodeDeploymentUpdate(ctx context.Context, d *schema.Resourc
 			p.SetMachineDeploymentID(d.Id())
 			p.SetPatch(&patch)
 
-			resource.RetryContext(ctx, d.Timeout(schema.TimeoutUpdate), func() *resource.RetryError {
+			err := resource.RetryContext(ctx, d.Timeout(schema.TimeoutUpdate), func() *resource.RetryError {
 				_, err := k.client.Project.PatchMachineDeployment(p, k.auth)
 				if err != nil {
 					if strings.Contains(stringifyResponseError(err), "the object has been modified") {
@@ -296,7 +296,7 @@ func metakubeResourceNodeDeploymentUpdate(ctx context.Context, d *schema.Resourc
 		}
 	}
 
-	if err := metakubeResourceNodeDeploymentWaitForReady(ctx, k, d.Timeout(schema.TimeoutCreate), projectID, clusterID, d.Id(), res.Payload.Status.ObservedGeneration); err != nil {
+	if err := metakubeResourceNodeDeploymentWaitForReady(ctx, k, d.Timeout(schema.TimeoutUpdate), projectID, clusterID, d.Id()); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -374,7 +374,7 @@ func validateKubeletVersionIsAvailable(k *metakubeProviderMeta, kubeletVersion, 
 	return fmt.Errorf("unknown version for node deployment %s, available versions %v", kubeletVersion, availableVersions)
 }
 
-func metakubeResourceNodeDeploymentWaitForReady(ctx context.Context, k *metakubeProviderMeta, timeout time.Duration, projectID, clusterID, id string, generation int64) error {
+func metakubeResourceNodeDeploymentWaitForReady(ctx context.Context, k *metakubeProviderMeta, timeout time.Duration, projectID, clusterID, id string) error {
 	ensures := 0
 	needed := 2
 	return resource.RetryContext(ctx, timeout, func() *resource.RetryError {
