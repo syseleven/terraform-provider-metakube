@@ -49,3 +49,5 @@ test:
     - TF_ACC=1 go test ./metakube -v -timeout 3h -run TestAcc
   needs:
     - env
+  only:
+    - syseleven/master
