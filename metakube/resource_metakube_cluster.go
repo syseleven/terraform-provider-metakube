@@ -25,6 +25,13 @@ func metakubeResourceCluster() *schema.Resource {
 		ReadContext:   metakubeResourceClusterRead,
 		UpdateContext: metakubeResourceClusterUpdate,
 		DeleteContext: metakubeResourceClusterDelete,
+
+		Timeouts: &schema.ResourceTimeout{
+			Create: schema.DefaultTimeout(20 * time.Minute),
+			Update: schema.DefaultTimeout(20 * time.Minute),
+			Delete: schema.DefaultTimeout(20 * time.Minute),
+		},
+
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
 		},

@@ -39,6 +39,13 @@ The following arguments are supported:
 * `labels` - (Optional) Labels added to cluster.
 * `sshkeys` - (Optional) IDs of SSH keys to be attached to nodes. Ideally you want to use this along with [metakube_sshkey](./sshkey.md).
 
+### Timeouts
+
+`metakube_cluster` provides the following Timeouts configuration options:
+  * create - (Default 40 minutes) Used for Creating cluster control plane, etcd, api server etc.
+  * update - (Default 80 minutes) Used for cluster modifications.
+  * delete - (Default 60 minutes) Used for destroying clusters.
+
 ## Attributes
 
 * `kube_config` - Admin kube config raw content which can be dumped to a file using [local_file](https://registry.terraform.io/providers/hashicorp/local/latest/docs/resources/file). You might want to use `oidc_kube_config` or `kube_login_kube_config` together with `syseleven_auth` configured for better security.

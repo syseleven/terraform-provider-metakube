@@ -153,6 +153,11 @@ func testAccCheckMetaKubeNodeDeploymentBasic(projectID, testName, nodeDC, userna
 	resource "metakube_node_deployment" "acctest_nd" {
 		cluster_id = metakube_cluster.acctest_cluster.id
 		name = "%s"
+		timeouts {
+			create = "15m"
+			update = "15m"
+			delete = "15m"
+		}
 		spec {
 			replicas = 1
 			template {

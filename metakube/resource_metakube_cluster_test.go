@@ -384,6 +384,12 @@ resource "metakube_cluster" "acctest_cluster" {
 	  	"c" = "d"
 	}
 
+    timeouts {
+        create = "15m"
+        update = "15m"
+        delete = "15m"
+    }
+
 	spec {
 		version = "{{ .Version }}"
 		update_window {

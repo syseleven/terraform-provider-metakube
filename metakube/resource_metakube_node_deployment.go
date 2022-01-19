@@ -31,6 +31,12 @@ func metakubeResourceNodeDeployment() *schema.Resource {
 			validateAutoscalerFields(),
 		),
 
+		Timeouts: &schema.ResourceTimeout{
+			Create: schema.DefaultTimeout(20 * time.Minute),
+			Update: schema.DefaultTimeout(20 * time.Minute),
+			Delete: schema.DefaultTimeout(20 * time.Minute),
+		},
+
 		Schema: map[string]*schema.Schema{
 			"project_id": {
 				Type:        schema.TypeString,
