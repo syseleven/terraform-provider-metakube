@@ -266,7 +266,8 @@ func metakubeResourceClusterFindDatacenterByName(ctx context.Context, k *metakub
 		}
 	}
 
-	var summary, details string
+	summary := fmt.Sprintf("Could not find datacenter with name '%s'", name)
+	var details string
 	if name == "" {
 		summary = "Datacenter name not set"
 	}
@@ -372,7 +373,7 @@ func metakubeResourceClusterRead(ctx context.Context, d *schema.ResourceData, m 
 	if conf, err := metakubeClusterUpdateKubeconfig(ctx, k, projectID, d.Id()); err != nil {
 		return diag.Diagnostics{{
 			Severity:      diag.Warning,
-			Summary:       err.Error(),
+			Summary:       fmt.Sprintf("could not update kubeconfig: %v", err),
 			AttributePath: cty.GetAttrPath("kube_config"),
 		}}
 	} else {
@@ -391,7 +392,7 @@ func metakubeResourceClusterRead(ctx context.Context, d *schema.ResourceData, m 
 		if conf, err := metakubeClusterUpdateOIDCKubeconfig(ctx, k, projectID, dc.Spec.Seed, d.Id()); err != nil {
 			return diag.Diagnostics{{
 				Severity:      diag.Warning,
-				Summary:       err.Error(),
+				Summary:       fmt.Sprintf("could not update OIDC kubeconfig: %v", err),
 				AttributePath: cty.GetAttrPath("oidc_kube_config"),
 			}}
 		} else {
@@ -404,7 +405,7 @@ func metakubeResourceClusterRead(ctx context.Context, d *schema.ResourceData, m 
 		if conf, err := metakubeClusterUpdateKubeloginKubeconfig(ctx, k, projectID, dc.Spec.Seed, d.Id()); err != nil {
 			return diag.Diagnostics{{
 				Severity:      diag.Warning,
-				Summary:       err.Error(),
+				Summary:       fmt.Sprintf("could not update kubelogin kubeconfig: %v", err),
 				AttributePath: cty.GetAttrPath("kube_login_kube_config"),
 			}}
 		} else {
@@ -472,7 +473,7 @@ func metakubeResourceClusterFindProjectID(ctx context.Context, id string, meta *
 		}
 	}
 
-	meta.log.Infof("owner project for cluster with id(%s) not found", id)
+	meta.log.Infof("owner project for cluster with id '%s' not found", id)
 	return "", nil
 }
 

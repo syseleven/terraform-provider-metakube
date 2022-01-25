@@ -119,7 +119,7 @@ func metakubeResourceClusterValidateFloatingIPPool(ctx context.Context, d *schem
 		}
 		return diag.Diagnostics{{
 			Severity:      diag.Error,
-			Summary:       err.Error(),
+			Summary:       fmt.Sprintf("invalid value: %v", err),
 			AttributePath: cty.GetAttrPath("spec").IndexInt(0).GetAttr("cloud").IndexInt(0).GetAttr("openstack").IndexInt(0).GetAttr("floating_ip_pool"),
 			Detail:        diagnoseDetail,
 		}}
@@ -196,7 +196,7 @@ func metakubeResourceClusterValidateOpenstackNetwork(ctx context.Context, d *sch
 		}
 		return diag.Diagnostics{{
 			Severity:      diag.Error,
-			Summary:       err.Error(),
+			Summary:       fmt.Sprintf("invalid value: %v", err),
 			AttributePath: cty.GetAttrPath("spec").IndexInt(0).GetAttr("cloud").IndexInt(0).GetAttr("openstack").IndexInt(0).GetAttr("network"),
 			Detail:        diagnoseDetail,
 		}}
@@ -239,7 +239,7 @@ func diagnoseOpenstackSubnetWithIDExistsIfSet(ctx context.Context, d *schema.Res
 	}
 	return diag.Diagnostics{{
 		Severity:      diag.Error,
-		Summary:       err.Error(),
+		Summary:       fmt.Sprintf("invalid value: %v", err),
 		AttributePath: cty.GetAttrPath("spec").IndexInt(0).GetAttr("cloud").IndexInt(0).GetAttr("openstack").IndexInt(0).GetAttr("subnetID"),
 		Detail:        diagnoseDetail,
 	}}

@@ -110,7 +110,7 @@ func metakubeResourceNodeDeploymentCreate(ctx context.Context, d *schema.Resourc
 		}
 		if projectID == "" {
 			k.log.Info("owner project for cluster '%s' is not found", clusterID)
-			return diag.Errorf("")
+			return diag.Errorf("could not find owner project for cluster with id '%s'", clusterID)
 		}
 	}
 
