@@ -35,6 +35,8 @@ env:
   artifacts:
     paths:
     - test.env
+  only:
+    - syseleven/master
 
 test:
   stage: test
