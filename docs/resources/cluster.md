@@ -42,9 +42,9 @@ The following arguments are supported:
 ### Timeouts
 
 `metakube_cluster` provides the following Timeouts configuration options:
-  * create - (Default 40 minutes) Used for Creating cluster control plane, etcd, api server etc.
-  * update - (Default 80 minutes) Used for cluster modifications.
-  * delete - (Default 60 minutes) Used for destroying clusters.
+  * create - (Default 20 minutes) Used for Creating cluster control plane, etcd, api server etc.
+  * update - (Default 20 minutes) Used for cluster modifications.
+  * delete - (Default 20 minutes) Used for destroying clusters.
 
 ## Attributes
 

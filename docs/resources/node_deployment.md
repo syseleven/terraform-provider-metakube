@@ -44,9 +44,9 @@ The following arguments are supported:
 ### Timeouts
 
 `metakube_node_deployment` provides the following Timeouts configuration options:
-* create - (Default 40 minutes) Used for Creating node deployments and waiting for them to join the cluster.
-* update - (Default 80 minutes) Used for node deployment modifications.
-* delete - (Default 60 minutes) Used for destroying node deployment.
+* create - (Default 20 minutes) Used for Creating node deployments and waiting for them to join the cluster.
+* update - (Default 20 minutes) Used for node deployment modifications.
+* delete - (Default 20 minutes) Used for destroying node deployment.
 
 ## Attributes
 
