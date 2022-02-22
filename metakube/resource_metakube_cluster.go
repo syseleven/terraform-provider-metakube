@@ -605,7 +605,7 @@ func metakubeResourceClusterUpdate(ctx context.Context, d *schema.ResourceData, 
 		d.SetId("")
 		return nil
 	} else if d.HasChange("spec.0.version") {
-		k.log.Infof("validating version change")
+		k.log.Debugf("validating version change")
 		retDiags = metakubeResourceClusterValidateVersionUpgrade(ctx, projectID, d.Get("spec.0.version").(string), cluster, k)
 	}
 	retDiags = append(retDiags, metakubeResourceClusterValidateClusterFields(ctx, d, k)...)
