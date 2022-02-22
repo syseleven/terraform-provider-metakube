@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/syseleven/go-metakube/client/project"
+
 	"github.com/hashicorp/go-cty/cty"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -78,6 +80,31 @@ func metakubeResourceClusterValidateClusterFields(ctx context.Context, d *schema
 	ret = append(ret, metakubeResourceClusterValidateOpenstackNetwork(ctx, d, k)...)
 	ret = append(ret, metakubeResourceClusterValidateAccessCredentialsSet(d)...)
 	return append(ret, diagnoseOpenstackSubnetWithIDExistsIfSet(ctx, d, k)...)
+}
+
+func metakubeResourceClusterValidateVersionUpgrade(ctx context.Context, projectID, newVersion string, cluster *models.Cluster, k *metakubeProviderMeta) diag.Diagnostics {
+	p := project.NewGetClusterUpgradesV2Params().
+		WithContext(ctx).
+		WithProjectID(projectID).
+		WithClusterID(cluster.ID)
+	r, err := k.client.Project.GetClusterUpgradesV2(p, k.auth)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+	var available []string
+	for _, item := range r.Payload {
+		v := item.Version.(string)
+		available = append(available, v)
+		if v == newVersion {
+			return nil
+		}
+	}
+	return diag.Diagnostics{{
+		Severity:      diag.Error,
+		Summary:       fmt.Sprintf("not allowed upgrade %s->%s", cluster.Spec.Version, newVersion),
+		AttributePath: cty.GetAttrPath("spec").IndexInt(0).GetAttr("version"),
+		Detail:        fmt.Sprintf("Please select one of available upgrades: %v", available),
+	}}
 }
 
 func metakubeResourceValidateVersionExistence(ctx context.Context, d *schema.ResourceData, k *metakubeProviderMeta) diag.Diagnostics {

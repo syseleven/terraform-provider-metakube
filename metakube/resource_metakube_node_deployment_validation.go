@@ -3,6 +3,7 @@ package metakube
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/syseleven/go-metakube/client/project"
@@ -20,7 +21,7 @@ func validateNodeSpecMatchesCluster() schema.CustomizeDiffFunc {
 		if projectID == "" {
 			return nil
 		}
-		cluster, err := metakubeGetCluster(ctx, projectID, clusterID, k)
+		cluster, _, err := metakubeGetCluster(ctx, projectID, clusterID, k)
 		if err != nil {
 			return err
 		}
@@ -68,17 +69,20 @@ func validateProviderMatchesCluster(d *schema.ResourceDiff, clusterProvider stri
 	return nil
 }
 
-func metakubeGetCluster(ctx context.Context, proj, cls string, k *metakubeProviderMeta) (*models.Cluster, error) {
+func metakubeGetCluster(ctx context.Context, proj, cls string, k *metakubeProviderMeta) (*models.Cluster, bool, error) {
 	p := project.NewGetClusterV2Params().
 		WithContext(ctx).
 		WithProjectID(proj).
 		WithClusterID(cls)
 	r, err := k.client.Project.GetClusterV2(p, k.auth)
 	if err != nil {
-		return nil, fmt.Errorf("unable to get cluster %s in project %s - error: %v", cls, proj, err)
+		if e, ok := err.(*project.GetClusterV2Default); ok && e.Code() == http.StatusNotFound {
+			return nil, false, nil
+		}
+		return nil, false, fmt.Errorf("unable to get cluster %s in project %s - error: %v", cls, proj, err)
 	}
 
-	return r.Payload, nil
+	return r.Payload, true, nil
 }
 
 func validateAutoscalerFields() schema.CustomizeDiffFunc {

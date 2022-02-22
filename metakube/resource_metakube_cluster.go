@@ -597,7 +597,18 @@ func metakubeResourceClusterUpdate(ctx context.Context, d *schema.ResourceData, 
 	k := m.(*metakubeProviderMeta)
 	projectID := d.Get("project_id").(string)
 
-	retDiags := metakubeResourceClusterValidateClusterFields(ctx, d, k)
+	var retDiags diag.Diagnostics
+	if cluster, ok, err := metakubeGetCluster(ctx, projectID, d.Id(), k); err != nil {
+		return diag.FromErr(err)
+	} else if !ok {
+		// Indicate resource deleted.
+		d.SetId("")
+		return nil
+	} else if d.HasChange("spec.0.version") {
+		k.log.Infof("validating version change")
+		retDiags = metakubeResourceClusterValidateVersionUpgrade(ctx, projectID, d.Get("spec.0.version").(string), cluster, k)
+	}
+	retDiags = append(retDiags, metakubeResourceClusterValidateClusterFields(ctx, d, k)...)
 
 	_, diagnostics := metakubeResourceClusterFindDatacenterByName(ctx, k, d)
 	// TODO: delete composed diagnostics, seems to be useless at the moment.

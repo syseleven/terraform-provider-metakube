@@ -310,7 +310,7 @@ func metakubeResourceNodeDeploymentUpdate(ctx context.Context, d *schema.Resourc
 }
 
 func metakubeResourceNodeDeploymentVersionCompatibleWithCluster(ctx context.Context, k *metakubeProviderMeta, projectID, clusterID string, ndepl *models.NodeDeployment) error {
-	cluster, err := metakubeGetCluster(ctx, projectID, clusterID, k)
+	cluster, _, err := metakubeGetCluster(ctx, projectID, clusterID, k)
 	if err != nil {
 		return err
 	}
