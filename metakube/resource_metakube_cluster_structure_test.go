@@ -196,6 +196,7 @@ func TestFlattenOpenstackCloudSpec(t *testing.T) {
 				SecurityGroups:              "SecurityGroups",
 				SubnetID:                    "SubnetID",
 				TenantID:                    "TenantID",
+				ServerGroupID:               "ServerGroupID",
 			},
 			clusterOpenstackPreservedValues{
 				openstackApplicationCredentialsID:     "id",
@@ -209,6 +210,39 @@ func TestFlattenOpenstackCloudSpec(t *testing.T) {
 					"network":                        "Network",
 					"security_group":                 "SecurityGroups",
 					"subnet_id":                      "SubnetID",
+					"server_group_id":                "ServerGroupID",
+				},
+			},
+		},
+
+		{
+			&models.OpenstackCloudSpec{
+				FloatingIPPool: "FloatingIPPool",
+				Network:        "Network",
+				Password:       "",
+				RouterID:       "RouterID",
+				SecurityGroups: "SecurityGroups",
+				SubnetID:       "SubnetID",
+				Tenant:         "",
+				TenantID:       "TenantID",
+				Username:       "",
+				ServerGroupID:  "ServerGroupID",
+			},
+			clusterOpenstackPreservedValues{
+				openstackUsername: "Username",
+				openstackPassword: "Password",
+				openstackTenant:   "Tenant",
+			},
+			[]interface{}{
+				map[string]interface{}{
+					"username":         "Username",
+					"password":         "Password",
+					"tenant":           "Tenant",
+					"floating_ip_pool": "FloatingIPPool",
+					"network":          "Network",
+					"security_group":   "SecurityGroups",
+					"subnet_id":        "SubnetID",
+					"server_group_id":  "ServerGroupID",
 				},
 			},
 		},
@@ -226,9 +260,10 @@ func TestFlattenOpenstackCloudSpec(t *testing.T) {
 				Username:       "",
 			},
 			clusterOpenstackPreservedValues{
-				openstackUsername: "Username",
-				openstackPassword: "Password",
-				openstackTenant:   "Tenant",
+				openstackUsername:      "Username",
+				openstackPassword:      "Password",
+				openstackTenant:        "Tenant",
+				openstackServerGroupID: "ServerGroupID",
 			},
 			[]interface{}{
 				map[string]interface{}{
@@ -239,6 +274,7 @@ func TestFlattenOpenstackCloudSpec(t *testing.T) {
 					"network":          "Network",
 					"security_group":   "SecurityGroups",
 					"subnet_id":        "SubnetID",
+					"server_group_id":  "ServerGroupID",
 				},
 			},
 		},
@@ -556,6 +592,7 @@ func TestExpandOpenstackCloudSpec(t *testing.T) {
 					"floating_ip_pool":               "FloatingIPPool",
 					"application_credentials_id":     "id",
 					"application_credentials_secret": "secret",
+					"server_group_id":                "ServerGroupID",
 				},
 			},
 			&models.OpenstackCloudSpec{
@@ -563,6 +600,7 @@ func TestExpandOpenstackCloudSpec(t *testing.T) {
 				FloatingIPPool:              "FloatingIPPool",
 				ApplicationCredentialID:     "id",
 				ApplicationCredentialSecret: "secret",
+				ServerGroupID:               "ServerGroupID",
 			},
 		},
 		{

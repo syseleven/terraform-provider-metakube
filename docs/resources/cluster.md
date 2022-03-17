@@ -99,8 +99,9 @@ When set, start time and length must be configured.
 * `security_group` - (Optional) When specified, all worker nodes will be attached to this security group. If not specified, a security group will be created.
 * `network` - (Optional) When specified, all worker nodes will be attached to this network. If not specified, a network, subnet & router will be created.
 * `subnet_id` - (Optional) When specified, all worker nodes will be attached to this subnet of specified network. If not specified, a network, subnet & router will be created.
-* `subnet_cidr` - Change this to configure a different internal IP range for Nodes. Default: `192.168.1.0/24`.
+* `subnet_cidr` - (Optional) Change this to configure a different internal IP range for Nodes. Default: `192.168.1.0/24`.
 When using password based auth
+* `server_group_id` - (Optional) Server group id to use for all machines within a cluster. You can use openstack server groups to group or seperate servers using soft/hard affinity/anti-affinity rules. When not set explicitly, the default soft anti-affinity server group will be created and used. 
 * `tenant` - (Optional) The project to use for billing. You can set it using environment variable `OS_PROJECT_NAME`. Must be omit if application credentials are used.
 * `username` - (Optional) The account's username. You can set it using environment variable `OS_USERNAME`. Must be omit if application credentials are used.
 * `password` - (Optional) The account's password. You can set it using environment variable `OS_PASSWORD`. Must be omit if application credentials are used.

@@ -204,7 +204,14 @@ func flattenOpenstackSpec(values *clusterOpenstackPreservedValues, in *models.Op
 		att["subnet_cidr"] = in.SubnetCIDR
 	}
 
+	if in.ServerGroupID != "" {
+		att["server_group_id"] = in.ServerGroupID
+	}
+
 	if values != nil {
+		if _, ok := att["server_group_id"]; !ok && values.openstackServerGroupID != nil {
+			att["server_group_id"] = values.openstackServerGroupID
+		}
 		if values.openstackTenant != nil {
 			att["tenant"] = values.openstackTenant
 		}
@@ -592,6 +599,12 @@ func expandOpenstackCloudSpec(p []interface{}) *models.OpenstackCloudSpec {
 	if v, ok := in["subnet_cidr"]; ok {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.SubnetCIDR = vv
+		}
+	}
+
+	if v, ok := in["server_group_id"]; ok {
+		if vv, ok := v.(string); ok && vv != "" {
+			obj.ServerGroupID = vv
 		}
 	}
 

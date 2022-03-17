@@ -1,8 +1,8 @@
 terraform {
   required_providers {
-    metakube = {
-      source = "syseleven/metakube"
-    }
+   metakube = {
+     source = "syseleven/metakube"
+   }
     openstack = {
       source = "terraform-provider-openstack/openstack"
     }
@@ -91,6 +91,11 @@ resource "openstack_networking_subnet_v2" "subnet_1" {
   "37.123.105.117"]
 }
 
+resource "openstack_compute_servergroup_v2" "anti-affinity" {
+  name = "test-anti-affinity"
+  policies = ["anti-affinity"]
+}
+
 # Set up a router to allow access through public internet.
 data "openstack_networking_network_v2" "external" {
   name = var.floating_ip_pool
@@ -160,6 +165,7 @@ resource "metakube_cluster" "cluster" {
         network          = openstack_networking_network_v2.network_1.name
         subnet_id        = openstack_networking_subnet_v2.subnet_1.id
         subnet_cidr      = openstack_networking_secgroup_rule_v2.allow_higher_ports.remote_ip_prefix
+        server_group_id  = openstack_compute_servergroup_v2.anti-affinity.id
       }
     }
 

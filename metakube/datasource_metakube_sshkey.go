@@ -29,6 +29,11 @@ func dataSourceMetakubeSSHKey() *schema.Resource {
 				Type:     schema.TypeString,
 				Optional: true,
 			},
+
+			"fingerprint": {
+				Type:     schema.TypeString,
+				Optional: true,
+			},
 		},
 	}
 }
@@ -50,6 +55,7 @@ func metakubeDataSourceSSHKeyRead(ctx context.Context, d *schema.ResourceData, m
 			d.Set("public_key", r.Spec.PublicKey)
 			d.Set("name", name)
 			d.Set("project_id", prj)
+			d.Set("fingerprint", r.Spec.Fingerprint)
 			return nil
 		}
 	}

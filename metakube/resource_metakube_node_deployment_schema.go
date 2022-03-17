@@ -12,7 +12,7 @@ import (
 )
 
 func metakubeResourceSystemLabelOrTag(key string) bool {
-	for _, s := range []string{"labels.%", "metakube", "system/", "kubernetes.io"} {
+	for _, s := range []string{"labels.%", "metakube", "system-", "system/", "kubernetes.io"} {
 		if strings.Contains(key, s) {
 			return true
 		}

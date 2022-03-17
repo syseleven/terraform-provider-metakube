@@ -355,5 +355,11 @@ func metakubeResourceClusterOpenstackCloudSpecFields() map[string]*schema.Schema
 			ForceNew:    true,
 			Description: "Change this to configure a different internal IP range for Nodes. Default: 192.168.1.0/24",
 		},
+		"server_group_id": {
+			Type:        schema.TypeString,
+			Computed:    true,
+			Optional:    true,
+			Description: "Server group to use for all machines within a cluster",
+		},
 	}
 }
