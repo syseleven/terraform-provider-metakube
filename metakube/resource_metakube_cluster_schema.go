@@ -11,9 +11,10 @@ import (
 func metakubeResourceClusterSpecFields() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
 		"version": {
-			Type:        schema.TypeString,
-			Required:    true,
-			Description: "Cloud orchestrator version, either Kubernetes or OpenShift",
+			Type:         schema.TypeString,
+			Required:     true,
+			ValidateFunc: validation.NoZeroValues,
+			Description:  "Cloud orchestrator version, either Kubernetes or OpenShift",
 		},
 		"enable_ssh_agent": {
 			Type:        schema.TypeBool,
@@ -100,9 +101,10 @@ func metakubeResourceClusterSpecFields() map[string]*schema.Schema {
 			Elem: &schema.Resource{
 				Schema: map[string]*schema.Schema{
 					"realm": {
-						Type:        schema.TypeString,
-						Required:    true,
-						Description: "Realm name",
+						Type:         schema.TypeString,
+						Required:     true,
+						ValidateFunc: validation.NoZeroValues,
+						Description:  "Realm name",
 					},
 				},
 			},
@@ -182,21 +184,25 @@ func metakubeResourceClusterAzureSpecFields() map[string]*schema.Schema {
 			Optional: true,
 		},
 		"client_id": {
-			Type:     schema.TypeString,
-			Required: true,
+			Type:         schema.TypeString,
+			Required:     true,
+			ValidateFunc: validation.NoZeroValues,
 		},
 		"client_secret": {
-			Type:      schema.TypeString,
-			Required:  true,
-			Sensitive: true,
+			Type:         schema.TypeString,
+			Required:     true,
+			ValidateFunc: validation.NoZeroValues,
+			Sensitive:    true,
 		},
 		"subscription_id": {
-			Type:     schema.TypeString,
-			Required: true,
+			Type:         schema.TypeString,
+			Required:     true,
+			ValidateFunc: validation.NoZeroValues,
 		},
 		"tenant_id": {
-			Type:     schema.TypeString,
-			Required: true,
+			Type:         schema.TypeString,
+			Required:     true,
+			ValidateFunc: validation.NoZeroValues,
 		},
 		"resource_group": {
 			Type:     schema.TypeString,
@@ -236,21 +242,24 @@ func metakubeResourceClusterAzureSpecFields() map[string]*schema.Schema {
 func metakubeResourceCluserAWSCloudSpecFields() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
 		"access_key_id": {
-			Type:        schema.TypeString,
-			Required:    true,
-			Sensitive:   true,
-			Description: "Access key identifier",
+			Type:         schema.TypeString,
+			Required:     true,
+			ValidateFunc: validation.NoZeroValues,
+			Sensitive:    true,
+			Description:  "Access key identifier",
 		},
 		"secret_access_key": {
-			Type:        schema.TypeString,
-			Required:    true,
-			Sensitive:   true,
-			Description: "Secret access key",
+			Type:         schema.TypeString,
+			Required:     true,
+			ValidateFunc: validation.NoZeroValues,
+			Sensitive:    true,
+			Description:  "Secret access key",
 		},
 		"vpc_id": {
-			Type:        schema.TypeString,
-			Required:    true,
-			Description: "Virtual private cloud identifier",
+			Type:         schema.TypeString,
+			Required:     true,
+			ValidateFunc: validation.NoZeroValues,
+			Description:  "Virtual private cloud identifier",
 		},
 		"security_group_id": {
 			Type:        schema.TypeString,
