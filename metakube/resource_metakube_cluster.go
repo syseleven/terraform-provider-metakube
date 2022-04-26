@@ -658,7 +658,7 @@ func metakubeResourceClusterSendPatchReq(ctx context.Context, d *schema.Resource
 			if e, ok := err.(*project.PatchClusterV2Default); ok && e.Code() == http.StatusConflict {
 				return resource.RetryableError(fmt.Errorf("cluster patch conflict: %v", err))
 			}
-			return resource.NonRetryableError(fmt.Errorf("patch cluster '%s': %v", d.Id(), err))
+			return resource.NonRetryableError(fmt.Errorf("patch cluster '%s': %v", d.Id(), stringifyResponseError(err)))
 		}
 		return nil
 	})
