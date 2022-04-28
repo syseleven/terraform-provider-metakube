@@ -31,11 +31,6 @@ variable "cluster_name" {
   description = "Name of the MetaKube cluster"
   type        = string
 }
-variable "cluster_domain" {
-  description = "MetaKube Cluster domain"
-  type        = string
-  default     = "cluster.local"
-}
 
 variable "dc_name" {
   description = "Datacenter where the cluster should be deployed to. Get a list of possible option with `curl -s -H \"authorization: Bearer $METAKUBE_TOKEN\" https://metakube.syseleven.de/api/v1/dc | jq -r '.[] | select(.seed!=true) | .metadata.name'`"
