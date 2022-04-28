@@ -31,7 +31,6 @@ func TestMetakubeClusterFlattenSpec(t *testing.T) {
 					Realm: "testrealm",
 				},
 				ClusterNetwork: &models.ClusterNetworkingConfig{
-					DNSDomain: "foocluster.local",
 					Services: &models.NetworkRanges{
 						CIDRBlocks: []string{"1.1.1.0/20"},
 					},
@@ -54,7 +53,6 @@ func TestMetakubeClusterFlattenSpec(t *testing.T) {
 					"pod_node_selector":   false,
 					"services_cidr":       "1.1.1.0/20",
 					"pods_cidr":           "2.2.0.0/16",
-					"domain_name":         "foocluster.local",
 					"enable_ssh_agent":    true,
 					"cloud": []interface{}{
 						map[string]interface{}{
@@ -420,7 +418,6 @@ func TestExpandClusterSpec(t *testing.T) {
 					"pod_node_selector":   true,
 					"services_cidr":       "1.1.1.0/20",
 					"pods_cidr":           "2.2.0.0/16",
-					"domain_name":         "foocluster.local",
 					"cloud": []interface{}{
 						map[string]interface{}{
 							"openstack": []interface{}{
@@ -452,7 +449,6 @@ func TestExpandClusterSpec(t *testing.T) {
 					Pods: &models.NetworkRanges{
 						CIDRBlocks: []string{"2.2.0.0/16"},
 					},
-					DNSDomain: "foocluster.local",
 				},
 				Cloud: &models.CloudSpec{
 					DatacenterName: "eu-west-1",

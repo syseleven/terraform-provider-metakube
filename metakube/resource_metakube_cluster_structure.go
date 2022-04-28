@@ -37,9 +37,6 @@ func metakubeResourceClusterFlattenSpec(values clusterPreserveValues, in *models
 	att["pod_node_selector"] = in.UsePodNodeSelectorAdmissionPlugin
 
 	if network := in.ClusterNetwork; network != nil {
-		if network.DNSDomain != "" {
-			att["domain_name"] = network.DNSDomain
-		}
 		if v := network.Pods; len(v.CIDRBlocks) > 0 && v.CIDRBlocks[0] != "" {
 			att["pods_cidr"] = v.CIDRBlocks[0]
 		}
@@ -361,15 +358,6 @@ func metakubeResourceClusterExpandSpec(p []interface{}, dcName string) *models.C
 			obj.ClusterNetwork.Pods = &models.NetworkRanges{
 				CIDRBlocks: []string{vv},
 			}
-		}
-	}
-
-	if v, ok := in["domain_name"]; ok {
-		if vv, ok := v.(string); ok && v != "" {
-			if obj.ClusterNetwork == nil {
-				obj.ClusterNetwork = &models.ClusterNetworkingConfig{}
-			}
-			obj.ClusterNetwork.DNSDomain = vv
 		}
 	}
 

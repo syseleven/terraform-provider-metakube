@@ -96,7 +96,6 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "spec.0.version", data.Version),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.update_window.0.start", "Tue 02:00"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.update_window.0.length", "2h"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.domain_name", "foodomain.local"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.services_cidr", "10.240.16.0/18"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.pods_cidr", "172.25.0.0/18"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.#", "1"),
@@ -168,7 +167,6 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "spec.0.version", data.Version),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.update_window.0.start", "Wed 12:00"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.update_window.0.length", "3h"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.domain_name", "foodomain.local"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.services_cidr", "10.240.16.0/18"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.pods_cidr", "172.25.0.0/18"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.pod_node_selector", "true"),
@@ -408,7 +406,6 @@ resource "metakube_cluster" "acctest_cluster" {
 				subnet_cidr = "192.168.2.0/24"
 			}
 		}
-		domain_name = "foodomain.local"
 		services_cidr = "10.240.16.0/18"
 		pods_cidr = "172.25.0.0/18"
 	}
@@ -527,7 +524,6 @@ resource "metakube_cluster" "acctest_cluster" {
 
 		pod_node_selector = true
 		pod_security_policy = true
-		domain_name = "foodomain.local"
 		services_cidr = "10.240.16.0/18"
 		pods_cidr = "172.25.0.0/18"
 	}

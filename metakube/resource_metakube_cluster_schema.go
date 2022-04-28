@@ -167,13 +167,6 @@ func metakubeResourceClusterSpecFields() map[string]*schema.Schema {
 			Computed:    true,
 			Description: "Internal IP range for Pods",
 		},
-		"domain_name": {
-			Type:        schema.TypeString,
-			Optional:    true,
-			ForceNew:    true,
-			Computed:    true,
-			Description: "Internal IP range for ClusterIP Pods",
-		},
 	}
 }
 
