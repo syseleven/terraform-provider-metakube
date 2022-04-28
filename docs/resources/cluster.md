@@ -71,7 +71,6 @@ The following arguments are supported:
 * `syseleven_auth` - (Optional) Useful for authenticating against [SysEleven Login](https://docs.syseleven.de/metakube/en/tutorials/external-authentication).
 * `services_cidr` - (Optional) Internal IP range for ClusterIP Services.
 * `pods_cidr` - (Optional) Internal IP range for Pods.
-* `domain_name` - (Optional) Cluster domain name.
 
 ### `cloud`
 

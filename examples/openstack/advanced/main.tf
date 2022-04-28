@@ -173,7 +173,6 @@ resource "metakube_cluster" "cluster" {
     audit_logging       = true
     pod_node_selector   = true
     pod_security_policy = true
-    domain_name         = var.cluster_domain
     services_cidr       = "10.240.16.0/20"
     pods_cidr           = "172.25.0.0/16"
   }

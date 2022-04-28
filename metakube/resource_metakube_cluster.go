@@ -163,9 +163,6 @@ func metakubeResourceClusterCreate(ctx context.Context, d *schema.ResourceData, 
 		},
 	}
 	if n := clusterSpec.ClusterNetwork; n != nil {
-		if n.DNSDomain != "" {
-			createClusterSpec.DNSDomain = n.DNSDomain
-		}
 		if v := clusterSpec.ClusterNetwork.Pods; v != nil {
 			if len(v.CIDRBlocks) == 1 {
 				createClusterSpec.PodsCIDR = v.CIDRBlocks[0]
