@@ -13,7 +13,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
-
 	"github.com/syseleven/go-metakube/client/datacenter"
 	"github.com/syseleven/go-metakube/client/project"
 	"github.com/syseleven/go-metakube/models"
@@ -532,7 +531,7 @@ type clusterPreserveValues struct {
 type clusterOpenstackPreservedValues struct {
 	openstackUsername                     interface{}
 	openstackPassword                     interface{}
-	openstackTenant                       interface{}
+	openstackProjectID                    interface{}
 	openstackServerGroupID                interface{}
 	openstackApplicationCredentialsID     interface{}
 	openstackApplicationCredentialsSecret interface{}
@@ -547,7 +546,7 @@ func readClusterPreserveValues(d *schema.ResourceData) clusterPreserveValues {
 		openstack = &clusterOpenstackPreservedValues{
 			openstackUsername:                     d.Get(key("openstack.0.username")),
 			openstackPassword:                     d.Get(key("openstack.0.password")),
-			openstackTenant:                       d.Get(key("openstack.0.tenant")),
+			openstackProjectID:                    d.Get(key("openstack.0.project_id")),
 			openstackServerGroupID:                d.Get(key("openstack.0.server_group_id")),
 			openstackApplicationCredentialsID:     d.Get(key("openstack.0.application_credentials_id")),
 			openstackApplicationCredentialsSecret: d.Get(key("openstack.0.application_credentials_secret")),

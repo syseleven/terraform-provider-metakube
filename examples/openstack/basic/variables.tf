@@ -36,8 +36,8 @@ variable "password" {
   default     = null
 }
 
-variable "tenant" {
-  description = "OpenStack tenant"
+variable "openstack_project_id" {
+  description = "OpenStack project id"
   type        = string
   default     = null
 }

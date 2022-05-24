@@ -28,7 +28,7 @@ const (
 	testEnvOpenstackUsername                     = "METAKUBE_OPENSTACK_USERNAME"
 	testEnvOpenstackAuthURL                      = "METAKUBE_OPENSTACK_AUTH_URL"
 	testEnvOpenstackPassword                     = "METAKUBE_OPENSTACK_PASSWORD"
-	testEnvOpenstackTenant                       = "METAKUBE_OPENSTACK_TENANT"
+	testEnvOpenstackProjectID                    = "METAKUBE_OPENSTACK_PROJECT_ID"
 	testEnvOpenstackImage                        = "METAKUBE_OPENSTACK_IMAGE"
 	testEnvOpenstackImage2                       = "METAKUBE_OPENSTACK_IMAGE2"
 	testEnvOpenstackImageFlatcar                 = "METAKUBE_OPENSTACK_IMAGE_FLATCAR"
@@ -79,7 +79,7 @@ func testAccPreCheckForOpenstack(t *testing.T) {
 	testAccPreCheck(t)
 	checkEnv(t, testEnvOpenstackUsername)
 	checkEnv(t, testEnvOpenstackPassword)
-	checkEnv(t, testEnvOpenstackTenant)
+	checkEnv(t, testEnvOpenstackProjectID)
 	checkEnv(t, testEnvOpenstackNodeDC)
 	checkEnv(t, testEnvOpenstackImage)
 	checkEnv(t, testEnvOpenstackImage2)
@@ -96,7 +96,7 @@ func testAccPreCheckForAzure(t *testing.T) {
 	checkEnv(t, testEnvAzureTenantID)
 	checkEnv(t, testEnvAzureNodeDC)
 	checkEnv(t, testEnvAzureNodeSize)
-	checkEnv(t, testEnvOpenstackTenant)
+	checkEnv(t, testEnvOpenstackProjectID)
 }
 
 func testAccPreCheckForAWS(t *testing.T) {

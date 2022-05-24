@@ -65,7 +65,7 @@ resource "metakube_cluster" "cluster" {
       openstack {
         floating_ip_pool = var.floating_ip_pool
         password         = var.password
-        tenant           = var.tenant
+        project_id       = var.openstack_project_id
         username         = var.username
       }
     }

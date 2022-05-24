@@ -56,14 +56,6 @@ func metakubeResourceClusterFlattenSpec(values clusterPreserveValues, in *models
 	return []interface{}{att}
 }
 
-func metakubeResourceClusterFlattenSys11AuthClusterRoleBindings(in []models.ClusterRoleBinding) []interface{} {
-	return nil
-}
-
-func metakubeResourceClusterFlattenSys11AuthRoleBindings(in []models.ClusterRoleBinding) []interface{} {
-	return nil
-}
-
 func flattenUpdateWindow(in *models.UpdateWindow) []interface{} {
 	m := make(map[string]interface{})
 	m["start"] = in.Start
@@ -209,8 +201,8 @@ func flattenOpenstackSpec(values *clusterOpenstackPreservedValues, in *models.Op
 		if _, ok := att["server_group_id"]; !ok && values.openstackServerGroupID != nil {
 			att["server_group_id"] = values.openstackServerGroupID
 		}
-		if values.openstackTenant != nil {
-			att["tenant"] = values.openstackTenant
+		if values.openstackProjectID != nil {
+			att["project_id"] = values.openstackProjectID
 		}
 		if values.openstackUsername != nil {
 			att["username"] = values.openstackUsername
@@ -554,9 +546,9 @@ func expandOpenstackCloudSpec(p []interface{}) *models.OpenstackCloudSpec {
 	}
 	in := p[0].(map[string]interface{})
 
-	if v, ok := in["tenant"]; ok {
+	if v, ok := in["project_id"]; ok {
 		if vv, ok := v.(string); ok && vv != "" {
-			obj.Tenant = vv
+			obj.TenantID = vv
 		}
 	}
 
