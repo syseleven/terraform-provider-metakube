@@ -20,7 +20,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 	projectID := os.Getenv(testEnvProjectID)
 	username := os.Getenv(testEnvOpenstackUsername)
 	password := os.Getenv(testEnvOpenstackPassword)
-	tenant := os.Getenv(testEnvOpenstackTenant)
+	osProjectID := os.Getenv(testEnvOpenstackProjectID)
 	nodeDC := os.Getenv(testEnvOpenstackNodeDC)
 	image := os.Getenv(testEnvOpenstackImage)
 	image2 := os.Getenv(testEnvOpenstackImage2)
@@ -35,7 +35,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 		CheckDestroy: testAccCheckMetaKubeNodeDeploymentDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCheckMetaKubeNodeDeploymentBasic(projectID, testName, nodeDC, username, password, tenant, k8sVersionOld, k8sVersionOld, image, flavor),
+				Config: testAccCheckMetaKubeNodeDeploymentBasic(projectID, testName, nodeDC, username, password, osProjectID, k8sVersionOld, k8sVersionOld, image, flavor),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeNodeDeploymentExists(resourceName, &ndepl),
 					testAccCheckMetaKubeNodeDeploymentFields(&ndepl, flavor, image, k8sVersionOld, 1, 0, false),
@@ -53,7 +53,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 				),
 			},
 			{
-				Config: testAccCheckMetaKubeNodeDeploymentBasic2(projectID, testName, nodeDC, username, password, tenant, k8sVersionNew, k8sVersionNew, image2, flavor),
+				Config: testAccCheckMetaKubeNodeDeploymentBasic2(projectID, testName, nodeDC, username, password, osProjectID, k8sVersionNew, k8sVersionNew, image2, flavor),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testResourceInstanceState(resourceName, func(is *terraform.InstanceState) error {
 						// Record IDs to test import
@@ -78,7 +78,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 				),
 			},
 			{
-				Config: testAccCheckMetaKubeNodeDeploymentBasic3(projectID, testName, nodeDC, username, password, tenant, k8sVersionNew, k8sVersionNew, imageFlatcar, flavor),
+				Config: testAccCheckMetaKubeNodeDeploymentBasic3(projectID, testName, nodeDC, username, password, osProjectID, k8sVersionNew, k8sVersionNew, imageFlatcar, flavor),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testResourceInstanceState(resourceName, func(is *terraform.InstanceState) error {
 						// Record IDs to test import
@@ -102,7 +102,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 				),
 			},
 			{
-				Config:   testAccCheckMetaKubeNodeDeploymentBasic3(projectID, testName, nodeDC, username, password, tenant, k8sVersionNew, k8sVersionNew, imageFlatcar, flavor),
+				Config:   testAccCheckMetaKubeNodeDeploymentBasic3(projectID, testName, nodeDC, username, password, osProjectID, k8sVersionNew, k8sVersionNew, imageFlatcar, flavor),
 				PlanOnly: true,
 			},
 			{
@@ -373,7 +373,7 @@ func TestAccMetakubeNodeDeployment_Azure_Basic(t *testing.T) {
 	nodeDC := os.Getenv(testEnvAzureNodeDC)
 	nodeSize := os.Getenv(testEnvAzureNodeSize)
 	k8sVersion17 := os.Getenv(testEnvK8sVersion)
-	osProject := os.Getenv(testEnvOpenstackTenant)
+	osProject := os.Getenv(testEnvOpenstackProjectID)
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheckForAzure(t) },
@@ -464,7 +464,7 @@ func TestAccMetakubeNodeDeployment_AWS_Basic(t *testing.T) {
 	availabilityZone := os.Getenv(testEnvAWSAvailabilityZone)
 	diskSize := os.Getenv(testEnvAWSDiskSize)
 	k8sVersion := os.Getenv(testEnvK8sVersion)
-	osProject := os.Getenv(testEnvOpenstackTenant)
+	osProject := os.Getenv(testEnvOpenstackProjectID)
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheckForAWS(t) },
@@ -567,7 +567,7 @@ func TestAccMetakubeNodeDeployment_ValidationAgainstCluster(t *testing.T) {
 	testName := makeRandomName()
 
 	projectID := os.Getenv(testEnvProjectID)
-	tenant := os.Getenv(testEnvOpenstackTenant)
+	osProjectID := os.Getenv(testEnvOpenstackProjectID)
 	accessKeyID := os.Getenv(testEnvAWSAccessKeyID)
 	accessKeySecret := os.Getenv(testAWSSecretAccessKey)
 	vpcID := os.Getenv(testEnvAWSVPCID)
@@ -589,18 +589,18 @@ func TestAccMetakubeNodeDeployment_ValidationAgainstCluster(t *testing.T) {
 		CheckDestroy: testAccCheckMetaKubeClusterDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCheckMetaKubeNodeDeploymentBasicValidation(testName, projectID, tenant, accessKeyID, accessKeySecret, vpcID, nodeDC, instanceType, subnetID, availabilityZone, diskSize, k8sVersion17, k8sVersion17),
+				Config: testAccCheckMetaKubeNodeDeploymentBasicValidation(testName, projectID, osProjectID, accessKeyID, accessKeySecret, vpcID, nodeDC, instanceType, subnetID, availabilityZone, diskSize, k8sVersion17, k8sVersion17),
 			},
 			{
-				Config:      testAccCheckMetaKubeNodeDeploymentBasicValidation(testName, projectID, tenant, accessKeyID, accessKeySecret, vpcID, nodeDC, instanceType, subnetID, availabilityZone, diskSize, k8sVersion17, unavailableVersion),
+				Config:      testAccCheckMetaKubeNodeDeploymentBasicValidation(testName, projectID, osProjectID, accessKeyID, accessKeySecret, vpcID, nodeDC, instanceType, subnetID, availabilityZone, diskSize, k8sVersion17, unavailableVersion),
 				ExpectError: regexp.MustCompile(fmt.Sprintf(`unknown version for node deployment %s, available versions`, unavailableVersion)),
 			},
 			{
-				Config:      testAccCheckMetaKubeNodeDeploymentTypeValidation(testName, projectID, tenant, accessKeyID, accessKeySecret, vpcID, nodeDC, k8sVersion17, k8sVersion17),
+				Config:      testAccCheckMetaKubeNodeDeploymentTypeValidation(testName, projectID, osProjectID, accessKeyID, accessKeySecret, vpcID, nodeDC, k8sVersion17, k8sVersion17),
 				ExpectError: regexp.MustCompile(`provider for node deployment must \(.*\) match cluster provider \(.*\)`),
 			},
 			{
-				Config:      testAccCheckMetaKubeNodeDeploymentBasicValidation(testName, projectID, tenant, accessKeyID, accessKeySecret, vpcID, nodeDC, instanceType, subnetID, availabilityZone, diskSize, k8sVersion17, bigVersion),
+				Config:      testAccCheckMetaKubeNodeDeploymentBasicValidation(testName, projectID, osProjectID, accessKeyID, accessKeySecret, vpcID, nodeDC, instanceType, subnetID, availabilityZone, diskSize, k8sVersion17, bigVersion),
 				ExpectError: regexp.MustCompile(`cannot be greater than cluster version`),
 			},
 		},

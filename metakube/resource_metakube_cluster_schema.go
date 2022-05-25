@@ -1,11 +1,16 @@
 package metakube
 
 import (
+	"context"
+	"fmt"
 	"regexp"
 	"time"
 
+	"github.com/hashicorp/go-cty/cty"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
+
+	"github.com/syseleven/go-metakube/client/openstack"
 )
 
 func metakubeResourceClusterSpecFields() map[string]*schema.Schema {
@@ -76,6 +81,52 @@ func metakubeResourceClusterSpecFields() map[string]*schema.Schema {
 						MaxItems:    1,
 						Description: "OpenStack cluster specification",
 						Elem: &schema.Resource{
+							SchemaVersion: 1,
+							StateUpgraders: []schema.StateUpgrader{
+								{
+									Version: 0,
+									Type: cty.Object(map[string]cty.Type{
+										"username":                   cty.String,
+										"tenant":                     cty.String,
+										"password":                   cty.String,
+										"application_credentials_id": cty.String,
+									}),
+									Upgrade: func(ctx context.Context, rawState map[string]interface{}, m interface{}) (map[string]interface{}, error) {
+										if v, ok := rawState["application_credential_id"].(string); ok && v != "" {
+											return rawState, nil
+										}
+
+										meta := m.(*metakubeProviderMeta)
+										if u, ok := rawState["username"].(string); !ok {
+											return nil, fmt.Errorf("could not read 'username' %v from state %v", rawState["username"], rawState)
+										} else if p, ok := rawState["password"].(string); !ok {
+											return nil, fmt.Errorf("could not read 'password' %v from state %v", rawState["password"], rawState)
+										} else if name, ok := rawState["tenant"].(string); !ok {
+											return nil, fmt.Errorf("could not read 'tenant' %v from state %v", rawState["tenant"], rawState)
+										} else {
+											d := "Default"
+											params := openstack.NewListOpenstackTenantsParams().WithContext(ctx).WithDomain(&d).WithUsername(&u).WithPassword(&p)
+											result, err := meta.client.Openstack.ListOpenstackTenants(params, meta.auth)
+											if err != nil {
+												return nil, fmt.Errorf("could not get tenant '%s' id: %v", name, err)
+											}
+											var id string
+											for _, v := range result.Payload {
+												if v.Name == name {
+													id = v.ID
+													break
+												}
+											}
+											if id == "" {
+												return nil, fmt.Errorf("cound not find tenant '%s'", name)
+											}
+											delete(rawState, "tenant")
+											rawState["project_id"] = id
+											return rawState, nil
+										}
+									},
+								},
+							},
 							Schema: metakubeResourceClusterOpenstackCloudSpecFields(),
 						},
 						ConflictsWith: []string{"spec.0.cloud.0.aws", "spec.0.cloud.0.azure"},
@@ -286,12 +337,12 @@ func metakubeResourceCluserAWSCloudSpecFields() map[string]*schema.Schema {
 
 func metakubeResourceClusterOpenstackCloudSpecFields() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
-		"tenant": {
+		"project_id": {
 			Type:          schema.TypeString,
 			Optional:      true,
 			ConflictsWith: []string{"spec.0.cloud.0.openstack.0.application_credentials_id", "spec.0.cloud.0.openstack.0.application_credentials_secret"},
-			DefaultFunc:   schema.EnvDefaultFunc("OS_PROJECT_NAME", nil),
-			Description:   "The opestack project to use for billing",
+			DefaultFunc:   schema.EnvDefaultFunc("OS_PROJECT_ID", nil),
+			Description:   "The id of opestack project to use for billing",
 		},
 		"username": {
 			Type:          schema.TypeString,
@@ -311,7 +362,7 @@ func metakubeResourceClusterOpenstackCloudSpecFields() map[string]*schema.Schema
 		},
 		"application_credentials_id": {
 			Type:          schema.TypeString,
-			ConflictsWith: []string{"spec.0.cloud.0.openstack.0.username", "spec.0.cloud.0.openstack.0.password", "spec.0.cloud.0.openstack.0.tenant"},
+			ConflictsWith: []string{"spec.0.cloud.0.openstack.0.username", "spec.0.cloud.0.openstack.0.password", "spec.0.cloud.0.openstack.0.project_id"},
 			Optional:      true,
 			Description:   "Openstack application credentials ID",
 		},

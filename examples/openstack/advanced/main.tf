@@ -1,8 +1,8 @@
 terraform {
   required_providers {
-   metakube = {
-     source = "syseleven/metakube"
-   }
+    metakube = {
+      source = "syseleven/metakube"
+    }
     openstack = {
       source = "terraform-provider-openstack/openstack"
     }
@@ -92,7 +92,7 @@ resource "openstack_networking_subnet_v2" "subnet_1" {
 }
 
 resource "openstack_compute_servergroup_v2" "anti-affinity" {
-  name = "test-anti-affinity"
+  name     = "test-anti-affinity"
   policies = ["anti-affinity"]
 }
 
@@ -157,7 +157,7 @@ resource "metakube_cluster" "cluster" {
     version          = data.metakube_k8s_version.cluster.version
     cloud {
       openstack {
-        tenant           = var.tenant
+        project_id       = var.openstack_project_id
         username         = var.username
         password         = var.password
         floating_ip_pool = data.openstack_networking_network_v2.external.name

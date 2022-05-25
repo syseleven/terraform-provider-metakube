@@ -20,7 +20,7 @@ type metakubeResourceClusterOpenstackValidationData struct {
 	domain                       *string
 	username                     *string
 	password                     *string
-	tenant                       *string
+	projectID                    *string
 	applicationCredentialsID     *string
 	applicationCredentialsSecret *string
 	network                      *string
@@ -33,7 +33,7 @@ type metakubeResourceClusterGeneralOpenstackRequestParams interface {
 	SetDomain(*string)
 	SetUsername(*string)
 	SetPassword(*string)
-	SetTenant(*string)
+	SetTenantID(*string)
 	SetApplicationCredentialID(*string)
 	SetApplicationCredentialSecret(*string)
 	SetContext(context.Context)
@@ -44,7 +44,7 @@ func (data *metakubeResourceClusterOpenstackValidationData) setParams(ctx contex
 	p.SetDomain(data.domain)
 	p.SetUsername(data.username)
 	p.SetPassword(data.password)
-	p.SetTenant(data.tenant)
+	p.SetTenantID(data.projectID)
 	p.SetApplicationCredentialID(data.applicationCredentialsID)
 	p.SetApplicationCredentialSecret(data.applicationCredentialsSecret)
 	p.SetContext(ctx)
@@ -56,7 +56,7 @@ func newOpenstackValidationData(d *schema.ResourceData) metakubeResourceClusterO
 		domain:                       strToPtr("Default"),
 		username:                     toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.username")),
 		password:                     toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.password")),
-		tenant:                       toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.tenant")),
+		projectID:                    toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.project_id")),
 		applicationCredentialsID:     toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.application_credentials_id")),
 		applicationCredentialsSecret: toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.application_credentials_secret")),
 		network:                      toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.network")),
@@ -158,19 +158,19 @@ func metakubeResourceClusterValidateAccessCredentialsSet(d *schema.ResourceData)
 	data := newOpenstackValidationData(d)
 	username := data.username != nil && *data.username != ""
 	password := data.password != nil && *data.password != ""
-	tenant := data.tenant != nil && *data.tenant != ""
+	projectID := data.projectID != nil && *data.projectID != ""
 	applicationCredentialsID := data.applicationCredentialsID != nil && *data.applicationCredentialsID != ""
 	applicationCredentialsSecret := data.applicationCredentialsSecret != nil && *data.applicationCredentialsSecret != ""
 
-	if (username || password || tenant) && (applicationCredentialsID || applicationCredentialsSecret) {
+	if (username || password || projectID) && (applicationCredentialsID || applicationCredentialsSecret) {
 		return diag.Diagnostics{{
 			Severity:      diag.Error,
-			Summary:       "Please use either username, password, tenant or application_credentials_id, application_credentials_secret, not both",
+			Summary:       "Please use either username, password, project_id or application_credentials_id, application_credentials_secret, not both",
 			AttributePath: cty.GetAttrPath("spec").IndexInt(0).GetAttr("cloud").IndexInt(0).GetAttr("openstack").IndexInt(0),
 		}}
 	}
 
-	if (username || password || tenant) && (!username || !password || !tenant) {
+	if (username || password || projectID) && (!username || !password || !projectID) {
 		var details []string
 		if !username {
 			details = append(details, "username not set")
@@ -178,12 +178,12 @@ func metakubeResourceClusterValidateAccessCredentialsSet(d *schema.ResourceData)
 		if !password {
 			details = append(details, "password not set")
 		}
-		if !tenant {
-			details = append(details, "tenant not set")
+		if !projectID {
+			details = append(details, "project_id not set")
 		}
 		return diag.Diagnostics{{
 			Severity:      diag.Error,
-			Summary:       "Please set all username, password, tenant fields or use application_credentials_id, application_credentials_secret fields",
+			Summary:       "Please set all username, password, project_id fields or use application_credentials_id, application_credentials_secret fields",
 			AttributePath: cty.GetAttrPath("spec").IndexInt(0).GetAttr("cloud").IndexInt(0).GetAttr("openstack").IndexInt(0),
 			Detail:        strings.Join(details, ", "),
 		}}
