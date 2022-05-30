@@ -81,7 +81,7 @@ func metakubeResourceClusterSpecFields() map[string]*schema.Schema {
 						MaxItems:    1,
 						Description: "OpenStack cluster specification",
 						Elem: &schema.Resource{
-							SchemaVersion: 1,
+							SchemaVersion: 2,
 							StateUpgraders: []schema.StateUpgrader{
 								{
 									Version: 0,
@@ -122,6 +122,48 @@ func metakubeResourceClusterSpecFields() map[string]*schema.Schema {
 											}
 											delete(rawState, "tenant")
 											rawState["project_id"] = id
+											return rawState, nil
+										}
+									},
+								},
+								{
+									Version: 1,
+									Type: cty.Object(map[string]cty.Type{
+										"username":                   cty.String,
+										"project_id":                 cty.String,
+										"password":                   cty.String,
+										"application_credentials_id": cty.String,
+									}),
+									Upgrade: func(ctx context.Context, rawState map[string]interface{}, m interface{}) (map[string]interface{}, error) {
+										if v, ok := rawState["application_credential_id"].(string); ok && v != "" {
+											return rawState, nil
+										}
+
+										meta := m.(*metakubeProviderMeta)
+										if u, ok := rawState["username"].(string); !ok {
+											return nil, fmt.Errorf("could not read 'username' %v from state %v", rawState["username"], rawState)
+										} else if p, ok := rawState["password"].(string); !ok {
+											return nil, fmt.Errorf("could not read 'password' %v from state %v", rawState["password"], rawState)
+										} else if projectID, ok := rawState["project_id"].(string); !ok {
+											return nil, fmt.Errorf("could not read 'project_id' %v from state %v", rawState["project_id"], rawState)
+										} else {
+											d := "Default"
+											params := openstack.NewListOpenstackTenantsParams().WithContext(ctx).WithDomain(&d).WithUsername(&u).WithPassword(&p)
+											result, err := meta.client.Openstack.ListOpenstackTenants(params, meta.auth)
+											if err != nil {
+												return nil, fmt.Errorf("could not get tenant '%s': %v", projectID, err)
+											}
+											var name string
+											for _, v := range result.Payload {
+												if v.ID == projectID {
+													name = v.ID
+													break
+												}
+											}
+											if name == "" {
+												return nil, fmt.Errorf("cound not find openstack project '%s'", projectID)
+											}
+											rawState["project_name"] = name
 											return rawState, nil
 										}
 									},
@@ -342,7 +384,15 @@ func metakubeResourceClusterOpenstackCloudSpecFields() map[string]*schema.Schema
 			Optional:      true,
 			ConflictsWith: []string{"spec.0.cloud.0.openstack.0.application_credentials_id", "spec.0.cloud.0.openstack.0.application_credentials_secret"},
 			DefaultFunc:   schema.EnvDefaultFunc("OS_PROJECT_ID", nil),
-			Description:   "The id of opestack project to use for billing",
+			Description:   "The id of openstack project",
+		},
+		"project_name": {
+			Type:          schema.TypeString,
+			Optional:      true,
+			Deprecated:    "In general we recommend using 'project_id' instead",
+			ConflictsWith: []string{"spec.0.cloud.0.openstack.0.application_credentials_id", "spec.0.cloud.0.openstack.0.application_credentials_secret"},
+			DefaultFunc:   schema.EnvDefaultFunc("OS_PROJECT_NAME", nil),
+			Description:   "The name of openstack project",
 		},
 		"username": {
 			Type:          schema.TypeString,
@@ -362,7 +412,7 @@ func metakubeResourceClusterOpenstackCloudSpecFields() map[string]*schema.Schema
 		},
 		"application_credentials_id": {
 			Type:          schema.TypeString,
-			ConflictsWith: []string{"spec.0.cloud.0.openstack.0.username", "spec.0.cloud.0.openstack.0.password", "spec.0.cloud.0.openstack.0.project_id"},
+			ConflictsWith: []string{"spec.0.cloud.0.openstack.0.username", "spec.0.cloud.0.openstack.0.password", "spec.0.cloud.0.openstack.0.project_id", "spec.0.cloud.0.openstack.0.project_name"},
 			Optional:      true,
 			Description:   "Openstack application credentials ID",
 		},

@@ -204,6 +204,9 @@ func flattenOpenstackSpec(values *clusterOpenstackPreservedValues, in *models.Op
 		if values.openstackProjectID != nil {
 			att["project_id"] = values.openstackProjectID
 		}
+		if values.openstackProjectName != nil {
+			att["project_name"] = values.openstackProjectName
+		}
 		if values.openstackUsername != nil {
 			att["username"] = values.openstackUsername
 		}
@@ -549,6 +552,12 @@ func expandOpenstackCloudSpec(p []interface{}) *models.OpenstackCloudSpec {
 	if v, ok := in["project_id"]; ok {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.TenantID = vv
+		}
+	}
+
+	if v, ok := in["project_name"]; ok {
+		if vv, ok := v.(string); ok && vv != "" {
+			obj.Tenant = vv
 		}
 	}
 

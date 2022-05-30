@@ -101,7 +101,8 @@ When set, start time and length must be configured.
 * `subnet_cidr` - (Optional) Change this to configure a different internal IP range for Nodes. Default: `192.168.1.0/24`.
 When using password based auth
 * `server_group_id` - (Optional) Server group id to use for all machines within a cluster. You can use openstack server groups to group or seperate servers using soft/hard affinity/anti-affinity rules. When not set explicitly, the default soft anti-affinity server group will be created and used. 
-* `project_id` - (Optional) The id of project to use for billing. You can set it using environment variable `OS_PROJECT_NAME`. Must be omit if application credentials are used.
+* `project_id` - (Optional) The id of project to use for billing. You can set it using environment variable `OS_PROJECT_ID`. Must be omit if application credentials are used.
+* `project_name` - (Optional) The name of project to use for billing. You can set it using environment variable `OS_PROJECT_NAME`. Must be omit if application credentials are used.
 * `username` - (Optional) The account's username. You can set it using environment variable `OS_USERNAME`. Must be omit if application credentials are used.
 * `password` - (Optional) The account's password. You can set it using environment variable `OS_PASSWORD`. Must be omit if application credentials are used.
 When using application credentials
