@@ -81,6 +81,7 @@ func testAccPreCheckForOpenstack(t *testing.T) {
 	checkEnv(t, testEnvOpenstackUsername)
 	checkEnv(t, testEnvOpenstackPassword)
 	checkEnv(t, testEnvOpenstackProjectID)
+	checkEnv(t, testEnvOpenstackProjectName)
 	checkEnv(t, testEnvOpenstackNodeDC)
 	checkEnv(t, testEnvOpenstackImage)
 	checkEnv(t, testEnvOpenstackImage2)

@@ -35,6 +35,7 @@ type metakubeResourceClusterGeneralOpenstackRequestParams interface {
 	SetUsername(*string)
 	SetPassword(*string)
 	SetTenantID(*string)
+	SetTenant(*string)
 	SetApplicationCredentialID(*string)
 	SetApplicationCredentialSecret(*string)
 	SetContext(context.Context)
@@ -46,7 +47,7 @@ func (data *metakubeResourceClusterOpenstackValidationData) setParams(ctx contex
 	p.SetUsername(data.username)
 	p.SetPassword(data.password)
 	p.SetTenantID(data.projectID)
-	p.SetTenantID(data.projectName)
+	p.SetTenant(data.projectName)
 	p.SetApplicationCredentialID(data.applicationCredentialsID)
 	p.SetApplicationCredentialSecret(data.applicationCredentialsSecret)
 	p.SetContext(ctx)
@@ -169,7 +170,7 @@ func metakubeResourceClusterValidateAccessCredentialsSet(d *schema.ResourceData)
 	if (username || password || projectID || projectName) && (applicationCredentialsID || applicationCredentialsSecret) {
 		return diag.Diagnostics{{
 			Severity:      diag.Error,
-			Summary:       "Please use either username, password, project_id or application_credentials_id, application_credentials_secret, not both",
+			Summary:       "Please use either username, password, project_id, project_name or application_credentials_id, application_credentials_secret, not both",
 			AttributePath: cty.GetAttrPath("spec").IndexInt(0).GetAttr("cloud").IndexInt(0).GetAttr("openstack").IndexInt(0),
 		}}
 	}
