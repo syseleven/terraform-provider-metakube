@@ -29,6 +29,7 @@ const (
 	testEnvOpenstackAuthURL                      = "METAKUBE_OPENSTACK_AUTH_URL"
 	testEnvOpenstackPassword                     = "METAKUBE_OPENSTACK_PASSWORD"
 	testEnvOpenstackProjectID                    = "METAKUBE_OPENSTACK_PROJECT_ID"
+	testEnvOpenstackProjectName                  = "METAKUBE_OPENSTACK_PROJECT_NAME"
 	testEnvOpenstackImage                        = "METAKUBE_OPENSTACK_IMAGE"
 	testEnvOpenstackImage2                       = "METAKUBE_OPENSTACK_IMAGE2"
 	testEnvOpenstackImageFlatcar                 = "METAKUBE_OPENSTACK_IMAGE_FLATCAR"
