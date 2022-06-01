@@ -827,7 +827,7 @@ resource "metakube_cluster" "acctest_cluster" {
 				client_secret = "{{ .ClientSecret }}"
 				tenant_id = "{{ .TenantID }}"
 				subscription_id = "{{ .SubscriptionID }}"
-				openstack_billing_project_id = "{{ .OpenstackProjectName }}"
+				openstack_billing_tenant = "{{ .OpenstackProjectName }}"
 			}
 		}
 	}
@@ -908,7 +908,7 @@ resource "metakube_cluster" "acctest_cluster" {
 				access_key_id = "{{ .AccessID }}"
 				secret_access_key = "{{ .AccessSecret }}"
 				vpc_id = "{{ .VpcID }}"
-				openstack_billing_project_id = "{{ .OpenstackProjectName }}"
+				openstack_billing_tenant = "{{ .OpenstackProjectName }}"
 			}
 		}
 	}
