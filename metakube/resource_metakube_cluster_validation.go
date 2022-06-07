@@ -3,7 +3,6 @@ package metakube
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/syseleven/go-metakube/client/project"
 
@@ -170,49 +169,11 @@ func metakubeResourceClusterValidateAccessCredentialsSet(d *schema.ResourceData)
 	applicationCredentialsID := data.applicationCredentialsID != nil && *data.applicationCredentialsID != ""
 	applicationCredentialsSecret := data.applicationCredentialsSecret != nil && *data.applicationCredentialsSecret != ""
 
-	if (username || password || projectID || projectName) && (applicationCredentialsID || applicationCredentialsSecret) {
+	if !username && !password && !projectID && !projectName && !applicationCredentialsID && !applicationCredentialsSecret {
 		return diag.Diagnostics{{
 			Severity:      diag.Error,
-			Summary:       "Please use either username, password, project_id, project_name or application_credentials_id, application_credentials_secret, not both",
+			Summary:       "Please use either username, password, project_id, project_name or application_credentials_id, application_credentials_secret",
 			AttributePath: cty.GetAttrPath("spec").IndexInt(0).GetAttr("cloud").IndexInt(0).GetAttr("openstack").IndexInt(0),
-		}}
-	}
-
-	if (username || password || projectID || projectName) && (!username || !password || !projectID || !projectName) {
-		var details []string
-		if !username {
-			details = append(details, "username not set")
-		}
-		if !password {
-			details = append(details, "password not set")
-		}
-		if !projectID {
-			details = append(details, "project_id not set")
-		}
-		if !projectName {
-			details = append(details, "project_name not set")
-		}
-		return diag.Diagnostics{{
-			Severity:      diag.Error,
-			Summary:       "Please set all username, password, project_id, project_name fields or use application_credentials_id, application_credentials_secret fields",
-			AttributePath: cty.GetAttrPath("spec").IndexInt(0).GetAttr("cloud").IndexInt(0).GetAttr("openstack").IndexInt(0),
-			Detail:        strings.Join(details, ", "),
-		}}
-	}
-
-	if (applicationCredentialsID || applicationCredentialsSecret) && (!applicationCredentialsID || !applicationCredentialsSecret) {
-		var details []string
-		if !applicationCredentialsID {
-			details = append(details, "application_credentials_id not set")
-		}
-		if !applicationCredentialsSecret {
-			details = append(details, "application_credentials_secret not set")
-		}
-		return diag.Diagnostics{{
-			Severity:      diag.Error,
-			Summary:       "Please set both application_credentials_id, application_credentials_secret fields",
-			AttributePath: cty.GetAttrPath("spec").IndexInt(0).GetAttr("cloud").IndexInt(0).GetAttr("openstack").IndexInt(0),
-			Detail:        strings.Join(details, ", "),
 		}}
 	}
 

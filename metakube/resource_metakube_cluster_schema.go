@@ -382,6 +382,7 @@ func metakubeResourceClusterOpenstackCloudSpecFields() map[string]*schema.Schema
 		"project_id": {
 			Type:          schema.TypeString,
 			Optional:      true,
+			RequiredWith:  []string{"spec.0.cloud.0.openstack.0.username", "spec.0.cloud.0.openstack.0.password", "spec.0.cloud.0.openstack.0.project_name"},
 			ConflictsWith: []string{"spec.0.cloud.0.openstack.0.application_credentials_id", "spec.0.cloud.0.openstack.0.application_credentials_secret"},
 			DefaultFunc:   schema.EnvDefaultFunc("OS_PROJECT_ID", nil),
 			Description:   "The id of openstack project",
@@ -390,6 +391,7 @@ func metakubeResourceClusterOpenstackCloudSpecFields() map[string]*schema.Schema
 			Type:     schema.TypeString,
 			Optional: true,
 			// Deprecated:    "In general we recommend using just 'project_id' instead",
+			RequiredWith:  []string{"spec.0.cloud.0.openstack.0.username", "spec.0.cloud.0.openstack.0.password", "spec.0.cloud.0.openstack.0.project_id"},
 			ConflictsWith: []string{"spec.0.cloud.0.openstack.0.application_credentials_id", "spec.0.cloud.0.openstack.0.application_credentials_secret"},
 			DefaultFunc:   schema.EnvDefaultFunc("OS_PROJECT_NAME", nil),
 			Description:   "The name of openstack project",
@@ -398,6 +400,7 @@ func metakubeResourceClusterOpenstackCloudSpecFields() map[string]*schema.Schema
 			Type:          schema.TypeString,
 			DefaultFunc:   schema.EnvDefaultFunc("OS_USERNAME", nil),
 			Optional:      true,
+			RequiredWith:  []string{"spec.0.cloud.0.openstack.0.project_name", "spec.0.cloud.0.openstack.0.password", "spec.0.cloud.0.openstack.0.project_id"},
 			ConflictsWith: []string{"spec.0.cloud.0.openstack.0.application_credentials_id", "spec.0.cloud.0.openstack.0.application_credentials_secret"},
 			Sensitive:     true,
 			Description:   "The openstack account's username",
@@ -405,6 +408,7 @@ func metakubeResourceClusterOpenstackCloudSpecFields() map[string]*schema.Schema
 		"password": {
 			Type:          schema.TypeString,
 			DefaultFunc:   schema.EnvDefaultFunc("OS_PASSWORD", nil),
+			RequiredWith:  []string{"spec.0.cloud.0.openstack.0.project_name", "spec.0.cloud.0.openstack.0.username", "spec.0.cloud.0.openstack.0.project_id"},
 			ConflictsWith: []string{"spec.0.cloud.0.openstack.0.application_credentials_id", "spec.0.cloud.0.openstack.0.application_credentials_secret"},
 			Optional:      true,
 			Sensitive:     true,
