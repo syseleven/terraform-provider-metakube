@@ -170,12 +170,12 @@ func metakubeResourceClusterValidateAccessCredentialsSet(d *schema.ResourceData)
 	if (username || password || projectID || projectName) && (applicationCredentialsID || applicationCredentialsSecret) {
 		return diag.Diagnostics{{
 			Severity:      diag.Error,
-			Summary:       "Please use either username, password, project_id, project_name or application_credentials_id, application_credentials_secret, not both",
+			Summary:       "Please use either username, password, project_id/project_name or application_credentials_id, application_credentials_secret, not both",
 			AttributePath: cty.GetAttrPath("spec").IndexInt(0).GetAttr("cloud").IndexInt(0).GetAttr("openstack").IndexInt(0),
 		}}
 	}
 
-	if (username || password || projectID || projectName) && (!username || !password || !projectID || !projectName) {
+	if (username || password || projectID) && (!username || !password || !projectID || !projectName) {
 		var details []string
 		if !username {
 			details = append(details, "username not set")
@@ -185,9 +185,6 @@ func metakubeResourceClusterValidateAccessCredentialsSet(d *schema.ResourceData)
 		}
 		if !projectID {
 			details = append(details, "project_id not set")
-		}
-		if !projectName {
-			details = append(details, "project_name not set")
 		}
 		return diag.Diagnostics{{
 			Severity:      diag.Error,

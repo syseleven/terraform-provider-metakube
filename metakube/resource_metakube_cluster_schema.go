@@ -389,7 +389,7 @@ func metakubeResourceClusterOpenstackCloudSpecFields() map[string]*schema.Schema
 		"project_name": {
 			Type:          schema.TypeString,
 			Optional:      true,
-			Deprecated:    "In general we recommend using 'project_id' instead",
+			Deprecated:    "In general we recommend using just 'project_id' instead",
 			ConflictsWith: []string{"spec.0.cloud.0.openstack.0.application_credentials_id", "spec.0.cloud.0.openstack.0.application_credentials_secret"},
 			DefaultFunc:   schema.EnvDefaultFunc("OS_PROJECT_NAME", nil),
 			Description:   "The name of openstack project",
