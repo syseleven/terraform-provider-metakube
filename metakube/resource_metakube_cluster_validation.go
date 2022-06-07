@@ -112,6 +112,9 @@ func metakubeResourceClusterValidateVersionUpgrade(ctx context.Context, projectI
 }
 
 func metakubeResourceValidateVersionExistence(ctx context.Context, d *schema.ResourceData, k *metakubeProviderMeta) diag.Diagnostics {
+	if !d.HasChange("spec.0.version") && d.Id() != "" {
+		return nil
+	}
 	version := d.Get("spec.0.version").(string)
 	p := versions.NewGetMasterVersionsParams().WithContext(ctx)
 	r, err := k.client.Versions.GetMasterVersions(p, k.auth)
