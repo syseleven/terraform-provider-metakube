@@ -303,7 +303,6 @@ func metakubeResourceClusterRead(ctx context.Context, d *schema.ResourceData, m 
 		}
 		if projectID == "" {
 			d.SetId("")
-			k.log.Info("owner project not found")
 			return nil
 		}
 		k.log.Debugf("found cluster in project '%s'", projectID)
