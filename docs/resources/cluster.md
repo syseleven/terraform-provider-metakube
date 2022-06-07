@@ -102,9 +102,9 @@ When set, start time and length must be configured.
 When using password based auth
 * `server_group_id` - (Optional) Server group id to use for all machines within a cluster. You can use openstack server groups to group or seperate servers using soft/hard affinity/anti-affinity rules. When not set explicitly, the default soft anti-affinity server group will be created and used. 
 * `project_id` - (Required with username/password) The id of project to use for billing. You can set it using environment variable `OS_PROJECT_ID`. Must be omit if application credentials are used.
-* `project_name` - (Optional) The name of project to use for billing. You can set it using environment variable `OS_PROJECT_NAME`. Must be omit if application credentials are used.
-* `username` - (Required with password/project_id) The account's username. You can set it using environment variable `OS_USERNAME`. Must be omit if application credentials are used.
-* `password` - (Required with username/project_id) The account's password. You can set it using environment variable `OS_PASSWORD`. Must be omit if application credentials are used.
+* `project_name` - (Required with username/password/project_id) The name of project to use for billing. You can set it using environment variable `OS_PROJECT_NAME`. Must be omit if application credentials are used.
+* `username` - (Required with password/project_name/project_id) The account's username. You can set it using environment variable `OS_USERNAME`. Must be omit if application credentials are used.
+* `password` - (Required with username/project_name/project_id) The account's password. You can set it using environment variable `OS_PASSWORD`. Must be omit if application credentials are used.
 When using application credentials
 * `application_credentials_id` - (Required with application_credentials_secret) Application credentials ID to use. Must be omit if username/password/project_id are used.
 * `application_credentials_secret` - (Required with application_credentials_id) Application credentials Secret to use. Must be omit if username/password/project_id are used.
