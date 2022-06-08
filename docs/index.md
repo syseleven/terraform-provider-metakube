@@ -34,8 +34,10 @@ resource "metakube_cluster" "cluster" {
     version          = data.metakube_k8s_version.cluster.version
     cloud {
       openstack {
-        application_credentials_id     = "YOUR_CREDENTIAL_ID"
-        application_credentials_secret = "YOU_CREDENTIAL_SECRET"
+        application_credentials {
+			id     = "YOUR_CREDENTIAL_ID"
+        	secret  = "YOU_CREDENTIAL_SECRET"
+		}
       }
     }
   }

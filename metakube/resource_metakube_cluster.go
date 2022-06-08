@@ -544,13 +544,13 @@ func readClusterPreserveValues(d *schema.ResourceData) clusterPreserveValues {
 	var openstack *clusterOpenstackPreservedValues
 	if _, ok := d.GetOk(key("openstack.0")); ok {
 		openstack = &clusterOpenstackPreservedValues{
-			openstackUsername:                     d.Get(key("openstack.0.username")),
-			openstackPassword:                     d.Get(key("openstack.0.password")),
-			openstackProjectID:                    d.Get(key("openstack.0.project_id")),
-			openstackProjectName:                  d.Get(key("openstack.0.project_name")),
+			openstackUsername:                     d.Get(key("openstack.0.user_credentials.0.username")),
+			openstackPassword:                     d.Get(key("openstack.0.user_credentials.0.password")),
+			openstackProjectID:                    d.Get(key("openstack.0.user_credentials.0.project_id")),
+			openstackProjectName:                  d.Get(key("openstack.0.user_credentials.0.project_name")),
 			openstackServerGroupID:                d.Get(key("openstack.0.server_group_id")),
-			openstackApplicationCredentialsID:     d.Get(key("openstack.0.application_credentials_id")),
-			openstackApplicationCredentialsSecret: d.Get(key("openstack.0.application_credentials_secret")),
+			openstackApplicationCredentialsID:     d.Get(key("openstack.0.application_credentials.0.id")),
+			openstackApplicationCredentialsSecret: d.Get(key("openstack.0.application_credentials.0.secret")),
 		}
 	}
 
@@ -809,11 +809,13 @@ func metakubeResourceClusterDelete(ctx context.Context, d *schema.ResourceData, 
 
 		r, err := k.client.Project.GetClusterV2(p, k.auth)
 		if err != nil {
-			if e, ok := err.(*project.GetClusterV2Default); ok && e.Code() == http.StatusNotFound {
-				k.log.Debugf("cluster '%s' has been destroyed, returned http code: %d", d.Id(), e.Code())
-				return nil
-			} else if e.Code() == http.StatusInternalServerError {
-				return resource.RetryableError(err)
+			if e, ok := err.(*project.GetClusterV2Default); ok {
+				if e.Code() == http.StatusNotFound {
+					k.log.Debugf("cluster '%s' has been destroyed, returned http code: %d", d.Id(), e.Code())
+					return nil
+				} else if e.Code() == http.StatusInternalServerError {
+					return resource.RetryableError(err)
+				}
 			}
 			if _, ok := err.(*project.GetClusterV2Forbidden); ok {
 				return resource.RetryableError(err)

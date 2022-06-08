@@ -201,23 +201,49 @@ func flattenOpenstackSpec(values *clusterOpenstackPreservedValues, in *models.Op
 		if _, ok := att["server_group_id"]; !ok && values.openstackServerGroupID != nil {
 			att["server_group_id"] = values.openstackServerGroupID
 		}
-		if values.openstackProjectID != nil {
-			att["project_id"] = values.openstackProjectID
+		if values.openstackProjectID != nil || values.openstackProjectName != nil || values.openstackUsername != nil || values.openstackPassword != nil {
+			m := make(map[string]interface{})
+			if values.openstackProjectID != nil {
+				if v := values.openstackProjectID.(string); v != "" {
+					m["project_id"] = values.openstackProjectID
+				}
+			}
+			if values.openstackProjectName != nil {
+				if v := values.openstackProjectName.(string); v != "" {
+					m["project_name"] = values.openstackProjectName
+				}
+			}
+			if values.openstackUsername != nil {
+				if v := values.openstackUsername.(string); v != "" {
+					m["username"] = values.openstackUsername
+				}
+			}
+			if values.openstackPassword != nil {
+				if v := values.openstackPassword.(string); v != "" {
+					m["password"] = values.openstackPassword
+				}
+			}
+			if len(m) > 0 {
+				att["user_credentials"] = []interface{}{m}
+			}
 		}
-		if values.openstackProjectName != nil {
-			att["project_name"] = values.openstackProjectName
-		}
-		if values.openstackUsername != nil {
-			att["username"] = values.openstackUsername
-		}
-		if values.openstackPassword != nil {
-			att["password"] = values.openstackPassword
-		}
-		if values.openstackApplicationCredentialsID != nil {
-			att["application_credentials_id"] = values.openstackApplicationCredentialsID
-		}
-		if values.openstackApplicationCredentialsSecret != nil {
-			att["application_credentials_secret"] = values.openstackApplicationCredentialsSecret
+		if values.openstackApplicationCredentialsID != nil || values.openstackApplicationCredentialsSecret != nil {
+			m := make(map[string]interface{})
+			if values.openstackApplicationCredentialsID != nil {
+				id := values.openstackApplicationCredentialsID.(string)
+				if id != "" {
+					m["id"] = values.openstackApplicationCredentialsID
+				}
+			}
+			if values.openstackApplicationCredentialsSecret != nil {
+				secret := values.openstackApplicationCredentialsSecret.(string)
+				if secret != "" {
+					m["secret"] = values.openstackApplicationCredentialsSecret
+				}
+			}
+			if len(m) > 0 {
+				att["application_credentials"] = []interface{}{m}
+			}
 		}
 	}
 
@@ -549,18 +575,6 @@ func expandOpenstackCloudSpec(p []interface{}) *models.OpenstackCloudSpec {
 	}
 	in := p[0].(map[string]interface{})
 
-	if v, ok := in["project_id"]; ok {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.TenantID = vv
-		}
-	}
-
-	if v, ok := in["project_name"]; ok {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.Tenant = vv
-		}
-	}
-
 	if v, ok := in["floating_ip_pool"]; ok {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.FloatingIPPool = vv
@@ -597,27 +611,50 @@ func expandOpenstackCloudSpec(p []interface{}) *models.OpenstackCloudSpec {
 		}
 	}
 
-	if v, ok := in["application_credentials_id"]; ok {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.ApplicationCredentialID = vv
+	if v, ok := in["application_credentials"]; ok {
+		if vv, ok := v.([]interface{}); ok && len(vv) > 0 && vv[0] != nil {
+			if m, ok := vv[0].(map[string]interface{}); ok {
+				if v, ok := m["id"]; ok {
+					if vv, ok := v.(string); ok && vv != "" {
+						obj.ApplicationCredentialID = vv
+					}
+				}
+
+				if v, ok := m["secret"]; ok {
+					if vv, ok := v.(string); ok && vv != "" {
+						obj.ApplicationCredentialSecret = vv
+					}
+				}
+			}
 		}
 	}
 
-	if v, ok := in["application_credentials_secret"]; ok {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.ApplicationCredentialSecret = vv
-		}
-	}
+	if v, ok := in["user_credentials"]; ok {
+		if vv, ok := v.([]interface{}); ok && len(vv) > 0 && vv[0] != nil {
+			if m, ok := vv[0].(map[string]interface{}); ok {
+				if v, ok := m["username"]; ok {
+					if vv, ok := v.(string); ok && vv != "" {
+						obj.Username = vv
+					}
+				}
+				if v, ok := m["password"]; ok {
+					if vv, ok := v.(string); ok && vv != "" {
+						obj.Password = vv
+					}
+				}
+				if v, ok := m["project_id"]; ok {
+					if vv, ok := v.(string); ok && vv != "" {
+						obj.TenantID = vv
+					}
+				}
 
-	if v, ok := in["username"]; ok {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.Username = vv
-		}
-	}
+				if v, ok := m["project_name"]; ok {
+					if vv, ok := v.(string); ok && vv != "" {
+						obj.Tenant = vv
+					}
+				}
 
-	if v, ok := in["password"]; ok {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.Password = vv
+			}
 		}
 	}
 

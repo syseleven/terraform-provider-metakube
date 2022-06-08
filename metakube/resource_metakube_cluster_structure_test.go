@@ -203,13 +203,15 @@ func TestFlattenOpenstackCloudSpec(t *testing.T) {
 			},
 			[]interface{}{
 				map[string]interface{}{
-					"application_credentials_id":     "id",
-					"application_credentials_secret": "secret",
-					"floating_ip_pool":               "FloatingIPPool",
-					"network":                        "Network",
-					"security_group":                 "SecurityGroups",
-					"subnet_id":                      "SubnetID",
-					"server_group_id":                "ServerGroupID",
+					"application_credentials": []interface{}{map[string]interface{}{
+						"id":     "id",
+						"secret": "secret",
+					}},
+					"floating_ip_pool": "FloatingIPPool",
+					"network":          "Network",
+					"security_group":   "SecurityGroups",
+					"subnet_id":        "SubnetID",
+					"server_group_id":  "ServerGroupID",
 				},
 			},
 		},
@@ -235,10 +237,12 @@ func TestFlattenOpenstackCloudSpec(t *testing.T) {
 			},
 			[]interface{}{
 				map[string]interface{}{
-					"username":         "Username",
-					"password":         "Password",
-					"project_id":       "TenantID",
-					"project_name":     "TenantName",
+					"user_credentials": []interface{}{map[string]interface{}{
+						"username":     "Username",
+						"password":     "Password",
+						"project_id":   "TenantID",
+						"project_name": "TenantName",
+					}},
 					"floating_ip_pool": "FloatingIPPool",
 					"network":          "Network",
 					"security_group":   "SecurityGroups",
@@ -269,10 +273,12 @@ func TestFlattenOpenstackCloudSpec(t *testing.T) {
 			},
 			[]interface{}{
 				map[string]interface{}{
-					"username":         "Username",
-					"password":         "Password",
-					"project_id":       "TenantID",
-					"project_name":     "TenantName",
+					"user_credentials": []interface{}{map[string]interface{}{
+						"username":     "Username",
+						"password":     "Password",
+						"project_id":   "TenantID",
+						"project_name": "TenantName",
+					}},
 					"floating_ip_pool": "FloatingIPPool",
 					"network":          "Network",
 					"security_group":   "SecurityGroups",
@@ -590,10 +596,35 @@ func TestExpandOpenstackCloudSpec(t *testing.T) {
 		{
 			[]interface{}{
 				map[string]interface{}{
-					"floating_ip_pool":               "FloatingIPPool",
-					"application_credentials_id":     "id",
-					"application_credentials_secret": "secret",
-					"server_group_id":                "ServerGroupID",
+					"floating_ip_pool": "FloatingIPPool",
+					"user_credentials": []interface{}{map[string]interface{}{
+						"username":     "Username",
+						"password":     "Password",
+						"project_id":   "TenantID",
+						"project_name": "TenantName",
+					}},
+					"server_group_id": "ServerGroupID",
+				},
+			},
+			&models.OpenstackCloudSpec{
+				Domain:         "Default",
+				FloatingIPPool: "FloatingIPPool",
+				Username:       "Username",
+				Password:       "Password",
+				TenantID:       "TenantID",
+				Tenant:         "TenantName",
+				ServerGroupID:  "ServerGroupID",
+			},
+		},
+		{
+			[]interface{}{
+				map[string]interface{}{
+					"floating_ip_pool": "FloatingIPPool",
+					"application_credentials": []interface{}{map[string]interface{}{
+						"id":     "id",
+						"secret": "secret",
+					}},
+					"server_group_id": "ServerGroupID",
 				},
 			},
 			&models.OpenstackCloudSpec{

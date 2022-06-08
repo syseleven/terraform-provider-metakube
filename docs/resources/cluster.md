@@ -101,13 +101,26 @@ When set, start time and length must be configured.
 * `subnet_cidr` - (Optional) Change this to configure a different internal IP range for Nodes. Default: `192.168.1.0/24`.
 When using password based auth
 * `server_group_id` - (Optional) Server group id to use for all machines within a cluster. You can use openstack server groups to group or seperate servers using soft/hard affinity/anti-affinity rules. When not set explicitly, the default soft anti-affinity server group will be created and used. 
-* `project_id` - (Required with username/password) The id of project to use for billing. You can set it using environment variable `OS_PROJECT_ID`. Must be omit if application credentials are used.
-* `project_name` - (Required with username/password/project_id) The name of project to use for billing. You can set it using environment variable `OS_PROJECT_NAME`. Must be omit if application credentials are used.
-* `username` - (Required with password/project_name/project_id) The account's username. You can set it using environment variable `OS_USERNAME`. Must be omit if application credentials are used.
-* `password` - (Required with username/project_name/project_id) The account's password. You can set it using environment variable `OS_PASSWORD`. Must be omit if application credentials are used.
-When using application credentials
-* `application_credentials_id` - (Required with application_credentials_secret) Application credentials ID to use. Must be omit if username/password/project_id are used.
-* `application_credentials_secret` - (Required with application_credentials_id) Application credentials Secret to use. Must be omit if username/password/project_id are used.
+* `user_credentials` - (Conditional) connect to Openstack using user credentials. May be omitted if `application_credentials` being used.
+* `application_credentials` - (Conditional) connect to Openstack using Application Credentials. May be omitted if `user_credentials` being used.
+
+### `user_credentials`
+
+Openstack user credentials.
+
+#### Arguments
+* `project_id` - (Required) The id of project to use for billing. You can set it using environment variable `OS_PROJECT_ID`.
+* `project_name` - (Required) The name of project to use for billing. You can set it using environment variable `OS_PROJECT_NAME`.
+* `username` - (Required) The account's username. You can set it using environment variable `OS_USERNAME`.
+* `password` - (Required) The account's password. You can set it using environment variable `OS_PASSWORD`.
+
+### `application_credentials`
+
+Openstack Application Credentials.
+
+#### Arguments
+* `id` - (Required) Application Credentials id to use.
+* `secret` - (Required) Application Credentials secret to use.
 
 ### `aws`
 

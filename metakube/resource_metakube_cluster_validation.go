@@ -56,12 +56,12 @@ func newOpenstackValidationData(d *schema.ResourceData) metakubeResourceClusterO
 	return metakubeResourceClusterOpenstackValidationData{
 		dcName:                       toStrPtrOrNil(d.Get("dc_name")),
 		domain:                       strToPtr("Default"),
-		username:                     toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.username")),
-		password:                     toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.password")),
-		projectID:                    toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.project_id")),
-		projectName:                  toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.project_name")),
-		applicationCredentialsID:     toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.application_credentials_id")),
-		applicationCredentialsSecret: toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.application_credentials_secret")),
+		username:                     toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.user_credentials.0.username")),
+		password:                     toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.user_credentials.0.password")),
+		projectID:                    toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.user_credentials.0.project_id")),
+		projectName:                  toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.user_credentials.0.project_name")),
+		applicationCredentialsID:     toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.application_credentials.0.id")),
+		applicationCredentialsSecret: toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.application_credentials.0.secret")),
 		network:                      toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.network")),
 		subnetID:                     toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.subnet_id")),
 	}
@@ -81,7 +81,6 @@ func metakubeResourceClusterValidateClusterFields(ctx context.Context, d *schema
 	}
 	ret = append(ret, metakubeResourceClusterValidateFloatingIPPool(ctx, d, k)...)
 	ret = append(ret, metakubeResourceClusterValidateOpenstackNetwork(ctx, d, k)...)
-	ret = append(ret, metakubeResourceClusterValidateAccessCredentialsSet(d)...)
 	return append(ret, diagnoseOpenstackSubnetWithIDExistsIfSet(ctx, d, k)...)
 }
 
@@ -157,26 +156,6 @@ func metakubeResourceClusterValidateFloatingIPPool(ctx context.Context, d *schem
 			Detail:        diagnoseDetail,
 		}}
 	}
-	return nil
-}
-
-func metakubeResourceClusterValidateAccessCredentialsSet(d *schema.ResourceData) diag.Diagnostics {
-	data := newOpenstackValidationData(d)
-	username := data.username != nil && *data.username != ""
-	password := data.password != nil && *data.password != ""
-	projectID := data.projectID != nil && *data.projectID != ""
-	projectName := data.projectName != nil && *data.projectName != ""
-	applicationCredentialsID := data.applicationCredentialsID != nil && *data.applicationCredentialsID != ""
-	applicationCredentialsSecret := data.applicationCredentialsSecret != nil && *data.applicationCredentialsSecret != ""
-
-	if !username && !password && !projectID && !projectName && !applicationCredentialsID && !applicationCredentialsSecret {
-		return diag.Diagnostics{{
-			Severity:      diag.Error,
-			Summary:       "Please use either username, password, project_id, project_name or application_credentials_id, application_credentials_secret",
-			AttributePath: cty.GetAttrPath("spec").IndexInt(0).GetAttr("cloud").IndexInt(0).GetAttr("openstack").IndexInt(0),
-		}}
-	}
-
 	return nil
 }
 

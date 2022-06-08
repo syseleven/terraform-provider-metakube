@@ -239,10 +239,10 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 				ImportState:       true,
 				ImportStateVerify: true,
 				ImportStateVerifyIgnore: []string{
-					"spec.0.cloud.0.openstack.0.username",
-					"spec.0.cloud.0.openstack.0.password",
-					"spec.0.cloud.0.openstack.0.project",
-					"spec.0.cloud.0.openstack.0.project_id",
+					"spec.0.cloud.0.openstack.0.user_credentials.0.username",
+					"spec.0.cloud.0.openstack.0.user_credentials.0.password",
+					"spec.0.cloud.0.openstack.0.user_credentials.0.project_name",
+					"spec.0.cloud.0.openstack.0.user_credentials.0.project_id",
 				},
 			},
 			// Test importing non-existent resource provides expected error.
@@ -287,8 +287,8 @@ func TestAccMetakubeCluster_Openstack_ApplicationCredentials(t *testing.T) {
 				Config: config.String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeClusterExists(&cluster),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.0.application_credentials_id", data.OpenstackApplicationCredentialID),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.0.application_credentials_secret", data.OpenstackApplicationCredentialSecret),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.0.application_credentials.0.id", data.OpenstackApplicationCredentialID),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.0.application_credentials.0.secret", data.OpenstackApplicationCredentialSecret),
 				),
 			},
 		},
@@ -400,10 +400,12 @@ resource "metakube_cluster" "acctest_cluster" {
 		}
 		cloud {
 			openstack {
-				project_id = "{{ .OpenstackProjectID }}"
-				project_name = "{{ .OpenstackProjectName }}"
-				username = "{{ .OpenstackUser }}"
-				password = "{{ .OpenstackPassword }}"
+			    user_credentials {
+					project_id = "{{ .OpenstackProjectID }}"
+					project_name = "{{ .OpenstackProjectName }}"
+					username = "{{ .OpenstackUser }}"
+					password = "{{ .OpenstackPassword }}"
+				}
 				floating_ip_pool = "ext-net"
 				security_group = openstack_networking_secgroup_v2.cluster-net.name
 				network = openstack_networking_network_v2.network_tf_test.name
@@ -467,8 +469,10 @@ resource "metakube_cluster" "acctest_cluster" {
 		}
 		cloud {
 			openstack {
-				application_credentials_id="{{ .OpenstackApplicationCredentialID }}"
-				application_credentials_secret="{{ .OpenstackApplicationCredentialSecret }}"
+				application_credentials {
+					id="{{ .OpenstackApplicationCredentialID }}"
+					secret="{{ .OpenstackApplicationCredentialSecret }}"
+				}
 			}
 		}
 	}
