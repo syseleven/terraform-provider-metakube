@@ -42,6 +42,12 @@ variable "openstack_project_id" {
   default     = null
 }
 
+variable "openstack_project_name" {
+  description = "OpenStack project name"
+  type        = string
+  default     = null
+}
+
 variable "node_flavor" {
   description = "Flavor of the k8s worker node"
   type        = string

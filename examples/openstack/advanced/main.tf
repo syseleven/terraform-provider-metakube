@@ -157,9 +157,12 @@ resource "metakube_cluster" "cluster" {
     version          = data.metakube_k8s_version.cluster.version
     cloud {
       openstack {
-        project_id       = var.openstack_project_id
-        username         = var.username
-        password         = var.password
+        user_credentials {
+          project_id   = var.openstack_project_id
+          project_name = var.openstack_project_name
+          username     = var.username
+          password     = var.password
+        }
         floating_ip_pool = data.openstack_networking_network_v2.external.name
         security_group   = openstack_networking_secgroup_v2.cluster-net.name
         network          = openstack_networking_network_v2.network_1.name

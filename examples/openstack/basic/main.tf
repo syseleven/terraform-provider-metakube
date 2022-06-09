@@ -63,10 +63,13 @@ resource "metakube_cluster" "cluster" {
     version          = data.metakube_k8s_version.cluster.version
     cloud {
       openstack {
+        user_credentials {
+          password     = var.password
+          project_id   = var.openstack_project_id
+          project_name = var.openstack_project_name
+          username     = var.username
+        }
         floating_ip_pool = var.floating_ip_pool
-        password         = var.password
-        project_id       = var.openstack_project_id
-        username         = var.username
       }
     }
   }
