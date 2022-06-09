@@ -104,7 +104,7 @@ resource "metakube_cluster" "acctest" {
 		version = "{{ .Version }}"
 		cloud {
 			openstack {
-				application_credentials{
+				application_credentials {
 					id = "{{ .OpenstackApplicationCredentialID }}"
 					secret ="{{ .OpenstackApplicationCredentialSecret }}"
 				}

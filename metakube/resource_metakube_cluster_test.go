@@ -239,10 +239,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 				ImportState:       true,
 				ImportStateVerify: true,
 				ImportStateVerifyIgnore: []string{
-					"spec.0.cloud.0.openstack.0.user_credentials.0.username",
-					"spec.0.cloud.0.openstack.0.user_credentials.0.password",
-					"spec.0.cloud.0.openstack.0.user_credentials.0.project_name",
-					"spec.0.cloud.0.openstack.0.user_credentials.0.project_id",
+					"spec.0.cloud.0.openstack.0.user_credentials",
 				},
 			},
 			// Test importing non-existent resource provides expected error.
@@ -513,10 +510,12 @@ resource "metakube_cluster" "acctest_cluster" {
 		}
 		cloud {
 			openstack {
-				project_id = "{{ .OpenstackProjectID }}"
-				project_name = "{{ .OpenstackProjectName }}"
-				username = "{{ .OpenstackUser }}"
-				password = "{{ .OpenstackPassword }}"
+				user_credentials {
+					project_id = "{{ .OpenstackProjectID }}"
+					project_name = "{{ .OpenstackProjectName }}"
+					username = "{{ .OpenstackUser }}"
+					password = "{{ .OpenstackPassword }}"
+				}
 				floating_ip_pool = "ext-net"
 				security_group = openstack_networking_secgroup_v2.cluster-net.name
 				network = openstack_networking_network_v2.network_tf_test.name
@@ -667,10 +666,12 @@ resource "metakube_cluster" "acctest_cluster" {
 		enable_ssh_agent = true
 		cloud {
 			openstack {
-				project_id = "{{ .OpenstackProjectID }}"
-				project_name = "{{ .OpenstackProjectName }}"
-				username = "{{ .OpenstackUser }}"
-				password = "{{ .OpenstackPassword }}"
+				user_credentials {
+					project_id = "{{ .OpenstackProjectID }}"
+					project_name = "{{ .OpenstackProjectName }}"
+					username = "{{ .OpenstackUser }}"
+					password = "{{ .OpenstackPassword }}"
+				}
 				floating_ip_pool = "ext-net"
 			}
 		}
@@ -698,10 +699,12 @@ resource "metakube_cluster" "acctest_cluster" {
 		enable_ssh_agent = true
 		cloud {
 			openstack {
-				project_id = "{{ .OpenstackProjectID }}"
-				project_name = "{{ .OpenstackProjectName }}"
-				username = "{{ .OpenstackUser }}"
-				password = "{{ .OpenstackPassword }}"
+				user_credentials {
+					project_id = "{{ .OpenstackProjectID }}"
+					project_name = "{{ .OpenstackProjectName }}"
+					username = "{{ .OpenstackUser }}"
+					password = "{{ .OpenstackPassword }}"
+				}
 				floating_ip_pool = "ext-net"
 			}
 		}

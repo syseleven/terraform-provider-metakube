@@ -142,10 +142,12 @@ func testAccCheckMetaKubeNodeDeploymentBasic(projectID, testName, nodeDC, userna
 			version = "%s"
 			cloud {
 				openstack {
-					project_id = "%s"
-					project_name = "%s"
-					username = "%s"
-					password = "%s"
+					user_credentials {
+						project_id = "%s"
+						project_name = "%s"
+						username = "%s"
+						password = "%s"
+					}
 					floating_ip_pool = "ext-net"
 				}
 			}
@@ -200,10 +202,12 @@ func testAccCheckMetaKubeNodeDeploymentBasic2(projectID, testName, nodeDC, usern
 			version = "%s"
 			cloud {
 				openstack {
-					project_id = "%s"
-					project_name = "%s"
-					username = "%s"
-					password = "%s"
+					user_credentials {
+						project_id = "%s"
+						project_name = "%s"
+						username = "%s"
+						password = "%s"
+					}
 					floating_ip_pool = "ext-net"
 				}
 			}
@@ -256,10 +260,12 @@ func testAccCheckMetaKubeNodeDeploymentBasic3(projectID, testName, nodeDC, usern
 			version = "%s"
 			cloud {
 				openstack {
-					project_id = "%s"
-					project_name = "%s"
-					username = "%s"
-					password = "%s"
+					user_credentials {
+						project_id = "%s"
+						project_name = "%s"
+						username = "%s"
+						password = "%s"
+					}
 					floating_ip_pool = "ext-net"
 				}
 			}
