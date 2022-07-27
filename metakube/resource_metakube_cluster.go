@@ -781,6 +781,9 @@ func metakubeResourceClusterDelete(ctx context.Context, d *schema.ResourceData, 
 
 	p.SetProjectID(projectID)
 	p.SetClusterID(d.Id())
+	deleteTrue := true
+	p.SetDeleteLoadBalancers(&deleteTrue)
+	p.SetDeleteVolumes(&deleteTrue)
 
 	deleteSent := false
 	err := resource.RetryContext(ctx, d.Timeout(schema.TimeoutDelete), func() *resource.RetryError {
