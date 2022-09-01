@@ -80,7 +80,6 @@ One of the following must be selected.
 
 * `openstack` - (Optional) Opestack infrastructure.
 * `aws` - (Optional) Amazon Web Services infrastructure.
-* `azure` - (Optional) Azure infrastructure.
 
 
 ### `update_window`
@@ -133,21 +132,6 @@ Openstack Application Credentials.
 * `route_table_id` - (Optional) Route table identifier.
 * `instance_profile_name` - (Optional) Instance profile name.
 * `role_arn` - (Optional) The IAM role that the control plane will use.
-* `openstack_billing_tenant` - (Required) Openstack Tenant/Project name for the account.
-
-### `azure`
-
-#### Arguments
-* `availability_set` - (Optional) Availability set name.
-* `client_id` - (Required) Client id.
-* `client_secret` - (Required) Client secret.
-* `subscription_id` - (Required) Subscription id.
-* `tenant_id` - (Required) Tenant id.
-* `resource_group` - (Optional) Resource group name.
-* `route_table` - (Optional) Route table name.
-* `security_group` - (Optional) Security group name.
-* `subnet` - (Optional) Subnet.
-* `vnet` - (Optional) Vnet.
 * `openstack_billing_tenant` - (Required) Openstack Tenant/Project name for the account.
 
 ### syseleven_auth

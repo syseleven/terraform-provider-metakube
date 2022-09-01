@@ -85,7 +85,6 @@ One of the following must be selected.
 
 * `openstack` - (Optional) Openstack node deployment specification.
 * `aws` - (Optional) AWS node deployment specification.
-* `azure` - (Optional) Azure node deployment specification.
 
 ### `operating_system`
 
@@ -131,15 +130,6 @@ One of the following must be selected.
 * `assign_public_ip` - (Optional) When set the AWS instance will get a public IP address assigned during launch overriding a possible setting in the used AWS subnet.
 * `ami` - (Optional) Amazon Machine Image to use. Will be defaulted to an AMI of your selected operating system and region.
 * `tags`- (Optional) Additional EC2 instance tags.
-
-### `azure`
-* `image_id` - (Optional) Node image id.
-* `size` - (Required) VM size.
-* `assign_public_ip` - (Optional) whether to have public facing IP or not.
-* `disk_size_gb` - (Optional) Data disk size in GB.
-* `os_disk_size_gb` - (Optional) OS disk size in GB.
-* `tags` - (Optional) Additional metadata to set.
-* `zones` - (Optional) Represents the availablity zones for azure vms.
 
 ### `ubuntu`
 

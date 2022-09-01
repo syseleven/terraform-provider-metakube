@@ -18,5 +18,4 @@ $ terraform apply
 
 By cloud provider:
 - [AWS](./aws)
-- [Azure](./azure)
 - [Openstack](./openstack)
