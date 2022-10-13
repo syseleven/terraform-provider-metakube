@@ -5,6 +5,10 @@ Node deployment resource in the provider defines the corresponding deployment of
 ## Example usage
 
 ```hcl
+resource "metakube_cluster" "example_cluster" {
+  # [...]
+}
+
 resource "metakube_node_deployment" "example_node" {
   cluster_id = metakube_cluster.example_cluster.id
   spec {
