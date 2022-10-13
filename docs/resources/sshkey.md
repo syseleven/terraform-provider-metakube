@@ -6,7 +6,7 @@ SSH Key resource in the provider defines the corresponding sshkey with public ke
 
 ```hcl
 resource "metakube_sshkey" "example" {
-  project_id = metakube_project.example.id
+  project_id = "example-project-id"
   name = "example"
   public_key = "ssh-rsa ... foo@bar.net"
 }
