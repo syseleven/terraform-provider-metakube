@@ -6,7 +6,7 @@ Node deployment resource in the provider defines the corresponding deployment of
 
 ```hcl
 resource "metakube_node_deployment" "example_node" {
-  cluster_id = metakube_project.example_project.id + ":europe-west3-c:" + metakube_cluster.example_cluster.id
+  cluster_id = metakube_cluster.example_cluster.id
   spec {
     replicas = 1
     template {

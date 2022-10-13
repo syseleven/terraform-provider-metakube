@@ -6,7 +6,7 @@ Cluster resource in the provider defines the corresponding cluster in MetaKube.
 
 ```hcl
 resource "metakube_cluster" "example" {
-  project_id = metakube_project.example.id
+  project_id = "example-project-id"
   name = "example"
   dc_name = "europe-west3-c"
 
