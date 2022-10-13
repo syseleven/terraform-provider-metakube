@@ -48,6 +48,7 @@ The following arguments are supported:
 
 ## Attributes
 
+* `id` - Cluster identifier.
 * `kube_config` - Admin kube config raw content which can be dumped to a file using [local_file](https://registry.terraform.io/providers/hashicorp/local/latest/docs/resources/file). You might want to use `oidc_kube_config` or `kube_login_kube_config` together with `syseleven_auth` configured for better security.
 * `oidc_kube_config` - Plain Open ID Connect kube config raw content which can be dumped to a file using [local_file](https://registry.terraform.io/providers/hashicorp/local/latest/docs/resources/file). To use `syseleven_auth` should be configured too.
 * `kube_login_kube_config` - The `kubelogin` config content which can be dumped to a file using [local_file](https://registry.terraform.io/providers/hashicorp/local/latest/docs/resources/file). To use `syseleven_auth` should be configured too.
