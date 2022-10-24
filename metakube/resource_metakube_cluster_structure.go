@@ -17,6 +17,8 @@ func metakubeResourceClusterFlattenSpec(values clusterPreserveValues, in *models
 		att["version"] = in.Version
 	}
 
+	att["billing_tenant"] = in.BillingTenant
+
 	if in.UpdateWindow != nil && (in.UpdateWindow.Start != "" || in.UpdateWindow.Length != "") {
 		att["update_window"] = flattenUpdateWindow(in.UpdateWindow)
 	}
@@ -321,6 +323,12 @@ func metakubeResourceClusterExpandSpec(p []interface{}, dcName string) *models.C
 	if v, ok := in["version"]; ok {
 		if vv, ok := v.(string); ok {
 			obj.Version = vv
+		}
+	}
+
+	if v, ok := in["billing_tenant"]; ok {
+		if vv, ok := v.(string); ok {
+			obj.BillingTenant = vv
 		}
 	}
 

@@ -19,6 +19,7 @@ resource "metakube_cluster" "example_cluster" {
   spec {
     enable_ssh_agent = true
     version          = data.metakube_k8s_version.cluster.version
+    billing_tenant   = var.openstack_billing_tenant
     cloud {
       aws {
         access_key_id            = var.aws_access_key_id
