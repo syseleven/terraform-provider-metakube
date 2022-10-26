@@ -119,8 +119,8 @@ Openstack user credentials.
 Openstack Application Credentials.
 
 #### Arguments
-* `id` - (Required) Application Credentials id to use.
-* `secret` - (Required) Application Credentials secret to use.
+* `id` - (Required) Application Credentials id to use. You can set it using environment variable `OS_APPLICATION_CREDENTIAL_ID`.
+* `secret` - (Required) Application Credentials secret to use. You can set it using environment variable `OS_APPLICATION_CREDENTIAL_SECRET`.
 
 ### `aws`
 

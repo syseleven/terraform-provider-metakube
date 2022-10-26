@@ -384,11 +384,13 @@ func metakubeResourceClusterOpenstackCloudSpecApplicationCredentialsFields() map
 	return map[string]*schema.Schema{
 		"id": {
 			Type:        schema.TypeString,
+			DefaultFunc: schema.EnvDefaultFunc("OS_APPLICATION_CREDENTIAL_ID", nil),
 			Required:    true,
 			Description: "Openstack application credentials ID",
 		},
 		"secret": {
 			Type:        schema.TypeString,
+			DefaultFunc: schema.EnvDefaultFunc("OS_APPLICATION_CREDENTIAL_SECRET", nil),
 			Required:    true,
 			Sensitive:   true,
 			Description: "Openstack application credentials secret",
