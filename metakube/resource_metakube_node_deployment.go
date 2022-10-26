@@ -395,7 +395,7 @@ func metakubeResourceNodeDeploymentWaitForReady(ctx context.Context, k *metakube
 			return resource.RetryableError(fmt.Errorf("unable to get node deployment %s", stringifyResponseError(err)))
 		}
 
-		if r.Payload.Status.ReadyReplicas < *r.Payload.Spec.Replicas || r.Payload.Status.UnavailableReplicas != 0 {
+		if r.Payload.Spec.Replicas != nil && r.Payload.Status.ReadyReplicas < *r.Payload.Spec.Replicas || r.Payload.Status.UnavailableReplicas != 0 {
 			k.log.Debugf("waiting for node deployment '%s' to be ready, %+v", id, r.Payload.Status)
 			return resource.RetryableError(fmt.Errorf("waiting for node deployment '%s' to be ready", id))
 		} else {
