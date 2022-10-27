@@ -142,6 +142,8 @@ func metakubeResourceClusterCreate(ctx context.Context, d *schema.ResourceData, 
 	spec := d.Get("spec").([]interface{})
 	dcname := d.Get("dc_name").(string)
 	clusterSpec := metakubeResourceClusterExpandSpec(spec, dcname)
+	// FIXME once we have proper server side validation for spec.BillingTenant we can remove this
+	ensureBillingTenantForAWS(clusterSpec)
 	clusterLabels := metakubeResourceClusterLabels(d)
 	resourceProject, err := getProject(meta, d.Get("project_id").(string))
 	if err != nil {
@@ -216,6 +218,12 @@ func metakubeResourceClusterCreate(ctx context.Context, d *schema.ResourceData, 
 	}
 
 	return metakubeResourceClusterRead(ctx, d, m)
+}
+
+func ensureBillingTenantForAWS(spec *models.ClusterSpec) {
+	if spec.Cloud.Aws != nil {
+		spec.BillingTenant = spec.Cloud.Aws.OpenstackBillingTenant
+	}
 }
 
 func metakubeResourceClusterLabels(d *schema.ResourceData) map[string]string {

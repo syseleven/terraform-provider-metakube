@@ -326,12 +326,6 @@ func metakubeResourceClusterExpandSpec(p []interface{}, dcName string) *models.C
 		}
 	}
 
-	if v, ok := in["billing_tenant"]; ok {
-		if vv, ok := v.(string); ok {
-			obj.BillingTenant = vv
-		}
-	}
-
 	if v, ok := in["update_window"]; ok {
 		if vv, ok := v.([]interface{}); ok {
 			obj.UpdateWindow = expandUpdateWindow(vv)

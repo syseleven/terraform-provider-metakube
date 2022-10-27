@@ -167,11 +167,6 @@ func metakubeResourceClusterSpecFields() map[string]*schema.Schema {
 			Computed:    true,
 			Description: "Internal IP range for Pods",
 		},
-		"billing_tenant": {
-			Type:        schema.TypeString,
-			Optional:    true,
-			Description: "The ID of the tenant for billing",
-		},
 	}
 }
 
