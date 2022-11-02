@@ -388,21 +388,19 @@ func metakubeResourceClusterExpandSpec(p []interface{}, dcName string) *models.C
 		}
 	}
 
+	// FIXME once we have proper server side validation for spec.BillingTenant we can remove this
+	// for now copy it from cloud spec
+	if obj.Cloud.Aws != nil {
+		obj.BillingTenant = obj.Cloud.Aws.OpenstackBillingTenant
+	}
+
 	if v, ok := in["syseleven_auth"]; ok {
 		if vv, ok := v.([]interface{}); ok {
 			obj.Sys11auth = expandClusterSys11Auth(vv)
 		}
 	}
 
-	// FIXME once we have proper server side validation for spec.BillingTenant we can remove this
-	ensureBillingTenantForAWS(obj)
 	return obj
-}
-
-func ensureBillingTenantForAWS(spec *models.ClusterSpec) {
-	if spec.Cloud.Aws != nil {
-		spec.BillingTenant = spec.Cloud.Aws.OpenstackBillingTenant
-	}
 }
 
 func expandUpdateWindow(p []interface{}) *models.UpdateWindow {
