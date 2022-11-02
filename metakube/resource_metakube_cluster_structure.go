@@ -394,7 +394,15 @@ func metakubeResourceClusterExpandSpec(p []interface{}, dcName string) *models.C
 		}
 	}
 
+	// FIXME once we have proper server side validation for spec.BillingTenant we can remove this
+	ensureBillingTenantForAWS(obj)
 	return obj
+}
+
+func ensureBillingTenantForAWS(spec *models.ClusterSpec) {
+	if spec.Cloud.Aws != nil {
+		spec.BillingTenant = spec.Cloud.Aws.OpenstackBillingTenant
+	}
 }
 
 func expandUpdateWindow(p []interface{}) *models.UpdateWindow {
