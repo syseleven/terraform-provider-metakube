@@ -34,11 +34,8 @@ func testSweepClusters(region string) error {
 			continue
 		}
 
-		t := true
 		p := project.NewDeleteClusterV2Params().
 			WithProjectID(projectID).
-			WithDeleteLoadBalancers(&t).
-			WithDeleteVolumes(&t).
 			WithClusterID(rec.ID)
 		if _, err := meta.client.Project.DeleteClusterV2(p, meta.auth); err != nil {
 			return fmt.Errorf("delete cluster: %v", stringifyResponseError(err))
@@ -567,10 +564,10 @@ func testAccCheckMetaKubeClusterOpenstackAttributes(cluster *models.Cluster, nam
 			return fmt.Errorf("want .Spec.Cloud.DatacenterName=%s, got %s", nodeDC, cluster.Spec.Cloud.DatacenterName)
 		}
 
-		if v, ok := cluster.Spec.Version.(string); !ok || v == "" {
+		if cluster.Spec.Version == "" {
 			return fmt.Errorf("cluster version is empty")
-		} else if v != k8sVersion {
-			return fmt.Errorf("want .Spec.Version=%s, got %s", k8sVersion, v)
+		} else if string(cluster.Spec.Version) != k8sVersion {
+			return fmt.Errorf("want .Spec.Version=%s, got %s", k8sVersion, cluster.Spec.Version)
 		}
 
 		openstack := cluster.Spec.Cloud.Openstack

@@ -427,12 +427,11 @@ func metakubeClusterUpdateKubeconfig(ctx context.Context, k *metakubeProviderMet
 }
 
 func metakubeClusterUpdateOIDCKubeconfig(ctx context.Context, k *metakubeProviderMeta, projectID, seedName, clusterID string) (string, error) {
-	kubeConfigParams := project.NewGetOidcClusterKubeconfigParams()
+	kubeConfigParams := project.NewGetOidcClusterKubeconfigV2Params()
 	kubeConfigParams.SetContext(ctx)
 	kubeConfigParams.SetProjectID(projectID)
-	kubeConfigParams.SetDC(seedName)
 	kubeConfigParams.SetClusterID(clusterID)
-	ret, err := k.client.Project.GetOidcClusterKubeconfig(kubeConfigParams, k.auth)
+	ret, err := k.client.Project.GetOidcClusterKubeconfigV2(kubeConfigParams, k.auth)
 	if err != nil {
 		return "", fmt.Errorf("failed to get oidc_kube_config: %s", stringifyResponseError(err))
 	}
@@ -440,12 +439,11 @@ func metakubeClusterUpdateOIDCKubeconfig(ctx context.Context, k *metakubeProvide
 }
 
 func metakubeClusterUpdateKubeloginKubeconfig(ctx context.Context, k *metakubeProviderMeta, projectID, seedName, clusterID string) (string, error) {
-	kubeConfigParams := project.NewGetKubeLoginClusterKubeconfigParams()
+	kubeConfigParams := project.NewGetKubeLoginClusterKubeconfigV2Params()
 	kubeConfigParams.SetContext(ctx)
 	kubeConfigParams.SetProjectID(projectID)
-	kubeConfigParams.SetDC(seedName)
 	kubeConfigParams.SetClusterID(clusterID)
-	ret, err := k.client.Project.GetKubeLoginClusterKubeconfig(kubeConfigParams, k.auth)
+	ret, err := k.client.Project.GetKubeLoginClusterKubeconfigV2(kubeConfigParams, k.auth)
 	if err != nil {
 		return "", fmt.Errorf("failed to get kube_login_kube_config: %s", stringifyResponseError(err))
 	}

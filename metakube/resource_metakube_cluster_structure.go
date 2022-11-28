@@ -13,8 +13,8 @@ func metakubeResourceClusterFlattenSpec(values clusterPreserveValues, in *models
 
 	att := make(map[string]interface{})
 
-	if in.Version != nil {
-		att["version"] = in.Version
+	if in.Version != "" {
+		att["version"] = string(in.Version)
 	}
 
 	if in.UpdateWindow != nil && (in.UpdateWindow.Start != "" || in.UpdateWindow.Length != "") {
@@ -320,7 +320,7 @@ func metakubeResourceClusterExpandSpec(p []interface{}, dcName string) *models.C
 
 	if v, ok := in["version"]; ok {
 		if vv, ok := v.(string); ok {
-			obj.Version = vv
+			obj.Version = models.Semver(vv)
 		}
 	}
 
@@ -390,7 +390,7 @@ func metakubeResourceClusterExpandSpec(p []interface{}, dcName string) *models.C
 
 	// FIXME once we have proper server side validation for spec.BillingTenant we can remove this
 	// for now copy it from cloud spec
-	if obj.Cloud.Aws != nil {
+	if obj.Cloud != nil && obj.Cloud.Aws != nil {
 		obj.BillingTenant = obj.Cloud.Aws.OpenstackBillingTenant
 	}
 
@@ -650,13 +650,13 @@ func expandOpenstackCloudSpec(p []interface{}) *models.OpenstackCloudSpec {
 				}
 				if v, ok := m["project_id"]; ok {
 					if vv, ok := v.(string); ok && vv != "" {
-						obj.TenantID = vv
+						obj.ProjectID = vv
 					}
 				}
 
 				if v, ok := m["project_name"]; ok {
 					if vv, ok := v.(string); ok && vv != "" {
-						obj.Tenant = vv
+						obj.Project = vv
 					}
 				}
 

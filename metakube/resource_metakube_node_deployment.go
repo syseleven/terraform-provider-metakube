@@ -123,12 +123,6 @@ func metakubeResourceNodeDeploymentCreate(ctx context.Context, d *schema.Resourc
 		return diag.FromErr(err)
 	}
 
-	p := project.NewCreateMachineDeploymentParams().
-		WithContext(ctx).
-		WithProjectID(projectID).
-		WithClusterID(clusterID).
-		WithBody(nodeDeployment)
-
 	if err := metakubeResourceClusterWaitForReady(ctx, k, d.Timeout(schema.TimeoutCreate), projectID, clusterID); err != nil {
 		return diag.Errorf("cluster is not ready: %v", err)
 	}
@@ -153,6 +147,12 @@ func metakubeResourceNodeDeploymentCreate(ctx context.Context, d *schema.Resourc
 	if err != nil {
 		return diag.Errorf("nodedeployments API is not ready: %v", err)
 	}
+
+	p := project.NewCreateMachineDeploymentParams().
+		WithContext(ctx).
+		WithProjectID(projectID).
+		WithClusterID(clusterID).
+		WithBody(nodeDeployment)
 
 	var id string
 	err = resource.RetryContext(ctx, d.Timeout(schema.TimeoutCreate), func() *resource.RetryError {
@@ -314,7 +314,7 @@ func metakubeResourceNodeDeploymentVersionCompatibleWithCluster(ctx context.Cont
 	if err != nil {
 		return err
 	}
-	clusterVersion := cluster.Spec.Version.(string)
+	clusterVersion := string(cluster.Spec.Version)
 
 	var kubeletVersion string
 	if ndepl.Spec.Template != nil && ndepl.Spec.Template.Versions != nil {
