@@ -387,7 +387,7 @@ func metakubeResourceClusterRead(ctx context.Context, d *schema.ResourceData, m 
 		if conf, err := metakubeClusterUpdateOIDCKubeconfig(ctx, k, projectID, dc.Spec.Seed, d.Id()); err != nil {
 			return diag.Diagnostics{{
 				Severity:      diag.Warning,
-				Summary:       fmt.Sprintf("could not update OIDC kubeconfig: %v", err),
+				Summary:       fmt.Sprintf("could not update OIDC kubeconfig: %s", stringifyResponseError(err)),
 				AttributePath: cty.GetAttrPath("oidc_kube_config"),
 			}}
 		} else {
