@@ -29,7 +29,6 @@ type metakubeResourceClusterOpenstackValidationData struct {
 
 type metakubeResourceClusterGeneralOpenstackRequestParams interface {
 	SetDatacenterName(*string)
-	SetCredential(*string)
 	SetDomain(*string)
 	SetUsername(*string)
 	SetPassword(*string)
