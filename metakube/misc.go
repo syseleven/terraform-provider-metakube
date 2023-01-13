@@ -14,7 +14,7 @@ func stringifyResponseError(resErr error) string {
 
 	rawData, err := json.Marshal(resErr)
 	if err != nil {
-		return err.Error()
+		return resErr.Error()
 	}
 	v := &struct {
 		Payload *models.ErrorResponse

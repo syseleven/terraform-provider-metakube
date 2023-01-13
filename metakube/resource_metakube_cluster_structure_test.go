@@ -423,7 +423,6 @@ func TestExpandClusterSpec(t *testing.T) {
 							"length": "3h",
 						},
 					},
-					"machine_networks":    []interface{}{},
 					"audit_logging":       false,
 					"pod_security_policy": true,
 					"pod_node_selector":   true,

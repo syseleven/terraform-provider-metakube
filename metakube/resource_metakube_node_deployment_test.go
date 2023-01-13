@@ -31,7 +31,10 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 	k8sVersionOld := os.Getenv(testEnvK8sOlderVersion)
 
 	resource.Test(t, resource.TestCase{
-		PreCheck:     func() { testAccPreCheckForOpenstack(t) },
+		PreCheck: func() {
+			testAccPreCheckForOpenstack(t)
+			checkEnv(t, testEnvOpenstackImageFlatcar)
+		},
 		Providers:    testAccProviders,
 		CheckDestroy: testAccCheckMetaKubeNodeDeploymentDestroy,
 		Steps: []resource.TestStep{
