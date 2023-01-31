@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -104,50 +103,6 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttrSet(resourceName, "spec.0.cloud.0.openstack.0.subnet_id"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.0.subnet_cidr", "192.168.2.0/24"),
 					resource.TestCheckResourceAttrSet(resourceName, "kube_config"),
-					// Test spec.0.machine_networks value
-					testResourceInstanceState(resourceName, func(is *terraform.InstanceState) error {
-						n, err := strconv.Atoi(is.Attributes["spec.0.machine_networks.#"])
-						if err != nil {
-							return err
-						}
-
-						if want := len(cluster.Spec.MachineNetworks); n != want {
-							return fmt.Errorf("want len(cluster.Spec.MachineNetworks)=%d, got %d", want, n)
-						}
-
-						for i, networks := range cluster.Spec.MachineNetworks {
-							prefix := fmt.Sprintf("spec.0.machine_networks.%d.", i)
-
-							var k string
-
-							k = prefix + "cidr"
-							if v := is.Attributes[k]; v != networks.CIDR {
-								return fmt.Errorf("want %s=%s, got %s", k, networks.CIDR, v)
-							}
-
-							k = prefix + "gateway"
-							if v := is.Attributes[k]; v != networks.Gateway {
-								return fmt.Errorf("want %s=%s, got %s", k, networks.Gateway, v)
-							}
-
-							k = prefix + "dns_servers.#"
-							n, err = strconv.Atoi(is.Attributes[k])
-							if err != nil {
-								return err
-							}
-							if w := len(networks.DNSServers); n != w {
-								return fmt.Errorf("want %s=%d, got %d", k, w, n)
-							}
-							for i, want := range networks.DNSServers {
-								k = prefix + fmt.Sprintf("dns_server.%d", i)
-								if v := is.Attributes[k]; v != want {
-									return fmt.Errorf("want %s=%s, got %s", k, want, v)
-								}
-							}
-						}
-
-						return nil
-					}),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.audit_logging", "false"),
 					resource.TestCheckResourceAttrSet(resourceName, "creation_timestamp"),
 					resource.TestCheckResourceAttrSet(resourceName, "deletion_timestamp"),
@@ -182,50 +137,6 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttrSet(resourceName, "kube_config"),
 					resource.TestCheckResourceAttrSet(resourceName, "oidc_kube_config"),
 					resource.TestCheckResourceAttrSet(resourceName, "kube_login_kube_config"),
-					// Test spec.0.machine_networks value
-					testResourceInstanceState(resourceName, func(is *terraform.InstanceState) error {
-						n, err := strconv.Atoi(is.Attributes["spec.0.machine_networks.#"])
-						if err != nil {
-							return err
-						}
-
-						if want := len(cluster.Spec.MachineNetworks); n != want {
-							return fmt.Errorf("want len(cluster.Spec.MachineNetworks)=%d, got %d", want, n)
-						}
-
-						for i, networks := range cluster.Spec.MachineNetworks {
-							prefix := fmt.Sprintf("spec.0.machine_networks.%d.", i)
-
-							var k string
-
-							k = prefix + "cidr"
-							if v := is.Attributes[k]; v != networks.CIDR {
-								return fmt.Errorf("want %s=%s, got %s", k, networks.CIDR, v)
-							}
-
-							k = prefix + "gateway"
-							if v := is.Attributes[k]; v != networks.Gateway {
-								return fmt.Errorf("want %s=%s, got %s", k, networks.Gateway, v)
-							}
-
-							k = prefix + "dns_servers.#"
-							n, err = strconv.Atoi(is.Attributes[k])
-							if err != nil {
-								return err
-							}
-							if w := len(networks.DNSServers); n != w {
-								return fmt.Errorf("want %s=%d, got %d", k, w, n)
-							}
-							for i, want := range networks.DNSServers {
-								k = prefix + fmt.Sprintf("dns_server.%d", i)
-								if v := is.Attributes[k]; v != want {
-									return fmt.Errorf("want %s=%s, got %s", k, want, v)
-								}
-							}
-						}
-
-						return nil
-					}),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.audit_logging", "true"),
 					resource.TestCheckResourceAttrSet(resourceName, "creation_timestamp"),
 					resource.TestCheckResourceAttrSet(resourceName, "deletion_timestamp"),

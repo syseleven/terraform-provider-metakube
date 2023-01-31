@@ -109,32 +109,6 @@ func metakubeResourceClusterSpecFields() map[string]*schema.Schema {
 				},
 			},
 		},
-		"machine_networks": {
-			Type:        schema.TypeList,
-			Optional:    true,
-			ForceNew:    true,
-			Description: "Machine networks optionally specifies the parameters for IPAM",
-			Elem: &schema.Resource{
-				Schema: map[string]*schema.Schema{
-					"cidr": {
-						Type:        schema.TypeString,
-						Optional:    true,
-						Description: "Network CIDR",
-					},
-					"gateway": {
-						Type:        schema.TypeString,
-						Optional:    true,
-						Description: "Network gateway",
-					},
-					"dns_servers": {
-						Type:        schema.TypeSet,
-						Optional:    true,
-						Description: "DNS servers",
-						Elem:        schema.TypeString,
-					},
-				},
-			},
-		},
 		"audit_logging": {
 			Type:        schema.TypeBool,
 			Optional:    true,
