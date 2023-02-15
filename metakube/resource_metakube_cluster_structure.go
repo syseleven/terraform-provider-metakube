@@ -59,35 +59,6 @@ func flattenUpdateWindow(in *models.UpdateWindow) []interface{} {
 	return []interface{}{m}
 }
 
-func flattenMachineNetworks(in []*models.MachineNetworkingConfig) []interface{} {
-	if len(in) < 1 {
-		return []interface{}{}
-	}
-
-	att := make([]interface{}, len(in))
-
-	for i, v := range in {
-		m := make(map[string]interface{})
-
-		if v.CIDR != "" {
-			m["cidr"] = v.CIDR
-		}
-		if v.Gateway != "" {
-			m["gateway"] = v.Gateway
-		}
-		if l := len(v.DNSServers); l > 0 {
-			ds := make([]interface{}, l)
-			for i, s := range v.DNSServers {
-				ds[i] = s
-			}
-			m["dns_servers"] = ds
-		}
-		att[i] = m
-	}
-
-	return att
-}
-
 func flattenClusterCloudSpec(values clusterPreserveValues, in *models.CloudSpec) []interface{} {
 	if in == nil {
 		return []interface{}{}
@@ -407,43 +378,6 @@ func expandUpdateWindow(p []interface{}) *models.UpdateWindow {
 		ret.Length = v.(string)
 	}
 	return ret
-}
-
-func expandMachineNetworks(p []interface{}) []*models.MachineNetworkingConfig {
-	if len(p) < 1 {
-		return nil
-	}
-	var machines []*models.MachineNetworkingConfig
-	for _, elem := range p {
-		in := elem.(map[string]interface{})
-		obj := &models.MachineNetworkingConfig{}
-
-		if v, ok := in["cidr"]; ok {
-			if vv, ok := v.(string); ok && v != "" {
-				obj.CIDR = vv
-			}
-		}
-
-		if v, ok := in["gateway"]; ok {
-			if vv, ok := v.(string); ok && v != "" {
-				obj.Gateway = vv
-			}
-		}
-
-		if v, ok := in["dns_servers"]; ok {
-			if vv, ok := v.([]interface{}); ok {
-				for _, s := range vv {
-					if ss, ok := s.(string); ok && s != "" {
-						obj.DNSServers = append(obj.DNSServers, ss)
-					}
-				}
-			}
-		}
-
-		machines = append(machines, obj)
-	}
-
-	return machines
 }
 
 func expandAuditLogging(enabled bool) *models.AuditLoggingSettings {
