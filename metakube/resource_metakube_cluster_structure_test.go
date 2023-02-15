@@ -20,7 +20,6 @@ func TestMetakubeClusterFlattenSpec(t *testing.T) {
 					Start:  "Tue 02:00",
 					Length: "3h",
 				},
-				MachineNetworks:       nil,
 				EnableUserSSHKeyAgent: true,
 				AuditLogging:          &models.AuditLoggingSettings{},
 				Cloud: &models.CloudSpec{
@@ -362,51 +361,6 @@ func TestFlattenAzureCloudSpec(t *testing.T) {
 	}
 }
 
-func TestFlattenMachineNetwork(t *testing.T) {
-	cases := []struct {
-		Input          []*models.MachineNetworkingConfig
-		ExpectedOutput []interface{}
-	}{
-		{
-			[]*models.MachineNetworkingConfig{
-				{
-					CIDR:    "192.168.0.0/24",
-					Gateway: "192.168.1.1",
-					DNSServers: []string{
-						"192.200.200.1",
-						"192.200.200.201",
-					},
-				},
-			},
-			[]interface{}{
-				map[string]interface{}{
-					"cidr":    "192.168.0.0/24",
-					"gateway": "192.168.1.1",
-					"dns_servers": []interface{}{
-						"192.200.200.1",
-						"192.200.200.201",
-					},
-				},
-			},
-		},
-		{
-			[]*models.MachineNetworkingConfig{},
-			[]interface{}{},
-		},
-		{
-			nil,
-			[]interface{}{},
-		},
-	}
-
-	for _, tc := range cases {
-		output := flattenMachineNetworks(tc.Input)
-		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
-			t.Fatalf("Unexpected output from expander: mismatch (-want +got):\n%s", diff)
-		}
-	}
-}
-
 func TestExpandClusterSpec(t *testing.T) {
 	cases := []struct {
 		Input          []interface{}
@@ -448,7 +402,6 @@ func TestExpandClusterSpec(t *testing.T) {
 					Start:  "Tue 02:00",
 					Length: "3h",
 				},
-				MachineNetworks:                     nil,
 				AuditLogging:                        &models.AuditLoggingSettings{},
 				UsePodSecurityPolicyAdmissionPlugin: true,
 				UsePodNodeSelectorAdmissionPlugin:   true,
@@ -702,53 +655,6 @@ func TestExpandAzureCloudSpec(t *testing.T) {
 
 	for _, tc := range cases {
 		output := expandAzureCloudSpec(tc.Input)
-		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
-			t.Fatalf("Unexpected output from expander: mismatch (-want +got):\n%s", diff)
-		}
-	}
-}
-
-func TestExpandMachineNetwork(t *testing.T) {
-	cases := []struct {
-		Input          []interface{}
-		ExpectedOutput []*models.MachineNetworkingConfig
-	}{
-		{
-			[]interface{}{
-				map[string]interface{}{
-					"cidr":    "192.168.0.0/24",
-					"gateway": "192.168.1.1",
-					"dns_servers": []interface{}{
-						"192.200.200.1",
-						"192.200.200.201",
-					},
-				},
-			},
-			[]*models.MachineNetworkingConfig{
-				{
-					CIDR:    "192.168.0.0/24",
-					Gateway: "192.168.1.1",
-					DNSServers: []string{
-						"192.200.200.1",
-						"192.200.200.201",
-					},
-				},
-			},
-		},
-		{
-			[]interface{}{
-				map[string]interface{}{},
-			},
-			[]*models.MachineNetworkingConfig{{}},
-		},
-		{
-			[]interface{}{},
-			nil,
-		},
-	}
-
-	for _, tc := range cases {
-		output := expandMachineNetworks(tc.Input)
 		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
 			t.Fatalf("Unexpected output from expander: mismatch (-want +got):\n%s", diff)
 		}

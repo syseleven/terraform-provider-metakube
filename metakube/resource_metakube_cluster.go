@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-cty/cty"
+	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/customdiff"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -237,8 +238,8 @@ func metakubeResourceClusterSSHKeys(d *schema.ResourceData) []string {
 
 func metakubeResourceClusterFindDatacenterByName(ctx context.Context, k *metakubeProviderMeta, d *schema.ResourceData) (*models.Datacenter, diag.Diagnostics) {
 	name := d.Get("dc_name").(string)
-	p := datacenter.NewListDatacentersParams().WithContext(ctx)
-	r, err := k.client.Datacenter.ListDatacentersv2(p, k.auth)
+	p := datacenter.NewListDatacentersV2Params().WithContext(ctx)
+	r, err := k.client.Datacenter.ListDatacentersV2(p, k.auth)
 	if err != nil {
 		return nil, diag.Errorf("Can't list datacenters: %s", stringifyResponseError(err))
 	}
