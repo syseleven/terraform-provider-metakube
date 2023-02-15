@@ -9,10 +9,6 @@ Use the navigation to the left to read about the available resources.
 
 ```hcl
 provider "metakube" {
-  host = "https://metakube-api-address"
-}
-
-provider "metakube" {
   host     = "https://metakube.syseleven.de"
 }
 
