@@ -36,7 +36,7 @@ env:
     paths:
     - test.env
   only:
-    - syseleven/master
+    - master
 
 test:
   stage: test
@@ -52,4 +52,4 @@ test:
   needs:
     - env
   only:
-    - syseleven/master
+    - master
