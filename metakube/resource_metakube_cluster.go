@@ -257,7 +257,7 @@ func metakubeResourceClusterFindDatacenterByName(ctx context.Context, k *metakub
 			(azureCluster && azureDatacenter) {
 			available = append(available, dc.Metadata.Name)
 		}
-		if dc.Spec.Seed != "" && dc.Metadata.Name == name {
+		if dc.Metadata.Name == name {
 			return dc, nil
 		}
 	}
