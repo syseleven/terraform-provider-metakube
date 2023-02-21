@@ -3,11 +3,13 @@ package metakube
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/syseleven/go-metakube/client/project"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
@@ -91,14 +93,23 @@ func metakubeResourceRoleBindingCreate(ctx context.Context, d *schema.ResourceDa
 
 	subjects := metakubeRoleBindingExpandSubjects(d.Get("subject"))
 	for _, sub := range subjects {
-		params := project.NewBindUserToRoleV2Params().
-			WithContext(ctx).
-			WithProjectID(d.Get("project_id").(string)).
-			WithClusterID(d.Get("cluster_id").(string)).
-			WithNamespace(d.Get("namespace").(string)).
-			WithRoleID(d.Get("role_name").(string)).
-			WithBody(&sub)
-		_, err := k.client.Project.BindUserToRoleV2(params, k.auth)
+		err := resource.RetryContext(ctx, d.Timeout(schema.TimeoutCreate), func() *resource.RetryError {
+			params := project.NewBindUserToRoleV2Params().
+				WithContext(ctx).
+				WithProjectID(d.Get("project_id").(string)).
+				WithClusterID(d.Get("cluster_id").(string)).
+				WithNamespace(d.Get("namespace").(string)).
+				WithRoleID(d.Get("role_name").(string)).
+				WithBody(&sub)
+			_, err := k.client.Project.BindUserToRoleV2(params, k.auth)
+			if err != nil {
+				e, ok := err.(*project.BindUserToRoleV2Default)
+				if ok && (e.Code() == http.StatusConflict || e.Code() == http.StatusNotFound) {
+					return resource.RetryableError(err)
+				}
+			}
+			return nil
+		})
 		if err != nil {
 			return diag.FromErr(fmt.Errorf("failed to create role bindings: %s", stringifyResponseError(err)))
 		}

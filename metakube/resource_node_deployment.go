@@ -381,8 +381,6 @@ func validateKubeletVersionIsAvailable(k *metakubeProviderMeta, kubeletVersion, 
 }
 
 func metakubeResourceNodeDeploymentWaitForReady(ctx context.Context, k *metakubeProviderMeta, timeout time.Duration, projectID, clusterID, id string) error {
-	ensures := 0
-	needed := 2
 	return resource.RetryContext(ctx, timeout, func() *resource.RetryError {
 		p := project.NewGetMachineDeploymentParams().
 			WithContext(ctx).
@@ -395,15 +393,30 @@ func metakubeResourceNodeDeploymentWaitForReady(ctx context.Context, k *metakube
 			return resource.RetryableError(fmt.Errorf("unable to get node deployment %s", stringifyResponseError(err)))
 		}
 
-		if r.Payload.Spec.Replicas != nil && r.Payload.Status.ReadyReplicas < *r.Payload.Spec.Replicas || r.Payload.Status.UnavailableReplicas != 0 {
+		if r.Payload.Spec.Replicas == nil || r.Payload.Status == nil || r.Payload.Status.ReadyReplicas < *r.Payload.Spec.Replicas || r.Payload.Status.UnavailableReplicas != 0 {
 			k.log.Debugf("waiting for node deployment '%s' to be ready, %+v", id, r.Payload.Status)
 			return resource.RetryableError(fmt.Errorf("waiting for node deployment '%s' to be ready", id))
-		} else {
-			ensures++
 		}
-		if ensures <= needed {
-			k.log.Debugf("looks ok, ensuring")
-			return resource.RetryableError(fmt.Errorf("looks ok but check again to ensure machines are not being reconciled."))
+
+		// Check all nodes are ready
+		p2 := project.NewListMachineDeploymentNodesParams().
+			WithContext(ctx).
+			WithProjectID(projectID).
+			WithClusterID(clusterID).
+			WithMachineDeploymentID(id)
+		r2, err := k.client.Project.ListMachineDeploymentNodes(p2, k.auth)
+		if err != nil {
+			return resource.RetryableError(fmt.Errorf("unable to list nodes %s", stringifyResponseError(err)))
+		}
+		if len(r2.Payload) != int(*r.Payload.Spec.Replicas) {
+			k.log.Debug("node count mismatch, want %v got %v", *r.Payload.Spec.Replicas, len(r2.Payload))
+			return resource.RetryableError(fmt.Errorf("want %v nodes, got %v", *r.Payload.Spec.Replicas, len(r2.Payload)))
+		}
+		for _, node := range r2.Payload {
+			if node.Status == nil || node.Status.NodeInfo == nil || node.Status.NodeInfo.KernelVersion == "" {
+				k.log.Debug("found not ready node")
+				return resource.RetryableError(fmt.Errorf("some nodes are not ready"))
+			}
 		}
 		return nil
 	})
