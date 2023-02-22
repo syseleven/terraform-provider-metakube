@@ -99,6 +99,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "spec.0.update_window.0.length", "2h"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.services_cidr", "10.240.16.0/18"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.pods_cidr", "172.25.0.0/18"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.0.type", "canal"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.aws.#", "0"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.#", "1"),
@@ -126,6 +127,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "spec.0.update_window.0.length", "3h"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.services_cidr", "10.240.16.0/18"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.pods_cidr", "172.25.0.0/18"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.0.type", "none"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.pod_node_selector", "true"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.pod_security_policy", "true"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.#", "1"),
@@ -360,6 +362,9 @@ resource "metakube_cluster" "acctest_cluster" {
 		}
 		services_cidr = "10.240.16.0/18"
 		pods_cidr = "172.25.0.0/18"
+		cni_plugin {
+		  type = "canal"
+		}
 	}
 }
 
@@ -483,6 +488,9 @@ resource "metakube_cluster" "acctest_cluster" {
 		pod_security_policy = true
 		services_cidr = "10.240.16.0/18"
 		pods_cidr = "172.25.0.0/18"
+		cni_plugin {
+		  type = "none"
+		}
 	}
 }
 
@@ -600,6 +608,12 @@ func testAccCheckMetaKubeClusterOpenstackAttributes(cluster *models.Cluster, nam
 
 		if openstack.FloatingIPPool != "ext-net" {
 			return fmt.Errorf("want .Spec.Cloud.Openstack.FloatingIPPool=%s, got %s", "ext-net", openstack.FloatingIPPool)
+		}
+
+		cniPlugin := cluster.Spec.CniPlugin
+
+		if cniPlugin == nil {
+			return fmt.Errorf("CNI plugin is not specified")
 		}
 
 		return nil

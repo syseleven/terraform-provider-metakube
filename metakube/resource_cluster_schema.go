@@ -141,6 +141,25 @@ func metakubeResourceClusterSpecFields() map[string]*schema.Schema {
 			Computed:    true,
 			Description: "Internal IP range for Pods",
 		},
+		"cni_plugin": {
+			Type:        schema.TypeList,
+			Optional:    true,
+			Description: "Contains the spec of the CNI plugin used by the Cluster",
+			Elem: &schema.Resource{
+				Schema: map[string]*schema.Schema{
+					"type": {
+						Type:         schema.TypeString,
+						Optional:     true,
+						Default:      "canal",
+						ValidateFunc: validation.StringInSlice([]string{"canal", "none"}, false),
+						DiffSuppressFunc: func(_, oldValue, newValue string, _ *schema.ResourceData) bool {
+							return newValue == "" && oldValue != ""
+						},
+						Description: "Define the type of CNI plugin",
+					},
+				},
+			},
+		},
 	}
 }
 
