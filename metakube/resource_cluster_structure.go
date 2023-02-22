@@ -343,6 +343,12 @@ func metakubeResourceClusterExpandSpec(p []interface{}, dcName string) *models.C
 		}
 	}
 
+	if v, ok := in["cni_plugin"]; ok {
+		if vv, ok := v.([]interface{}); ok {
+			obj.CniPlugin = expandCniPlugin(vv)
+		}
+	}
+
 	if v, ok := in["cloud"]; ok {
 		if vv, ok := v.([]interface{}); ok {
 			obj.Cloud = expandClusterCloudSpec(vv, dcName)
@@ -384,6 +390,31 @@ func expandAuditLogging(enabled bool) *models.AuditLoggingSettings {
 	return &models.AuditLoggingSettings{
 		Enabled: enabled,
 	}
+}
+
+func expandCniPlugin(p []interface{}) *models.CNIPluginSettings {
+	if len(p) < 1 {
+		return nil
+	}
+	obj := &models.CNIPluginSettings{}
+	if p[0] == nil {
+		return obj
+	}
+	in := p[0].(map[string]interface{})
+
+	if v, ok := in["type"]; ok {
+		if vv, ok := v.(string); ok && vv != "" {
+			obj.Type = models.CNIPluginType(vv)
+		}
+	}
+
+	if v, ok := in["version"]; ok {
+		if vv, ok := v.(string); ok && vv != "" {
+			obj.Version = vv
+		}
+	}
+
+	return obj
 }
 
 func expandClusterCloudSpec(p []interface{}, dcName string) *models.CloudSpec {

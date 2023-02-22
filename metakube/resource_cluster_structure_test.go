@@ -382,6 +382,12 @@ func TestExpandClusterSpec(t *testing.T) {
 					"pod_node_selector":   true,
 					"services_cidr":       "1.1.1.0/20",
 					"pods_cidr":           "2.2.0.0/16",
+					"cni_plugin": []interface{}{
+						map[string]interface{}{
+							"type":    "canal",
+							"version": "",
+						},
+					},
 					"cloud": []interface{}{
 						map[string]interface{}{
 							"openstack": []interface{}{
@@ -418,6 +424,10 @@ func TestExpandClusterSpec(t *testing.T) {
 					Openstack: &models.OpenstackCloudSpec{
 						Domain: "Default",
 					},
+				},
+				CniPlugin: &models.CNIPluginSettings{
+					Type:    "canal",
+					Version: "",
 				},
 				Sys11auth: &models.Sys11AuthSettings{
 					Realm: "testrealm",
@@ -485,6 +495,43 @@ func TestExpandClusterCloudSpec(t *testing.T) {
 
 	for _, tc := range cases {
 		output := expandClusterCloudSpec(tc.Input, tc.DCName)
+		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
+			t.Fatalf("Unexpected output from expander: mismatch (-want +got):\n%s", diff)
+		}
+	}
+}
+
+func TestExpandCniPlugin(t *testing.T) {
+	cases := []struct {
+		Input          []interface{}
+		ExpectedOutput *models.CNIPluginSettings
+	}{
+		{
+			[]interface{}{
+				map[string]interface{}{
+					"type":    "canal",
+					"version": "",
+				},
+			},
+			&models.CNIPluginSettings{
+				Type:    "canal",
+				Version: "",
+			},
+		},
+		{
+			[]interface{}{
+				map[string]interface{}{},
+			},
+			&models.CNIPluginSettings{},
+		},
+		{
+			[]interface{}{},
+			nil,
+		},
+	}
+
+	for _, tc := range cases {
+		output := expandCniPlugin(tc.Input)
 		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
 			t.Fatalf("Unexpected output from expander: mismatch (-want +got):\n%s", diff)
 		}
