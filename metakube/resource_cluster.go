@@ -141,7 +141,7 @@ func metakubeResourceClusterCreate(ctx context.Context, d *schema.ResourceData, 
 	retDiags := metakubeResourceClusterValidateClusterFields(ctx, d, meta)
 	spec := d.Get("spec").([]interface{})
 	dcname := d.Get("dc_name").(string)
-	clusterSpec := metakubeResourceClusterExpandSpec(spec, dcname)
+	clusterSpec := metakubeResourceClusterExpandSpec(spec, dcname, func(_ string) bool { return true })
 	clusterLabels := metakubeResourceClusterLabels(d)
 	resourceProject, err := getProject(meta, d.Get("project_id").(string))
 	if err != nil {
@@ -640,7 +640,7 @@ func metakubeResourceClusterSendPatchReq(ctx context.Context, d *schema.Resource
 	p.SetClusterID(d.Id())
 	name := d.Get("name").(string)
 	labels := metakubeResourceClusterGetLabelsChange(d)
-	clusterSpec := metakubeResourceClusterExpandSpec(d.Get("spec").([]interface{}), d.Get("dc_name").(string))
+	clusterSpec := metakubeResourceClusterExpandSpec(d.Get("spec").([]interface{}), d.Get("dc_name").(string), func(k string) bool { return d.HasChange("spec.0." + k) })
 	p.SetPatch(map[string]interface{}{
 		"name":   name,
 		"labels": labels,
