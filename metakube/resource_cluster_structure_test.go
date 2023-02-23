@@ -37,6 +37,9 @@ func TestMetakubeClusterFlattenSpec(t *testing.T) {
 						CIDRBlocks: []string{"2.2.0.0/16"},
 					},
 				},
+				CniPlugin: &models.CNIPluginSettings{
+					Type: models.CNIPluginType("canal"),
+				},
 			},
 			[]interface{}{
 				map[string]interface{}{
@@ -52,7 +55,12 @@ func TestMetakubeClusterFlattenSpec(t *testing.T) {
 					"pod_node_selector":   false,
 					"services_cidr":       "1.1.1.0/20",
 					"pods_cidr":           "2.2.0.0/16",
-					"enable_ssh_agent":    true,
+					"cni_plugin": []interface{}{
+						map[string]interface{}{
+							"type": "canal",
+						},
+					},
+					"enable_ssh_agent": true,
 					"cloud": []interface{}{
 						map[string]interface{}{
 							"openstack": []interface{}{map[string]interface{}{}},
@@ -87,6 +95,44 @@ func TestMetakubeClusterFlattenSpec(t *testing.T) {
 
 	for _, tc := range cases {
 		output := metakubeResourceClusterFlattenSpec(clusterPreserveValues{}, tc.Input)
+		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
+			t.Fatalf("Unexpected output from expander: mismatch (-want +got):\n%s", diff)
+		}
+	}
+}
+
+func TestFlattenCniPlugin(t *testing.T) {
+	cases := []struct {
+		Input          *models.CNIPluginSettings
+		ExpectedOutput []interface{}
+	}{
+		{
+
+			&models.CNIPluginSettings{
+				Type: models.CNIPluginType("canal"),
+			},
+			[]interface{}{
+				map[string]interface{}{
+					"type": "canal",
+				},
+			},
+		},
+		{
+			&models.CNIPluginSettings{},
+			[]interface{}{
+				map[string]interface{}{
+					"type": "",
+				},
+			},
+		},
+		{
+			nil,
+			[]interface{}{},
+		},
+	}
+
+	for _, tc := range cases {
+		output := flattenCniPlugin(tc.Input)
 		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
 			t.Fatalf("Unexpected output from expander: mismatch (-want +got):\n%s", diff)
 		}
@@ -384,8 +430,7 @@ func TestExpandClusterSpec(t *testing.T) {
 					"pods_cidr":           "2.2.0.0/16",
 					"cni_plugin": []interface{}{
 						map[string]interface{}{
-							"type":    "canal",
-							"version": "",
+							"type": "canal",
 						},
 					},
 					"cloud": []interface{}{
@@ -426,8 +471,7 @@ func TestExpandClusterSpec(t *testing.T) {
 					},
 				},
 				CniPlugin: &models.CNIPluginSettings{
-					Type:    "canal",
-					Version: "",
+					Type: models.CNIPluginType("canal"),
 				},
 				Sys11auth: &models.Sys11AuthSettings{
 					Realm: "testrealm",
@@ -509,13 +553,11 @@ func TestExpandCniPlugin(t *testing.T) {
 		{
 			[]interface{}{
 				map[string]interface{}{
-					"type":    "canal",
-					"version": "",
+					"type": "canal",
 				},
 			},
 			&models.CNIPluginSettings{
-				Type:    "canal",
-				Version: "",
+				Type: "canal",
 			},
 		},
 		{

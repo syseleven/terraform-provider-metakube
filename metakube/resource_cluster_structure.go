@@ -41,6 +41,10 @@ func metakubeResourceClusterFlattenSpec(values clusterPreserveValues, in *models
 		}
 	}
 
+	if in.CniPlugin != nil && in.CniPlugin.Type != "" {
+		att["cni_plugin"] = flattenCniPlugin(in.CniPlugin)
+	}
+
 	if in.Cloud != nil {
 		att["cloud"] = flattenClusterCloudSpec(values, in.Cloud)
 	}
@@ -56,6 +60,17 @@ func flattenUpdateWindow(in *models.UpdateWindow) []interface{} {
 	m := make(map[string]interface{})
 	m["start"] = in.Start
 	m["length"] = in.Length
+	return []interface{}{m}
+}
+
+func flattenCniPlugin(in *models.CNIPluginSettings) []interface{} {
+	if in == nil {
+		return []interface{}{}
+	}
+
+	m := make(map[string]interface{})
+	m["type"] = string(in.Type)
+
 	return []interface{}{m}
 }
 
@@ -405,12 +420,6 @@ func expandCniPlugin(p []interface{}) *models.CNIPluginSettings {
 	if v, ok := in["type"]; ok {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.Type = models.CNIPluginType(vv)
-		}
-	}
-
-	if v, ok := in["version"]; ok {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.Version = vv
 		}
 	}
 
