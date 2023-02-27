@@ -3,6 +3,7 @@ package metakube
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/syseleven/go-metakube/client/project"
 
@@ -78,9 +79,14 @@ func metakubeResourceClusterValidateClusterFields(ctx context.Context, d *schema
 	if _, ok := d.GetOk("spec.0.cloud.0.openstack.0"); !ok {
 		return ret
 	}
-	ret = append(ret, metakubeResourceClusterValidateFloatingIPPool(ctx, d, k)...)
-	ret = append(ret, metakubeResourceClusterValidateOpenstackNetwork(ctx, d, k)...)
-	return append(ret, diagnoseOpenstackSubnetWithIDExistsIfSet(ctx, d, k)...)
+	data := newOpenstackValidationData(d)
+	hasAuthData := (data.username == nil || *data.username != "") && (data.applicationCredentialsID == nil || *data.applicationCredentialsSecret != "")
+	if hasAuthData {
+		ret = append(ret, metakubeResourceClusterValidateFloatingIPPool(ctx, d, k)...)
+		ret = append(ret, metakubeResourceClusterValidateOpenstackNetwork(ctx, d, k)...)
+		ret = append(ret, diagnoseOpenstackSubnetWithIDExistsIfSet(ctx, d, k)...)
+	}
+	return append(ret, metakubeResourceClusterValidateAccessCredentialsSet(d)...)
 }
 
 func metakubeResourceClusterValidateVersionUpgrade(ctx context.Context, projectID, newVersion string, cluster *models.Cluster, k *metakubeProviderMeta) diag.Diagnostics {
@@ -262,5 +268,74 @@ func findSubnet(list []*models.OpenstackSubnet, id string) *models.OpenstackSubn
 			return item
 		}
 	}
+	return nil
+}
+
+func metakubeResourceClusterValidateAccessCredentialsSet(d *schema.ResourceData) diag.Diagnostics {
+	isCreation := d.Id() == ""
+
+	data := newOpenstackValidationData(d)
+
+	username := data.username != nil && *data.username != ""
+	password := data.password != nil && *data.password != ""
+	projectID := data.projectID != nil && *data.projectID != ""
+	projectName := data.projectName != nil && *data.projectName != ""
+
+	applicationCredentialsID := data.applicationCredentialsID != nil && *data.applicationCredentialsID != ""
+	applicationCredentialsSecret := data.applicationCredentialsSecret != nil && *data.applicationCredentialsSecret != ""
+
+	usingUsername := username || password || projectID || projectName
+	usingApplicationCredentials := applicationCredentialsID || applicationCredentialsSecret
+
+	if !isCreation && !usingUsername && !usingApplicationCredentials {
+		return nil
+	}
+
+	if usingUsername && usingApplicationCredentials {
+		return diag.Diagnostics{{
+			Severity:      diag.Error,
+			Summary:       "Please use only one of either user_credentials or application_credentials",
+			AttributePath: cty.GetAttrPath("spec").IndexInt(0).GetAttr("cloud").IndexInt(0).GetAttr("openstack").IndexInt(0),
+		}}
+	}
+
+	if usingUsername && (!username || !password || !projectID || !projectName) {
+		var details []string
+		if !username {
+			details = append(details, "username not set")
+		}
+		if !password {
+			details = append(details, "password not set")
+		}
+		if !projectID {
+			details = append(details, "project_id not set")
+		}
+		if !projectName {
+			details = append(details, "project_name not set")
+		}
+		return diag.Diagnostics{{
+			Severity:      diag.Error,
+			Summary:       "Please set all username, password, project_id and project_name or use application_credentials",
+			AttributePath: cty.GetAttrPath("spec").IndexInt(0).GetAttr("cloud").IndexInt(0).GetAttr("openstack").IndexInt(0),
+			Detail:        strings.Join(details, ", "),
+		}}
+	}
+
+	if usingApplicationCredentials && (!applicationCredentialsID || !applicationCredentialsSecret) {
+		var details []string
+		if !applicationCredentialsID {
+			details = append(details, "id not set")
+		}
+		if !applicationCredentialsSecret {
+			details = append(details, "secret not set")
+		}
+		return diag.Diagnostics{{
+			Severity:      diag.Error,
+			Summary:       "Please set both id and secret",
+			AttributePath: cty.GetAttrPath("spec").IndexInt(0).GetAttr("cloud").IndexInt(0).GetAttr("openstack").IndexInt(0),
+			Detail:        strings.Join(details, ", "),
+		}}
+	}
+
 	return nil
 }

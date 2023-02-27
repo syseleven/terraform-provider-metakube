@@ -290,7 +290,7 @@ func flattenAzureSpec(in *models.AzureCloudSpec) []interface{} {
 
 // expanders
 
-func metakubeResourceClusterExpandSpec(p []interface{}, dcName string) *models.ClusterSpec {
+func metakubeResourceClusterExpandSpec(p []interface{}, dcName string, include func(string) bool) *models.ClusterSpec {
 	if len(p) < 1 {
 		return nil
 	}
@@ -301,42 +301,42 @@ func metakubeResourceClusterExpandSpec(p []interface{}, dcName string) *models.C
 	in := p[0].(map[string]interface{})
 
 	if v, ok := in["version"]; ok {
-		if vv, ok := v.(string); ok {
+		if vv, ok := v.(string); ok && include("version") {
 			obj.Version = models.Semver(vv)
 		}
 	}
 
 	if v, ok := in["update_window"]; ok {
-		if vv, ok := v.([]interface{}); ok {
+		if vv, ok := v.([]interface{}); ok && include("update_window") {
 			obj.UpdateWindow = expandUpdateWindow(vv)
 		}
 	}
 
-	if v, ok := in["enable_ssh_agent"]; ok {
+	if v, ok := in["enable_ssh_agent"]; ok && include("enable_ssh_agent") {
 		if vv, ok := v.(bool); ok {
 			obj.EnableUserSSHKeyAgent = vv
 		}
 	}
 
-	if v, ok := in["audit_logging"]; ok {
+	if v, ok := in["audit_logging"]; ok && include("audit_logging") {
 		if vv, ok := v.(bool); ok {
 			obj.AuditLogging = expandAuditLogging(vv)
 		}
 	}
 
-	if v, ok := in["pod_security_policy"]; ok {
+	if v, ok := in["pod_security_policy"]; ok && include("pod_security_policy") {
 		if vv, ok := v.(bool); ok {
 			obj.UsePodSecurityPolicyAdmissionPlugin = vv
 		}
 	}
 
-	if v, ok := in["pod_node_selector"]; ok {
+	if v, ok := in["pod_node_selector"]; ok && include("pod_node_selector") {
 		if vv, ok := v.(bool); ok {
 			obj.UsePodNodeSelectorAdmissionPlugin = vv
 		}
 	}
 
-	if v, ok := in["services_cidr"]; ok {
+	if v, ok := in["services_cidr"]; ok && include("services_cidr") {
 		if vv, ok := v.(string); ok && vv != "" {
 			if obj.ClusterNetwork == nil {
 				obj.ClusterNetwork = &models.ClusterNetworkingConfig{}
@@ -347,7 +347,7 @@ func metakubeResourceClusterExpandSpec(p []interface{}, dcName string) *models.C
 		}
 	}
 
-	if v, ok := in["pods_cidr"]; ok {
+	if v, ok := in["pods_cidr"]; ok && include("pods_cidr") {
 		if vv, ok := v.(string); ok && vv != "" {
 			if obj.ClusterNetwork == nil {
 				obj.ClusterNetwork = &models.ClusterNetworkingConfig{}
@@ -364,9 +364,9 @@ func metakubeResourceClusterExpandSpec(p []interface{}, dcName string) *models.C
 		}
 	}
 
-	if v, ok := in["cloud"]; ok {
+	if v, ok := in["cloud"]; ok && include("cloud") {
 		if vv, ok := v.([]interface{}); ok {
-			obj.Cloud = expandClusterCloudSpec(vv, dcName)
+			obj.Cloud = expandClusterCloudSpec(vv, dcName, func(k string) bool { return include("cloud.0." + k) })
 		}
 	}
 
@@ -376,7 +376,7 @@ func metakubeResourceClusterExpandSpec(p []interface{}, dcName string) *models.C
 		obj.BillingTenant = obj.Cloud.Aws.OpenstackBillingTenant
 	}
 
-	if v, ok := in["syseleven_auth"]; ok {
+	if v, ok := in["syseleven_auth"]; ok && include("syseleven_auth") {
 		if vv, ok := v.([]interface{}); ok {
 			obj.Sys11auth = expandClusterSys11Auth(vv)
 		}
@@ -426,7 +426,7 @@ func expandCniPlugin(p []interface{}) *models.CNIPluginSettings {
 	return obj
 }
 
-func expandClusterCloudSpec(p []interface{}, dcName string) *models.CloudSpec {
+func expandClusterCloudSpec(p []interface{}, dcName string, include func(string) bool) *models.CloudSpec {
 	if len(p) < 1 {
 		return nil
 	}
@@ -438,21 +438,21 @@ func expandClusterCloudSpec(p []interface{}, dcName string) *models.CloudSpec {
 
 	obj.DatacenterName = dcName
 
-	if v, ok := in["aws"]; ok {
+	if v, ok := in["aws"]; ok && include("aws") {
 		if vv, ok := v.([]interface{}); ok {
-			obj.Aws = expandAWSCloudSpec(vv)
+			obj.Aws = expandAWSCloudSpec(vv, func(k string) bool { return include("aws.0." + k) })
 		}
 	}
 
-	if v, ok := in["openstack"]; ok {
+	if v, ok := in["openstack"]; ok && include("openstack") {
 		if vv, ok := v.([]interface{}); ok {
-			obj.Openstack = expandOpenstackCloudSpec(vv)
+			obj.Openstack = expandOpenstackCloudSpec(vv, func(k string) bool { return include("openstack.0." + k) })
 		}
 	}
 
-	if v, ok := in["azure"]; ok {
+	if v, ok := in["azure"]; ok && include("azure") {
 		if vv, ok := v.([]interface{}); ok {
-			obj.Azure = expandAzureCloudSpec(vv)
+			obj.Azure = expandAzureCloudSpec(vv, func(k string) bool { return include("azure.0." + k) })
 		}
 	}
 
@@ -473,7 +473,7 @@ func expandClusterSys11Auth(p []interface{}) *models.Sys11AuthSettings {
 	return nil
 }
 
-func expandAWSCloudSpec(p []interface{}) *models.AWSCloudSpec {
+func expandAWSCloudSpec(p []interface{}, include func(string) bool) *models.AWSCloudSpec {
 	if len(p) < 1 {
 		return nil
 	}
@@ -483,49 +483,49 @@ func expandAWSCloudSpec(p []interface{}) *models.AWSCloudSpec {
 	}
 	in := p[0].(map[string]interface{})
 
-	if v, ok := in["access_key_id"]; ok {
+	if v, ok := in["access_key_id"]; ok && include("access_key_id") {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.AccessKeyID = vv
 		}
 	}
 
-	if v, ok := in["secret_access_key"]; ok {
+	if v, ok := in["secret_access_key"]; ok && include("secret_access_key") {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.SecretAccessKey = vv
 		}
 	}
 
-	if v, ok := in["vpc_id"]; ok {
+	if v, ok := in["vpc_id"]; ok && include("vpc_id") {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.VPCID = vv
 		}
 	}
 
-	if v, ok := in["security_group_id"]; ok {
+	if v, ok := in["security_group_id"]; ok && include("security_group_id") {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.SecurityGroupID = vv
 		}
 	}
 
-	if v, ok := in["instance_profile_name"]; ok {
+	if v, ok := in["instance_profile_name"]; ok && include("instance_profile_name") {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.InstanceProfileName = vv
 		}
 	}
 
-	if v, ok := in["role_arn"]; ok {
+	if v, ok := in["role_arn"]; ok && include("role_arn") {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.ControlPlaneRoleARN = vv
 		}
 	}
 
-	if v, ok := in["openstack_billing_tenant"]; ok {
+	if v, ok := in["openstack_billing_tenant"]; ok && include("openstack_billing_tenant") {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.OpenstackBillingTenant = vv
 		}
 	}
 
-	if v, ok := in["route_table_id"]; ok {
+	if v, ok := in["route_table_id"]; ok && include("route_table_id") {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.RouteTableID = vv
 		}
@@ -534,7 +534,7 @@ func expandAWSCloudSpec(p []interface{}) *models.AWSCloudSpec {
 	return obj
 }
 
-func expandOpenstackCloudSpec(p []interface{}) *models.OpenstackCloudSpec {
+func expandOpenstackCloudSpec(p []interface{}, include func(string) bool) *models.OpenstackCloudSpec {
 	if len(p) < 1 {
 		return nil
 	}
@@ -545,37 +545,37 @@ func expandOpenstackCloudSpec(p []interface{}) *models.OpenstackCloudSpec {
 	}
 	in := p[0].(map[string]interface{})
 
-	if v, ok := in["floating_ip_pool"]; ok {
+	if v, ok := in["floating_ip_pool"]; ok && include("floating_ip_pool") {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.FloatingIPPool = vv
 		}
 	}
 
-	if v, ok := in["security_group"]; ok {
+	if v, ok := in["security_group"]; ok && include("security_group") {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.SecurityGroups = vv
 		}
 	}
 
-	if v, ok := in["network"]; ok {
+	if v, ok := in["network"]; ok && include("network") {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.Network = vv
 		}
 	}
 
-	if v, ok := in["subnet_id"]; ok {
+	if v, ok := in["subnet_id"]; ok && include("subnet_id") {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.SubnetID = vv
 		}
 	}
 
-	if v, ok := in["subnet_cidr"]; ok {
+	if v, ok := in["subnet_cidr"]; ok && include("subnet_cidr") {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.SubnetCIDR = vv
 		}
 	}
 
-	if v, ok := in["server_group_id"]; ok {
+	if v, ok := in["server_group_id"]; ok && include("server_group_id") {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.ServerGroupID = vv
 		}
@@ -584,13 +584,13 @@ func expandOpenstackCloudSpec(p []interface{}) *models.OpenstackCloudSpec {
 	if v, ok := in["application_credentials"]; ok {
 		if vv, ok := v.([]interface{}); ok && len(vv) > 0 && vv[0] != nil {
 			if m, ok := vv[0].(map[string]interface{}); ok {
-				if v, ok := m["id"]; ok {
+				if v, ok := m["id"]; ok && include("application_credentials.0.id") {
 					if vv, ok := v.(string); ok && vv != "" {
 						obj.ApplicationCredentialID = vv
 					}
 				}
 
-				if v, ok := m["secret"]; ok {
+				if v, ok := m["secret"]; ok && include("application_credentials.0.secret") {
 					if vv, ok := v.(string); ok && vv != "" {
 						obj.ApplicationCredentialSecret = vv
 					}
@@ -602,23 +602,23 @@ func expandOpenstackCloudSpec(p []interface{}) *models.OpenstackCloudSpec {
 	if v, ok := in["user_credentials"]; ok {
 		if vv, ok := v.([]interface{}); ok && len(vv) > 0 && vv[0] != nil {
 			if m, ok := vv[0].(map[string]interface{}); ok {
-				if v, ok := m["username"]; ok {
+				if v, ok := m["username"]; ok && include("user_credentials.0.username") {
 					if vv, ok := v.(string); ok && vv != "" {
 						obj.Username = vv
 					}
 				}
-				if v, ok := m["password"]; ok {
+				if v, ok := m["password"]; ok && include("user_credentials.0.password") {
 					if vv, ok := v.(string); ok && vv != "" {
 						obj.Password = vv
 					}
 				}
-				if v, ok := m["project_id"]; ok {
+				if v, ok := m["project_id"]; ok && include("user_credentials.0.project_id") {
 					if vv, ok := v.(string); ok && vv != "" {
 						obj.ProjectID = vv
 					}
 				}
 
-				if v, ok := m["project_name"]; ok {
+				if v, ok := m["project_name"]; ok && include("user_credentials.0.project_name") {
 					if vv, ok := v.(string); ok && vv != "" {
 						obj.Project = vv
 					}
@@ -634,7 +634,7 @@ func expandOpenstackCloudSpec(p []interface{}) *models.OpenstackCloudSpec {
 	return obj
 }
 
-func expandAzureCloudSpec(p []interface{}) *models.AzureCloudSpec {
+func expandAzureCloudSpec(p []interface{}, include func(string) bool) *models.AzureCloudSpec {
 	if len(p) < 1 {
 		return nil
 	}
@@ -647,67 +647,67 @@ func expandAzureCloudSpec(p []interface{}) *models.AzureCloudSpec {
 
 	in := p[0].(map[string]interface{})
 
-	if v, ok := in["availability_set"]; ok {
+	if v, ok := in["availability_set"]; ok && include("availability_set") {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.AvailabilitySet = vv
 		}
 	}
 
-	if v, ok := in["client_id"]; ok {
+	if v, ok := in["client_id"]; ok && include("client_id") {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.ClientID = vv
 		}
 	}
 
-	if v, ok := in["client_secret"]; ok {
+	if v, ok := in["client_secret"]; ok && include("client_secret") {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.ClientSecret = vv
 		}
 	}
 
-	if v, ok := in["subscription_id"]; ok {
+	if v, ok := in["subscription_id"]; ok && include("subscription_id") {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.SubscriptionID = vv
 		}
 	}
 
-	if v, ok := in["tenant_id"]; ok {
+	if v, ok := in["tenant_id"]; ok && include("tenant_id") {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.TenantID = vv
 		}
 	}
 
-	if v, ok := in["resource_group"]; ok {
+	if v, ok := in["resource_group"]; ok && include("resource_group") {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.ResourceGroup = vv
 		}
 	}
 
-	if v, ok := in["route_table"]; ok {
+	if v, ok := in["route_table"]; ok && include("route_table") {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.RouteTableName = vv
 		}
 	}
 
-	if v, ok := in["openstack_billing_tenant"]; ok {
+	if v, ok := in["openstack_billing_tenant"]; ok && include("openstack_billing_tenant") {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.OpenstackBillingTenant = vv
 		}
 	}
 
-	if v, ok := in["security_group"]; ok {
+	if v, ok := in["security_group"]; ok && include("security_group") {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.SecurityGroup = vv
 		}
 	}
 
-	if v, ok := in["subnet"]; ok {
+	if v, ok := in["subnet"]; ok && include("subnet") {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.SubnetName = vv
 		}
 	}
 
-	if v, ok := in["vnet"]; ok {
+	if v, ok := in["vnet"]; ok && include("vnet") {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.VNetName = vv
 		}

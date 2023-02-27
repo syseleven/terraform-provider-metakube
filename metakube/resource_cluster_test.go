@@ -67,6 +67,10 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 	if err := clusterOpenstackBasicTemplate2.Execute(&config2, data); err != nil {
 		t.Fatal(err)
 	}
+	var config3 strings.Builder
+	if err := clusterOpenstackBasicTemplate3.Execute(&config3, data); err != nil {
+		t.Fatal(err)
+	}
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
 			testAccPreCheckForOpenstack(t)
@@ -145,12 +149,48 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 				),
 			},
 			{
-				ResourceName:      resourceName,
-				ImportState:       true,
-				ImportStateVerify: true,
-				ImportStateVerifyIgnore: []string{
-					"spec.0.cloud.0.openstack.0.user_credentials",
-				},
+				Config: config3.String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testAccCheckMetaKubeClusterExists(&cluster),
+					testAccCheckMetaKubeClusterOpenstackAttributes(&cluster, data.Name+"-changed-again", data.DatacenterName, data.Version, true),
+					resource.TestCheckResourceAttr(resourceName, "name", data.Name+"-changed-again"),
+					resource.TestCheckResourceAttr(resourceName, "labels.%", "1"),
+					resource.TestCheckResourceAttr(resourceName, "labels.foo", "bar"),
+					resource.TestCheckResourceAttr(resourceName, "spec.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.version", data.Version),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.update_window.0.start", "Wed 12:00"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.update_window.0.length", "3h"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.services_cidr", "10.240.16.0/18"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.pods_cidr", "172.25.0.0/18"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.pod_node_selector", "true"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.pod_security_policy", "true"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.aws.#", "0"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.0.floating_ip_pool", "ext-net"),
+					resource.TestCheckResourceAttrSet(resourceName, "spec.0.cloud.0.openstack.0.security_group"),
+					resource.TestCheckResourceAttrSet(resourceName, "spec.0.cloud.0.openstack.0.network"),
+					resource.TestCheckResourceAttrSet(resourceName, "spec.0.cloud.0.openstack.0.subnet_id"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.0.subnet_cidr", "192.168.2.0/24"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.syseleven_auth.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.syseleven_auth.0.realm", "syseleven"),
+					resource.TestCheckResourceAttrSet(resourceName, "kube_config"),
+					resource.TestCheckResourceAttrSet(resourceName, "oidc_kube_config"),
+					resource.TestCheckResourceAttrSet(resourceName, "kube_login_kube_config"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.audit_logging", "true"),
+					resource.TestCheckResourceAttrSet(resourceName, "creation_timestamp"),
+					resource.TestCheckResourceAttrSet(resourceName, "deletion_timestamp"),
+				),
+			},
+			{
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"spec.0.cloud.0.openstack.0.user_credentials"},
+			},
+			{
+				Config:   config3.String(),
+				PlanOnly: true,
 			},
 			// Test importing non-existent resource provides expected error.
 			{
@@ -451,6 +491,77 @@ resource "metakube_cluster" "acctest_cluster" {
 		cni_plugin {
 		  type = "none"
 		}
+	}
+}
+
+resource "openstack_networking_secgroup_v2" "cluster-net" {
+  name = "{{ .Name }}-tf-test"
+}
+
+resource "openstack_networking_network_v2" "network_tf_test" {
+  name = "{{ .Name }}-network_tf_test"
+}
+
+resource "openstack_networking_subnet_v2" "subnet_tf_test" {
+  name = "{{ .Name }}-subnet_tf_test"
+  network_id = openstack_networking_network_v2.network_tf_test.id
+  cidr = "192.168.0.0/16"
+  ip_version = 4
+}`)
+
+var clusterOpenstackBasicTemplate3 = mustParseTemplate("clusterOpenstackBasic3", `
+terraform {
+	required_providers {
+		openstack = {
+			source = "terraform-provider-openstack/openstack"
+		}
+	}
+}
+
+provider "openstack" {
+	auth_url = "{{ .OpenstackAuthURL }}"
+	user_name = "{{ .OpenstackUser }}"
+	password = "{{ .OpenstackPassword }}"
+	tenant_id = "{{ .OpenstackProjectID }}"
+}
+
+resource "metakube_cluster" "acctest_cluster" {
+	name = "{{ .Name }}-changed-again"
+	dc_name = "{{ .DatacenterName }}"
+	project_id = "{{ .ProjectID }}"
+
+	# add labels
+	labels = {
+		"foo" = "bar"
+	}
+
+	spec {
+		version = "{{ .Version }}"
+		update_window {
+		  start = "Wed 12:00"
+		  length = "3h"
+		}
+		cloud {
+			openstack {
+				floating_ip_pool = "ext-net"
+				security_group = openstack_networking_secgroup_v2.cluster-net.name
+				network = openstack_networking_network_v2.network_tf_test.name
+				subnet_id = openstack_networking_subnet_v2.subnet_tf_test.id
+				subnet_cidr = "192.168.2.0/24"
+			}
+		}
+
+		syseleven_auth {
+			realm = "syseleven"
+		}
+
+		# enable audit logging
+		audit_logging = true
+
+		pod_node_selector = true
+		pod_security_policy = true
+		services_cidr = "10.240.16.0/18"
+		pods_cidr = "172.25.0.0/18"
 	}
 }
 

@@ -31,9 +31,9 @@ resource "metakube_cluster" "cluster" {
     cloud {
       openstack {
         application_credentials {
-			id     = "YOUR_CREDENTIAL_ID"
+		id     = "YOUR_CREDENTIAL_ID"
         	secret  = "YOU_CREDENTIAL_SECRET"
-		}
+	}
       }
     }
   }

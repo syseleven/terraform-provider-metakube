@@ -494,7 +494,7 @@ func TestExpandClusterSpec(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		output := metakubeResourceClusterExpandSpec(tc.Input, tc.DCName)
+		output := metakubeResourceClusterExpandSpec(tc.Input, tc.DCName, func(string) bool { return true })
 		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
 			t.Fatalf("Unexpected output from expander: mismatch (-want +got):\n%s", diff)
 		}
@@ -538,7 +538,7 @@ func TestExpandClusterCloudSpec(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		output := expandClusterCloudSpec(tc.Input, tc.DCName)
+		output := expandClusterCloudSpec(tc.Input, tc.DCName, func(string) bool { return true })
 		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
 			t.Fatalf("Unexpected output from expander: mismatch (-want +got):\n%s", diff)
 		}
@@ -622,7 +622,7 @@ func TestExpandAWSCloudSpec(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		output := expandAWSCloudSpec(tc.Input)
+		output := expandAWSCloudSpec(tc.Input, func(string) bool { return true })
 		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
 			t.Fatalf("Unexpected output from expander: mismatch (-want +got):\n%s", diff)
 		}
@@ -691,7 +691,7 @@ func TestExpandOpenstackCloudSpec(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		output := expandOpenstackCloudSpec(tc.Input)
+		output := expandOpenstackCloudSpec(tc.Input, func(string) bool { return true })
 		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
 			t.Fatalf("Unexpected output from expander: mismatch (-want +got):\n%s", diff)
 		}
@@ -743,7 +743,7 @@ func TestExpandAzureCloudSpec(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		output := expandAzureCloudSpec(tc.Input)
+		output := expandAzureCloudSpec(tc.Input, func(string) bool { return true })
 		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
 			t.Fatalf("Unexpected output from expander: mismatch (-want +got):\n%s", diff)
 		}

@@ -1,6 +1,7 @@
 package metakube
 
 import (
+	"os"
 	"regexp"
 	"time"
 
@@ -54,7 +55,6 @@ func metakubeResourceClusterSpecFields() map[string]*schema.Schema {
 		"cloud": {
 			Type:        schema.TypeList,
 			Required:    true,
-			ForceNew:    true,
 			MinItems:    1,
 			MaxItems:    1,
 			Description: "Cloud provider specification",
@@ -229,6 +229,7 @@ func metakubeResourceCluserAWSCloudSpecFields() map[string]*schema.Schema {
 			ValidateFunc: validation.NoZeroValues,
 			Sensitive:    true,
 			Description:  "Access key identifier",
+			ForceNew:     true,
 		},
 		"secret_access_key": {
 			Type:         schema.TypeString,
@@ -236,32 +237,38 @@ func metakubeResourceCluserAWSCloudSpecFields() map[string]*schema.Schema {
 			ValidateFunc: validation.NoZeroValues,
 			Sensitive:    true,
 			Description:  "Secret access key",
+			ForceNew:     true,
 		},
 		"vpc_id": {
 			Type:         schema.TypeString,
 			Required:     true,
 			ValidateFunc: validation.NoZeroValues,
 			Description:  "Virtual private cloud identifier",
+			ForceNew:     true,
 		},
 		"security_group_id": {
 			Type:        schema.TypeString,
 			Optional:    true,
 			Description: "Security group identifier",
+			ForceNew:    true,
 		},
 		"route_table_id": {
 			Type:        schema.TypeString,
 			Optional:    true,
 			Description: "Route table identifier",
+			ForceNew:    true,
 		},
 		"instance_profile_name": {
 			Type:        schema.TypeString,
 			Optional:    true,
 			Description: "Instance profile name",
+			ForceNew:    true,
 		},
 		"role_arn": {
 			Type:        schema.TypeString,
 			Optional:    true,
 			Description: "The IAM role the control plane will use over assume-role",
+			ForceNew:    true,
 		},
 		"openstack_billing_tenant": {
 			Type:         schema.TypeString,
@@ -276,19 +283,53 @@ func metakubeResourceCluserAWSCloudSpecFields() map[string]*schema.Schema {
 func metakubeResourceClusterOpenstackCloudSpecFields() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
 		"user_credentials": {
-			Type:         schema.TypeList,
-			MaxItems:     1,
-			Optional:     true,
-			ExactlyOneOf: []string{"spec.0.cloud.0.openstack.0.user_credentials", "spec.0.cloud.0.openstack.0.application_credentials"},
+			Type:          schema.TypeList,
+			MaxItems:      1,
+			Optional:      true,
+			ConflictsWith: []string{"spec.0.cloud.0.openstack.0.application_credentials"},
+			DiffSuppressFunc: func(_, _, _ string, d *schema.ResourceData) bool {
+				v, ok := d.GetOkConfigured("spec.0.cloud.0.openstack.0.user_credentials")
+				if !ok || len(v.([]interface{})) == 0 {
+					return true
+				}
+				for _, item := range [][]string{
+					{"username", "OS_USERNAME"},
+					{"password", "OS_PASSWORD"},
+					{"project_id", "OS_PROJECT_ID"},
+					{"project_name", "OS_PROJECT_NAME"},
+				} {
+					_, ok := d.GetOkConfigured("spec.0.cloud.0.openstack.0.user_credentials.0." + item[0])
+					if ok || os.Getenv(item[1]) != "" {
+						return false
+					}
+				}
+				return true
+			},
 			Elem: &schema.Resource{
 				Schema: metakubeResourceClusterOpenstackCloudSpecUserCredentialsFields(),
 			},
 		},
 		"application_credentials": {
-			Type:         schema.TypeList,
-			MaxItems:     1,
-			Optional:     true,
-			ExactlyOneOf: []string{"spec.0.cloud.0.openstack.0.user_credentials", "spec.0.cloud.0.openstack.0.application_credentials"},
+			Type:          schema.TypeList,
+			MaxItems:      1,
+			Optional:      true,
+			ConflictsWith: []string{"spec.0.cloud.0.openstack.0.user_credentials"},
+			DiffSuppressFunc: func(_, _, _ string, d *schema.ResourceData) bool {
+				v, ok := d.GetOkConfigured("spec.0.cloud.0.openstack.0.application_credentials")
+				if !ok || len(v.([]interface{})) == 0 {
+					return true
+				}
+				for _, item := range [][]string{
+					{"id", "OS_APPLICATION_CREDENTIAL_ID"},
+					{"secret", "OS_APPLICATION_CREDENTIAL_SECRET"},
+				} {
+					_, ok := d.GetOkConfigured("spec.0.cloud.0.openstack.0.application_credentials.0." + item[0])
+					if ok || os.Getenv(item[1]) != "" {
+						return false
+					}
+				}
+				return true
+			},
 			Elem: &schema.Resource{
 				Schema: metakubeResourceClusterOpenstackCloudSpecApplicationCredentialsFields(),
 			},
@@ -342,29 +383,41 @@ func metakubeResourceClusterOpenstackCloudSpecUserCredentialsFields() map[string
 	return map[string]*schema.Schema{
 		"project_id": {
 			Type:        schema.TypeString,
-			Required:    true,
+			Optional:    true,
 			DefaultFunc: schema.EnvDefaultFunc("OS_PROJECT_ID", nil),
 			Description: "The id of openstack project",
+			DiffSuppressFunc: func(_, oldValue, newValue string, _ *schema.ResourceData) bool {
+				return newValue == "" && oldValue != ""
+			},
 		},
 		"project_name": {
 			Type:        schema.TypeString,
-			Required:    true,
+			Optional:    true,
 			DefaultFunc: schema.EnvDefaultFunc("OS_PROJECT_NAME", nil),
 			Description: "The name of openstack project",
+			DiffSuppressFunc: func(_, oldValue, newValue string, _ *schema.ResourceData) bool {
+				return newValue == "" && oldValue != ""
+			},
 		},
 		"username": {
 			Type:        schema.TypeString,
 			DefaultFunc: schema.EnvDefaultFunc("OS_USERNAME", nil),
-			Required:    true,
+			Optional:    true,
 			Sensitive:   true,
 			Description: "The openstack account's username",
+			DiffSuppressFunc: func(_, oldValue, newValue string, _ *schema.ResourceData) bool {
+				return newValue == "" && oldValue != ""
+			},
 		},
 		"password": {
 			Type:        schema.TypeString,
 			DefaultFunc: schema.EnvDefaultFunc("OS_PASSWORD", nil),
-			Required:    true,
+			Optional:    true,
 			Sensitive:   true,
 			Description: "The openstack account's password",
+			DiffSuppressFunc: func(_, oldValue, newValue string, _ *schema.ResourceData) bool {
+				return newValue == "" && oldValue != ""
+			},
 		},
 	}
 }
@@ -374,15 +427,21 @@ func metakubeResourceClusterOpenstackCloudSpecApplicationCredentialsFields() map
 		"id": {
 			Type:        schema.TypeString,
 			DefaultFunc: schema.EnvDefaultFunc("OS_APPLICATION_CREDENTIAL_ID", nil),
-			Required:    true,
+			Optional:    true,
 			Description: "Openstack application credentials ID",
+			DiffSuppressFunc: func(_, oldValue, newValue string, _ *schema.ResourceData) bool {
+				return newValue == "" && oldValue != ""
+			},
 		},
 		"secret": {
 			Type:        schema.TypeString,
 			DefaultFunc: schema.EnvDefaultFunc("OS_APPLICATION_CREDENTIAL_SECRET", nil),
-			Required:    true,
+			Optional:    true,
 			Sensitive:   true,
 			Description: "Openstack application credentials secret",
+			DiffSuppressFunc: func(_, oldValue, newValue string, _ *schema.ResourceData) bool {
+				return newValue == "" && oldValue != ""
+			},
 		},
 	}
 }
