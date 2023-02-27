@@ -152,7 +152,10 @@ func metakubeResourceClusterSpecFields() map[string]*schema.Schema {
 						Optional:     true,
 						Default:      "canal",
 						ValidateFunc: validation.StringInSlice([]string{"canal", "none"}, false),
-						Description:  "Define the type of CNI plugin",
+						DiffSuppressFunc: func(_, oldValue, newValue string, _ *schema.ResourceData) bool {
+							return newValue == "" && oldValue != ""
+						},
+						Description: "Define the type of CNI plugin",
 					},
 				},
 			},
