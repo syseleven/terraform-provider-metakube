@@ -41,6 +41,10 @@ func metakubeResourceClusterFlattenSpec(values clusterPreserveValues, in *models
 		}
 	}
 
+	if in.CniPlugin != nil && in.CniPlugin.Type != "" {
+		att["cni_plugin"] = flattenCniPlugin(in.CniPlugin)
+	}
+
 	if in.Cloud != nil {
 		att["cloud"] = flattenClusterCloudSpec(values, in.Cloud)
 	}
@@ -56,6 +60,17 @@ func flattenUpdateWindow(in *models.UpdateWindow) []interface{} {
 	m := make(map[string]interface{})
 	m["start"] = in.Start
 	m["length"] = in.Length
+	return []interface{}{m}
+}
+
+func flattenCniPlugin(in *models.CNIPluginSettings) []interface{} {
+	if in == nil {
+		return []interface{}{}
+	}
+
+	m := make(map[string]interface{})
+	m["type"] = string(in.Type)
+
 	return []interface{}{m}
 }
 
@@ -343,6 +358,12 @@ func metakubeResourceClusterExpandSpec(p []interface{}, dcName string, include f
 		}
 	}
 
+	if v, ok := in["cni_plugin"]; ok {
+		if vv, ok := v.([]interface{}); ok {
+			obj.CniPlugin = expandCniPlugin(vv)
+		}
+	}
+
 	if v, ok := in["cloud"]; ok && include("cloud") {
 		if vv, ok := v.([]interface{}); ok {
 			obj.Cloud = expandClusterCloudSpec(vv, dcName, func(k string) bool { return include("cloud.0." + k) })
@@ -384,6 +405,25 @@ func expandAuditLogging(enabled bool) *models.AuditLoggingSettings {
 	return &models.AuditLoggingSettings{
 		Enabled: enabled,
 	}
+}
+
+func expandCniPlugin(p []interface{}) *models.CNIPluginSettings {
+	if len(p) < 1 {
+		return nil
+	}
+	obj := &models.CNIPluginSettings{}
+	if p[0] == nil {
+		return obj
+	}
+	in := p[0].(map[string]interface{})
+
+	if v, ok := in["type"]; ok {
+		if vv, ok := v.(string); ok && vv != "" {
+			obj.Type = models.CNIPluginType(vv)
+		}
+	}
+
+	return obj
 }
 
 func expandClusterCloudSpec(p []interface{}, dcName string, include func(string) bool) *models.CloudSpec {

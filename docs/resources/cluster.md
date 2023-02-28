@@ -72,6 +72,7 @@ The following arguments are supported:
 * `syseleven_auth` - (Optional) Useful for authenticating against [SysEleven Login](https://docs.syseleven.de/metakube/en/tutorials/external-authentication).
 * `services_cidr` - (Optional) Internal IP range for ClusterIP Services.
 * `pods_cidr` - (Optional) Internal IP range for Pods.
+* `cni_plugin` - (Optional) CNI plugin used by the Cluster.
 
 ### `cloud`
 
@@ -79,7 +80,7 @@ One of the following must be selected.
 
 #### Arguments
 
-* `openstack` - (Optional) Opestack infrastructure.
+* `openstack` - (Optional) Openstack infrastructure.
 * `aws` - (Optional) Amazon Web Services infrastructure.
 
 
@@ -90,6 +91,13 @@ When set, start time and length must be configured.
 #### Arguments
 * `start` - (Required) Node reboot window start time. Example: `Thu 02:35`.
 * `length` - (Required) Node reboot window duration. Example: `1h30m`
+
+### `cni_plugin`
+
+When set, type must be configured. Currently `canal` or `none`
+
+#### Arguments
+* `type` - (Required) Define the type of CNI plugin. Example: `canal`.
 
 ### `openstack`
 
