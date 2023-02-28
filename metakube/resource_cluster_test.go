@@ -162,6 +162,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "spec.0.update_window.0.length", "3h"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.services_cidr", "10.240.16.0/18"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.pods_cidr", "172.25.0.0/18"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.0.type", "canal"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.pod_node_selector", "true"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.pod_security_policy", "true"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.#", "1"),
