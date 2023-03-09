@@ -100,16 +100,6 @@ func validateAutoscalerFields() schema.CustomizeDiffFunc {
 			return fmt.Errorf("min_replicas must be smaller than max_replicas")
 		}
 
-		replicas := 1
-		if v, ok := d.GetOk("spec.0.replicas"); ok {
-			replicas = v.(int)
-		}
-		if replicas > maxReplicas.(int) {
-			return fmt.Errorf("max_replicas can't be smaller than replicas")
-		}
-		if replicas < minReplicas.(int) {
-			return fmt.Errorf("min_replicas can't be bigger than replicas")
-		}
 		return nil
 	}
 }
