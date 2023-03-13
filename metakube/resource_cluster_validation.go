@@ -272,8 +272,6 @@ func findSubnet(list []*models.OpenstackSubnet, id string) *models.OpenstackSubn
 }
 
 func metakubeResourceClusterValidateAccessCredentialsSet(d *schema.ResourceData) diag.Diagnostics {
-	isCreation := d.Id() == ""
-
 	data := newOpenstackValidationData(d)
 
 	username := data.username != nil && *data.username != ""
@@ -287,19 +285,7 @@ func metakubeResourceClusterValidateAccessCredentialsSet(d *schema.ResourceData)
 	usingUsername := username || password || projectID || projectName
 	usingApplicationCredentials := applicationCredentialsID || applicationCredentialsSecret
 
-	if !isCreation && !usingUsername && !usingApplicationCredentials {
-		return nil
-	}
-
-	if usingUsername && usingApplicationCredentials {
-		return diag.Diagnostics{{
-			Severity:      diag.Error,
-			Summary:       "Please use only one of either user_credentials or application_credentials",
-			AttributePath: cty.GetAttrPath("spec").IndexInt(0).GetAttr("cloud").IndexInt(0).GetAttr("openstack").IndexInt(0),
-		}}
-	}
-
-	if usingUsername && (!username || !password || !projectID || !projectName) {
+	if usingUsername && (!username || !password || !projectID) {
 		var details []string
 		if !username {
 			details = append(details, "username not set")
@@ -309,9 +295,6 @@ func metakubeResourceClusterValidateAccessCredentialsSet(d *schema.ResourceData)
 		}
 		if !projectID {
 			details = append(details, "project_id not set")
-		}
-		if !projectName {
-			details = append(details, "project_name not set")
 		}
 		return diag.Diagnostics{{
 			Severity:      diag.Error,

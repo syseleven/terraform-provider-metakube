@@ -629,7 +629,7 @@ func metakubeResourceClusterUpdate(ctx context.Context, d *schema.ResourceData, 
 		return diag.Errorf("cluster '%s' is not ready: %v", d.Id(), err)
 	}
 
-	return metakubeResourceClusterRead(ctx, d, m)
+	return nil
 }
 
 func metakubeResourceClusterSendPatchReq(ctx context.Context, d *schema.ResourceData, k *metakubeProviderMeta) error {

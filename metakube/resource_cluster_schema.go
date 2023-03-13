@@ -293,7 +293,12 @@ func metakubeResourceClusterOpenstackCloudSpecFields() map[string]*schema.Schema
 			Optional:      true,
 			ConflictsWith: []string{"spec.0.cloud.0.openstack.0.application_credentials"},
 			DiffSuppressFunc: func(_, _, _ string, d *schema.ResourceData) bool {
-				v, ok := d.GetOkConfigured("spec.0.cloud.0.openstack.0.user_credentials")
+				v, ok := d.GetOkConfigured("spec.0.cloud.0.openstack.0.application_credentials")
+				if ok && len(v.([]interface{})) != 0 {
+					return false
+				}
+
+				v, ok = d.GetOkConfigured("spec.0.cloud.0.openstack.0.user_credentials")
 				if !ok || len(v.([]interface{})) == 0 {
 					return true
 				}
@@ -320,7 +325,12 @@ func metakubeResourceClusterOpenstackCloudSpecFields() map[string]*schema.Schema
 			Optional:      true,
 			ConflictsWith: []string{"spec.0.cloud.0.openstack.0.user_credentials"},
 			DiffSuppressFunc: func(_, _, _ string, d *schema.ResourceData) bool {
-				v, ok := d.GetOkConfigured("spec.0.cloud.0.openstack.0.application_credentials")
+				v, ok := d.GetOkConfigured("spec.0.cloud.0.openstack.0.user_credentials")
+				if ok && len(v.([]interface{})) != 0 {
+					return false
+				}
+
+				v, ok = d.GetOkConfigured("spec.0.cloud.0.openstack.0.application_credentials")
 				if !ok || len(v.([]interface{})) == 0 {
 					return true
 				}

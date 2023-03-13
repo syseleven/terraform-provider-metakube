@@ -2,7 +2,7 @@ DOMAIN=syseleven.de
 NAMESPACE=syseleven
 PKG_NAME=metakube
 BINARY=terraform-provider-${PKG_NAME}
-VERSION=5.0.3
+VERSION=5.0.5
 PLATFORM?=darwin_arm64
 SWEEP_DIR?=./metakube
 SWEEP?=all
@@ -23,6 +23,7 @@ install: build
 reset:
 	rm -rf terraform*
 	rm -rf .terraform*
+	rm -rf ~/.terraform.d/plugins/${DOMAIN}/${NAMESPACE}/${PKG_NAME}
 	make install
 	terraform init
 
