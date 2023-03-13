@@ -109,8 +109,8 @@ When set, type must be configured. Currently `canal` or `none`
 * `subnet_cidr` - (Optional) Change this to configure a different internal IP range for Nodes. Default: `192.168.1.0/24`.
 When using password based auth
 * `server_group_id` - (Optional) Server group id to use for all machines within a cluster. You can use openstack server groups to group or seperate servers using soft/hard affinity/anti-affinity rules. When not set explicitly, the default soft anti-affinity server group will be created and used. 
-* `user_credentials` - (Conditional) connect to Openstack using user credentials. May be omitted if `application_credentials` being used.
-* `application_credentials` - (Conditional) connect to Openstack using Application Credentials. May be omitted if `user_credentials` being used.
+* `application_credentials` - (Conditional) connect to Openstack using Application Credentials. Required at cluster create unless `user_credentials` used. Required when switching from `user_credentials` or when explicitly updating to new values. May be omitted for imported clusters. May be omitted if `user_credentials` being used.
+* `user_credentials` - (Conditional) Connect to Openstack using user credentials. Required at cluster create unless `application_credentials` used. May be omitted for imported clusters. May be omitted if `application_credentials` being used.
 
 ### `user_credentials`
 
@@ -118,7 +118,7 @@ Openstack user credentials.
 
 #### Arguments
 * `project_id` - (Required) The id of project to use for billing. You can set it using environment variable `OS_PROJECT_ID`.
-* `project_name` - (Required) The name of project to use for billing. You can set it using environment variable `OS_PROJECT_NAME`.
+* `project_name` - (Optional) _Deprecated: use project_id or switch to application_credentials_ The name of openstack project. You can set it using environment variable `OS_PROJECT_NAME`.
 * `username` - (Required) The account's username. You can set it using environment variable `OS_USERNAME`.
 * `password` - (Required) The account's password. You can set it using environment variable `OS_PASSWORD`.
 
