@@ -408,6 +408,7 @@ func metakubeResourceClusterOpenstackCloudSpecUserCredentialsFields() map[string
 		"project_name": {
 			Type:        schema.TypeString,
 			Optional:    true,
+			Deprecated:  "use project_id or switch to application_credentials",
 			DefaultFunc: schema.EnvDefaultFunc("OS_PROJECT_NAME", nil),
 			Description: "The name of openstack project",
 			DiffSuppressFunc: func(_, oldValue, newValue string, _ *schema.ResourceData) bool {
