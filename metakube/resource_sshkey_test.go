@@ -45,6 +45,7 @@ func testSweepSSHKeys(region string) error {
 }
 
 func TestAccMetakubeSSHKey_Basic(t *testing.T) {
+	t.Parallel()
 	var sshkey models.SSHKey
 	testName := makeRandomName()
 	projectID := os.Getenv(testEnvProjectID)

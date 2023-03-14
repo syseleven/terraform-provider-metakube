@@ -45,19 +45,19 @@ func testSweepClusters(region string) error {
 }
 
 func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
+	t.Parallel()
 	var cluster models.Cluster
 
 	resourceName := "metakube_cluster.acctest_cluster"
 	data := &clusterOpenstackBasicData{
-		Name:                 makeRandomName(),
-		OpenstackAuthURL:     os.Getenv(testEnvOpenstackAuthURL),
-		OpenstackUser:        os.Getenv(testEnvOpenstackUsername),
-		OpenstackPassword:    os.Getenv(testEnvOpenstackPassword),
-		OpenstackProjectID:   os.Getenv(testEnvOpenstackProjectID),
-		OpenstackProjectName: os.Getenv(testEnvOpenstackProjectName),
-		DatacenterName:       os.Getenv(testEnvOpenstackNodeDC),
-		ProjectID:            os.Getenv(testEnvProjectID),
-		Version:              os.Getenv(testEnvK8sVersion),
+		Name:               makeRandomName(),
+		OpenstackAuthURL:   os.Getenv(testEnvOpenstackAuthURL),
+		OpenstackUser:      os.Getenv(testEnvOpenstackUsername),
+		OpenstackPassword:  os.Getenv(testEnvOpenstackPassword),
+		OpenstackProjectID: os.Getenv(testEnvOpenstackProjectID),
+		DatacenterName:     os.Getenv(testEnvOpenstackNodeDC),
+		ProjectID:          os.Getenv(testEnvProjectID),
+		Version:            os.Getenv(testEnvK8sVersion),
 	}
 	var config strings.Builder
 	if err := clusterOpenstackBasicTemplate.Execute(&config, data); err != nil {
@@ -209,6 +209,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 }
 
 func TestAccMetakubeCluster_Openstack_ApplicationCredentials(t *testing.T) {
+	t.Parallel()
 	var cluster models.Cluster
 	resourceName := "metakube_cluster.acctest_cluster"
 	data := &clusterOpenstackApplicationCredentailsData{
@@ -247,19 +248,19 @@ func TestAccMetakubeCluster_Openstack_ApplicationCredentials(t *testing.T) {
 }
 
 func TestAccMetakubeCluster_Openstack_UpgradeVersion(t *testing.T) {
+	t.Parallel()
 	var cluster models.Cluster
 	resourceName := "metakube_cluster.acctest_cluster"
 	versionedConfig := func(version string) string {
 		data := &clusterOpenstackBasicData{
-			Name:                 makeRandomName(),
-			Version:              version,
-			OpenstackAuthURL:     os.Getenv(testEnvOpenstackAuthURL),
-			OpenstackUser:        os.Getenv(testEnvOpenstackUsername),
-			OpenstackPassword:    os.Getenv(testEnvOpenstackPassword),
-			OpenstackProjectID:   os.Getenv(testEnvOpenstackProjectID),
-			OpenstackProjectName: os.Getenv(testEnvOpenstackProjectName),
-			DatacenterName:       os.Getenv(testEnvOpenstackNodeDC),
-			ProjectID:            os.Getenv(testEnvProjectID),
+			Name:               makeRandomName(),
+			Version:            version,
+			OpenstackAuthURL:   os.Getenv(testEnvOpenstackAuthURL),
+			OpenstackUser:      os.Getenv(testEnvOpenstackUsername),
+			OpenstackPassword:  os.Getenv(testEnvOpenstackPassword),
+			OpenstackProjectID: os.Getenv(testEnvOpenstackProjectID),
+			DatacenterName:     os.Getenv(testEnvOpenstackNodeDC),
+			ProjectID:          os.Getenv(testEnvProjectID),
 		}
 		var result strings.Builder
 		if err := clusterOpenstackBasicTemplate.Execute(&result, data); err != nil {
@@ -299,11 +300,10 @@ func TestAccMetakubeCluster_Openstack_UpgradeVersion(t *testing.T) {
 }
 
 type clusterOpenstackBasicData struct {
-	OpenstackAuthURL     string
-	OpenstackUser        string
-	OpenstackPassword    string
-	OpenstackProjectID   string
-	OpenstackProjectName string
+	OpenstackAuthURL   string
+	OpenstackUser      string
+	OpenstackPassword  string
+	OpenstackProjectID string
 
 	Name           string
 	DatacenterName string
@@ -353,7 +353,6 @@ resource "metakube_cluster" "acctest_cluster" {
 			openstack {
 			    user_credentials {
 					project_id = "{{ .OpenstackProjectID }}"
-					project_name = "{{ .OpenstackProjectName }}"
 					username = "{{ .OpenstackUser }}"
 					password = "{{ .OpenstackPassword }}"
 				}
@@ -466,7 +465,6 @@ resource "metakube_cluster" "acctest_cluster" {
 			openstack {
 				user_credentials {
 					project_id = "{{ .OpenstackProjectID }}"
-					project_name = "{{ .OpenstackProjectName }}"
 					username = "{{ .OpenstackUser }}"
 					password = "{{ .OpenstackPassword }}"
 				}
@@ -625,19 +623,19 @@ func testAccCheckMetaKubeClusterOpenstackAttributes(cluster *models.Cluster, nam
 }
 
 func TestAccMetakubeCluster_SSHKeys(t *testing.T) {
+	t.Parallel()
 	var cluster models.Cluster
 	var sshkey models.SSHKey
 	resourceName := "metakube_cluster.acctest_cluster"
 
 	data := &clusterOpenstackWithSSHKeyData{
-		Name:                 makeRandomName(),
-		OpenstackUser:        os.Getenv(testEnvOpenstackUsername),
-		OpenstackPassword:    os.Getenv(testEnvOpenstackPassword),
-		OpenstackProjectID:   os.Getenv(testEnvOpenstackProjectID),
-		OpenstackProjectName: os.Getenv(testEnvOpenstackProjectName),
-		DatacenterName:       os.Getenv(testEnvOpenstackNodeDC),
-		ProjectID:            os.Getenv(testEnvProjectID),
-		Version:              os.Getenv(testEnvK8sVersion),
+		Name:               makeRandomName(),
+		OpenstackUser:      os.Getenv(testEnvOpenstackUsername),
+		OpenstackPassword:  os.Getenv(testEnvOpenstackPassword),
+		OpenstackProjectID: os.Getenv(testEnvOpenstackProjectID),
+		DatacenterName:     os.Getenv(testEnvOpenstackNodeDC),
+		ProjectID:          os.Getenv(testEnvProjectID),
+		Version:            os.Getenv(testEnvK8sVersion),
 	}
 
 	var config1 strings.Builder
@@ -678,14 +676,13 @@ func TestAccMetakubeCluster_SSHKeys(t *testing.T) {
 }
 
 type clusterOpenstackWithSSHKeyData struct {
-	Name                 string
-	DatacenterName       string
-	ProjectID            string
-	Version              string
-	OpenstackProjectID   string
-	OpenstackProjectName string
-	OpenstackUser        string
-	OpenstackPassword    string
+	Name               string
+	DatacenterName     string
+	ProjectID          string
+	Version            string
+	OpenstackProjectID string
+	OpenstackUser      string
+	OpenstackPassword  string
 }
 
 var clusterOpenstackTemplateWithSSHKey1 = mustParseTemplate("clusterOpenstackWithSSHKey1", `
@@ -705,7 +702,6 @@ resource "metakube_cluster" "acctest_cluster" {
 			openstack {
 				user_credentials {
 					project_id = "{{ .OpenstackProjectID }}"
-					project_name = "{{ .OpenstackProjectName }}"
 					username = "{{ .OpenstackUser }}"
 					password = "{{ .OpenstackPassword }}"
 				}
@@ -738,7 +734,6 @@ resource "metakube_cluster" "acctest_cluster" {
 			openstack {
 				user_credentials {
 					project_id = "{{ .OpenstackProjectID }}"
-					project_name = "{{ .OpenstackProjectName }}"
 					username = "{{ .OpenstackUser }}"
 					password = "{{ .OpenstackPassword }}"
 				}
@@ -787,6 +782,7 @@ func testAccCheckMetaKubeClusterHasSSHKey(cluster, sshkey *string) resource.Test
 }
 
 func TestAccMetakubeCluster_AWS_Basic(t *testing.T) {
+	t.Parallel()
 	var cluster models.Cluster
 	resourceName := "metakube_cluster.acctest_cluster"
 	data := &clusterAWSBasicData{

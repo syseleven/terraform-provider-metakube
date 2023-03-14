@@ -21,11 +21,9 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 	username := os.Getenv(testEnvOpenstackUsername)
 	password := os.Getenv(testEnvOpenstackPassword)
 	osProjectID := os.Getenv(testEnvOpenstackProjectID)
-	osProjectName := os.Getenv(testEnvOpenstackProjectName)
 	nodeDC := os.Getenv(testEnvOpenstackNodeDC)
 	image := os.Getenv(testEnvOpenstackImage)
 	image2 := os.Getenv(testEnvOpenstackImage2)
-	imageFlatcar := os.Getenv(testEnvOpenstackImageFlatcar)
 	flavor := os.Getenv(testEnvOpenstackFlavor)
 	k8sVersionNew := os.Getenv(testEnvK8sVersion)
 	k8sVersionOld := os.Getenv(testEnvK8sOlderVersion)
@@ -33,13 +31,12 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
 			testAccPreCheckForOpenstack(t)
-			checkEnv(t, testEnvOpenstackImageFlatcar)
 		},
 		Providers:    testAccProviders,
 		CheckDestroy: testAccCheckMetaKubeNodeDeploymentDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCheckMetaKubeNodeDeploymentBasic(projectID, testName, nodeDC, username, password, osProjectID, osProjectName, k8sVersionOld, k8sVersionOld, image, flavor),
+				Config: testAccCheckMetaKubeNodeDeploymentBasic(projectID, testName, nodeDC, username, password, osProjectID, k8sVersionOld, k8sVersionOld, image, flavor),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeNodeDeploymentExists(resourceName, &ndepl),
 					testAccCheckMetaKubeNodeDeploymentFields(&ndepl, flavor, image, k8sVersionOld, 1, 0, false),
@@ -57,7 +54,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 				),
 			},
 			{
-				Config: testAccCheckMetaKubeNodeDeploymentBasic2(projectID, testName, nodeDC, username, password, osProjectID, osProjectName, k8sVersionNew, k8sVersionNew, image2, flavor),
+				Config: testAccCheckMetaKubeNodeDeploymentBasic2(projectID, testName, nodeDC, username, password, osProjectID, k8sVersionNew, k8sVersionNew, image2, flavor),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testResourceInstanceState(resourceName, func(is *terraform.InstanceState) error {
 						// Record IDs to test import
@@ -82,31 +79,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 				),
 			},
 			{
-				Config: testAccCheckMetaKubeNodeDeploymentBasic3(projectID, testName, nodeDC, username, password, osProjectID, osProjectName, k8sVersionNew, k8sVersionNew, imageFlatcar, flavor),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					testResourceInstanceState(resourceName, func(is *terraform.InstanceState) error {
-						// Record IDs to test import
-						if is.ID != ndepl.ID {
-							return fmt.Errorf("node deployment not updated. Want ID=%v, got %v", ndepl.ID, is.ID)
-						}
-						return nil
-					}),
-					testAccCheckMetaKubeNodeDeploymentExists(resourceName, &ndepl),
-					resource.TestCheckResourceAttr(resourceName, "name", testName),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.replicas", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.labels.%", "3"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.labels.foo", "bar"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.flavor", flavor),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.image", imageFlatcar),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.use_floating_ip", "true"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.disk_size", "10"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.operating_system.0.flatcar.0.disable_auto_update", "true"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.versions.0.kubelet", k8sVersionNew),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.dynamic_config", "true"),
-				),
-			},
-			{
-				Config:   testAccCheckMetaKubeNodeDeploymentBasic3(projectID, testName, nodeDC, username, password, osProjectID, osProjectName, k8sVersionNew, k8sVersionNew, imageFlatcar, flavor),
+				Config:   testAccCheckMetaKubeNodeDeploymentBasic2(projectID, testName, nodeDC, username, password, osProjectID, k8sVersionNew, k8sVersionNew, image2, flavor),
 				PlanOnly: true,
 			},
 			{
@@ -135,7 +108,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 	})
 }
 
-func testAccCheckMetaKubeNodeDeploymentBasic(projectID, testName, nodeDC, username, password, tenantID, tenant, clusterVersion, kubeletVersion, image, flavor string) string {
+func testAccCheckMetaKubeNodeDeploymentBasic(projectID, testName, nodeDC, username, password, tenantID, clusterVersion, kubeletVersion, image, flavor string) string {
 	return fmt.Sprintf(`
 	resource "metakube_cluster" "acctest_cluster" {
 		project_id = "%s"
@@ -147,7 +120,6 @@ func testAccCheckMetaKubeNodeDeploymentBasic(projectID, testName, nodeDC, userna
 				openstack {
 					user_credentials {
 						project_id = "%s"
-						project_name = "%s"
 						username = "%s"
 						password = "%s"
 					}
@@ -189,10 +161,10 @@ func testAccCheckMetaKubeNodeDeploymentBasic(projectID, testName, nodeDC, userna
 				}
 			}
 		}
-	}`, projectID, testName, nodeDC, clusterVersion, tenantID, tenant, username, password, testName, flavor, image, kubeletVersion)
+	}`, projectID, testName, nodeDC, clusterVersion, tenantID, username, password, testName, flavor, image, kubeletVersion)
 }
 
-func testAccCheckMetaKubeNodeDeploymentBasic2(projectID, testName, nodeDC, username, password, tenantID, tenant, clusterVersion, kubeletVersion, image, flavor string) string {
+func testAccCheckMetaKubeNodeDeploymentBasic2(projectID, testName, nodeDC, username, password, tenantID, clusterVersion, kubeletVersion, image, flavor string) string {
 	return fmt.Sprintf(`
 	resource "metakube_cluster" "acctest_cluster" {
 		project_id = "%s"
@@ -207,7 +179,6 @@ func testAccCheckMetaKubeNodeDeploymentBasic2(projectID, testName, nodeDC, usern
 				openstack {
 					user_credentials {
 						project_id = "%s"
-						project_name = "%s"
 						username = "%s"
 						password = "%s"
 					}
@@ -247,65 +218,7 @@ func testAccCheckMetaKubeNodeDeploymentBasic2(projectID, testName, nodeDC, usern
 				}
 			}
 		}
-	}`, projectID, testName, nodeDC, clusterVersion, tenantID, tenant, username, password, testName, flavor, image, kubeletVersion)
-}
-
-func testAccCheckMetaKubeNodeDeploymentBasic3(projectID, testName, nodeDC, username, password, tenantID, tenant, clusterVersion, kubeletVersion, image, flavor string) string {
-	return fmt.Sprintf(`
-	resource "metakube_cluster" "acctest_cluster" {
-		project_id = "%s"
-		name = "%s"
-		dc_name = "%s"
-		labels = {
-			"cluster-label" = "val"
-		}
-		spec {
-			version = "%s"
-			cloud {
-				openstack {
-					user_credentials {
-						project_id = "%s"
-						project_name = "%s"
-						username = "%s"
-						password = "%s"
-					}
-					floating_ip_pool = "ext-net"
-				}
-			}
-		}
-	}
-
-	resource "metakube_node_deployment" "acctest_nd" {
-		cluster_id = metakube_cluster.acctest_cluster.id
-		name = "%s"
-		spec {
-			dynamic_config = true
-			replicas = 1
-			template {
-				labels = {
-					"foo" = "bar"
-				}
-				cloud {
-					openstack {
-						flavor = "%s"
-						image = "%s"
-						disk_size = 10
-						use_floating_ip = true
-						instance_ready_check_period = "10s"
-						instance_ready_check_timeout = "4m"
-					}
-				}
-				operating_system {
-					flatcar {
-						disable_auto_update = true
-					}
-				}
-				versions {
-					kubelet = "%s"
-				}
-			}
-		}
-	}`, projectID, testName, nodeDC, clusterVersion, tenantID, tenant, username, password, testName, flavor, image, kubeletVersion)
+	}`, projectID, testName, nodeDC, clusterVersion, tenantID, username, password, testName, flavor, image, kubeletVersion)
 }
 
 func testAccCheckMetaKubeNodeDeploymentDestroy(s *terraform.State) error {

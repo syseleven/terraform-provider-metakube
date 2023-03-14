@@ -13,6 +13,7 @@ import (
 )
 
 func TestAccMetakubeClusterRoleBinding(t *testing.T) {
+	t.Parallel()
 	resourceName := "metakube_cluster_role_binding.acctest"
 	params := &testAccCheckMetaKubeClusterRoleBindingBasicParams{
 		ClusterName:                          randomName("testacc", 5),

@@ -32,7 +32,6 @@ const (
 	testEnvOpenstackProjectName                  = "METAKUBE_OPENSTACK_PROJECT_NAME"
 	testEnvOpenstackImage                        = "METAKUBE_OPENSTACK_IMAGE"
 	testEnvOpenstackImage2                       = "METAKUBE_OPENSTACK_IMAGE2"
-	testEnvOpenstackImageFlatcar                 = "METAKUBE_OPENSTACK_IMAGE_FLATCAR"
 	testEnvOpenstackFlavor                       = "METAKUBE_OPENSTACK_FLAVOR"
 
 	testEnvAzureNodeDC         = "METAKUBE_AZURE_NODE_DC"

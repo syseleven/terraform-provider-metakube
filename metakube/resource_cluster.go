@@ -545,7 +545,7 @@ func readClusterPreserveValues(d *schema.ResourceData) clusterPreserveValues {
 			openstackUsername:                     d.Get(key("openstack.0.user_credentials.0.username")),
 			openstackPassword:                     d.Get(key("openstack.0.user_credentials.0.password")),
 			openstackProjectID:                    d.Get(key("openstack.0.user_credentials.0.project_id")),
-			openstackProjectName:                  d.Get(key("openstack.0.user_credentials.0.project_name")),
+			openstackProjectName:                  d.Get(key("openstack.0.userd_credentials.0.project_name")),
 			openstackServerGroupID:                d.Get(key("openstack.0.server_group_id")),
 			openstackApplicationCredentialsID:     d.Get(key("openstack.0.application_credentials.0.id")),
 			openstackApplicationCredentialsSecret: d.Get(key("openstack.0.application_credentials.0.secret")),

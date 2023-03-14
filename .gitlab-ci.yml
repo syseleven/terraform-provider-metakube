@@ -31,7 +31,7 @@ env:
   - echo export METAKUBE_OPENSTACK_IMAGE=$(./scripts/get_openstack_images.sh | jq 'map(select(.Metadata.os_distro == "ubuntu")) | map(select(.Metadata.os_version=="20.04")) | last | .Name') >> test.env
   - echo export METAKUBE_OPENSTACK_IMAGE2=$(./scripts/get_openstack_images.sh | jq 'map(select(.Metadata.os_distro == "ubuntu")) | map(select(.Metadata.os_version=="18.04")) | last | .Name') >> test.env
   - echo export METAKUBE_OPENSTACK_IMAGE_FLATCAR=$(./scripts/get_openstack_images.sh | jq 'map(select(.Metadata.os_distro == "flatcar")) | last| .Name') >> test.env
-  - echo export METAKUBE_OPENSTACK_FLAVOR=m1c.medium >> test.env
+  - echo export METAKUBE_OPENSTACK_FLAVOR=m1.small >> test.env
   artifacts:
     paths:
     - test.env
