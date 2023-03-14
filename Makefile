@@ -64,7 +64,7 @@ testacc:
 # METAKUBE_AWS_SUBNET_ID
 # METAKUBE_AWS_AVAILABILITY_ZONE
 # METAKUBE_AWS_DISK_SIZE
-	TF_ACC=1 go test ./$(PKG_NAME) -v -timeout 120m $(TESTARGS)
+	TF_ACC=1 go test ./$(PKG_NAME) -v -timeout 120m -parallel 10 $(TESTARGS)
 
 sweep:
 	@echo "WARNING: This will destroy infrastructure. Use only in development accounts."

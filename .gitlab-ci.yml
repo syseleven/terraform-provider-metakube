@@ -48,7 +48,7 @@ test:
     - go test -race $(go list ./... | grep -v /vendor/)
     - go build -race -ldflags "-extldflags '-static'" -o $CI_PROJECT_DIR/mybinary
     - go test ./metakube -v -sweep=all
-    - TF_ACC=1 go test ./metakube -v -timeout 3h -run TestAcc
+    - TF_ACC=1 go test ./metakube -v -timeout 3h --parallel 10 -run TestAcc
   needs:
     - env
   only:
