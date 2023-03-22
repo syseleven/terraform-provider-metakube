@@ -89,10 +89,7 @@ func validateAutoscalerFields() schema.CustomizeDiffFunc {
 	return func(ctx context.Context, d *schema.ResourceDiff, _ interface{}) error {
 		minReplicas, ok1 := d.GetOk("spec.0.min_replicas")
 		maxReplicas, ok2 := d.GetOk("spec.0.max_replicas")
-		if ok1 && ok1 != ok2 {
-			return fmt.Errorf("to configure autoscaler both min_replicas and max_replicas must be set")
-		}
-		if ok1 == false {
+		if !ok1 && !ok2 {
 			return nil
 		}
 

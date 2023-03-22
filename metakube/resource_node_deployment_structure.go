@@ -16,7 +16,7 @@ func metakubeNodeDeploymentFlattenSpec(in *models.NodeDeploymentSpec) []interfac
 		att["replicas"] = *in.Replicas
 	}
 
-	if in.MinReplicas > 0 {
+	if in.MinReplicas >= 0 {
 		att["min_replicas"] = in.MinReplicas
 	}
 
