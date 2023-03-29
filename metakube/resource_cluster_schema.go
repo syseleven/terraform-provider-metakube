@@ -117,6 +117,7 @@ func metakubeResourceClusterSpecFields() map[string]*schema.Schema {
 		},
 		"pod_security_policy": {
 			Type:        schema.TypeBool,
+			Deprecated:  "PodSecurityPolicy deprecated by Kubernetes since version 1.21 and will be removed in version 1.25",
 			Optional:    true,
 			Default:     false,
 			Description: "Pod security policies allow detailed authorization of pod creation and updates",
