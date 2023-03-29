@@ -34,18 +34,22 @@ func matakubeResourceNodeDeploymentSpecFields() map[string]*schema.Schema {
 			Default:       3,
 			Description:   "Number of replicas",
 			ConflictsWith: []string{"spec.0.min_replicas", "spec.0.max_replicas"},
-			DiffSuppressFunc: func(_, _, n string, d *schema.ResourceData) bool {
-				minv, ok1 := d.GetOkConfigured("spec.0.min_replicas")
-				maxv, ok2 := d.GetOkConfigured("spec.0.max_replicas")
-				return ok1 && minv.(int) > 0 && ok2 && maxv.(int) > 0
+			DiffSuppressFunc: func(_, _, _ string, d *schema.ResourceData) bool {
+				minv, ok1 := d.GetOk("spec.0.min_replicas")
+				maxv, ok2 := d.GetOk("spec.0.max_replicas")
+				return ok1 && minv.(int) >= 0 && ok2 && maxv.(int) > 0
 			},
 		},
 		"min_replicas": {
 			Type:         schema.TypeInt,
 			Optional:     true,
-			ValidateFunc: validation.IntAtLeast(1),
+			ValidateFunc: validation.IntAtLeast(0),
 			Description:  "Minimum number of replicas to downscale",
 			RequiredWith: []string{"spec.0.max_replicas"},
+			DiffSuppressFunc: func(_, _, _ string, d *schema.ResourceData) bool {
+				_, ok := d.GetOk("spec.0.max_replicas")
+				return !ok
+			},
 		},
 		"max_replicas": {
 			Type:         schema.TypeInt,
