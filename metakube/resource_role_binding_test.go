@@ -19,7 +19,7 @@ func TestAccMetakubeRoleBinding(t *testing.T) {
 		ClusterName:                          randomName("testacc", 5),
 		DatacenterName:                       os.Getenv(testEnvOpenstackNodeDC),
 		ProjectID:                            os.Getenv(testEnvProjectID),
-		Version:                              os.Getenv(testEnvK8sVersion),
+		Version:                              os.Getenv(testEnvK8sVersionOpenstack),
 		OpenstackApplicationCredentialID:     os.Getenv(testEnvOpenstackApplicationCredentialsID),
 		OpenstackApplicationCredentialSecret: os.Getenv(testEnvOpenstackApplicationCredentialsSecret),
 

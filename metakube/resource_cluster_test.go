@@ -57,7 +57,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 		OpenstackProjectID: os.Getenv(testEnvOpenstackProjectID),
 		DatacenterName:     os.Getenv(testEnvOpenstackNodeDC),
 		ProjectID:          os.Getenv(testEnvProjectID),
-		Version:            os.Getenv(testEnvK8sVersion),
+		Version:            os.Getenv(testEnvK8sVersionOpenstack),
 	}
 	var config strings.Builder
 	if err := clusterOpenstackBasicTemplate.Execute(&config, data); err != nil {
@@ -216,7 +216,7 @@ func TestAccMetakubeCluster_Openstack_ApplicationCredentials(t *testing.T) {
 		Name:                                 makeRandomName(),
 		DatacenterName:                       os.Getenv(testEnvOpenstackNodeDC),
 		ProjectID:                            os.Getenv(testEnvProjectID),
-		Version:                              os.Getenv(testEnvK8sVersion),
+		Version:                              os.Getenv(testEnvK8sVersionOpenstack),
 		OpenstackApplicationCredentialID:     os.Getenv(testEnvOpenstackApplicationCredentialsID),
 		OpenstackApplicationCredentialSecret: os.Getenv(testEnvOpenstackApplicationCredentialsSecret),
 	}
@@ -269,7 +269,7 @@ func TestAccMetakubeCluster_Openstack_UpgradeVersion(t *testing.T) {
 		return result.String()
 	}
 	versionK8s1 := os.Getenv(testEnvK8sOlderVersion)
-	versionK8s2 := os.Getenv(testEnvK8sVersion)
+	versionK8s2 := os.Getenv(testEnvK8sVersionOpenstack)
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:  func() { testAccPreCheckForOpenstack(t) },
@@ -635,7 +635,7 @@ func TestAccMetakubeCluster_SSHKeys(t *testing.T) {
 		OpenstackProjectID: os.Getenv(testEnvOpenstackProjectID),
 		DatacenterName:     os.Getenv(testEnvOpenstackNodeDC),
 		ProjectID:          os.Getenv(testEnvProjectID),
-		Version:            os.Getenv(testEnvK8sVersion),
+		Version:            os.Getenv(testEnvK8sVersionOpenstack),
 	}
 
 	var config1 strings.Builder
@@ -792,7 +792,7 @@ func TestAccMetakubeCluster_AWS_Basic(t *testing.T) {
 		AccessSecret:         os.Getenv(testAWSSecretAccessKey),
 		VpcID:                os.Getenv(testEnvAWSVPCID),
 		DatacenterName:       os.Getenv(testEnvAWSNodeDC),
-		Version:              os.Getenv(testEnvK8sVersion),
+		Version:              os.Getenv(testEnvK8sVersionOpenstack),
 		OpenstackProjectName: os.Getenv(testEnvOpenstackProjectName),
 	}
 	var config strings.Builder

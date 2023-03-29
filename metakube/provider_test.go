@@ -17,8 +17,9 @@ const (
 
 	testEnvOtherUserEmail = "METAKUBE_ANOTHER_USER_EMAIL"
 
-	testEnvK8sVersion      = "METAKUBE_K8S_VERSION"
-	testEnvK8sOlderVersion = "METAKUBE_K8S_OLDER_VERSION"
+	testEnvK8sVersionOpenstack = "METAKUBE_K8S_VERSION_OS"
+	testEnvK8sVersionAWS       = "METAKUBE_K8S_VERSION_AWS"
+	testEnvK8sOlderVersion     = "METAKUBE_K8S_OLDER_VERSION"
 
 	testEnvProjectID = "METAKUBE_PROJECT_ID"
 
@@ -77,6 +78,7 @@ func TestMain(m *testing.M) {
 func testAccPreCheckForOpenstack(t *testing.T) {
 	t.Helper()
 	testAccPreCheck(t)
+	checkEnv(t, testEnvK8sVersionOpenstack)
 	checkEnv(t, testEnvOpenstackUsername)
 	checkEnv(t, testEnvOpenstackPassword)
 	checkEnv(t, testEnvOpenstackProjectID)
@@ -86,36 +88,26 @@ func testAccPreCheckForOpenstack(t *testing.T) {
 	checkEnv(t, testEnvOpenstackImage2)
 	checkEnv(t, testEnvOpenstackFlavor)
 	checkEnv(t, testEnvOpenstackAuthURL)
-}
-
-func testAccPreCheckForAzure(t *testing.T) {
-	t.Helper()
-	testAccPreCheck(t)
-	checkEnv(t, testEnvAzureClientID)
-	checkEnv(t, testEnvAzureClientSecret)
-	checkEnv(t, testEnvAzureSubscriptionID)
-	checkEnv(t, testEnvAzureTenantID)
-	checkEnv(t, testEnvAzureNodeDC)
-	checkEnv(t, testEnvAzureNodeSize)
-	checkEnv(t, testEnvOpenstackProjectID)
+	checkEnv(t, testEnvK8sOlderVersion)
+	checkEnv(t, testEnvProjectID)
 }
 
 func testAccPreCheckForAWS(t *testing.T) {
 	t.Helper()
 	testAccPreCheck(t)
 	checkEnv(t, testEnvAWSAccessKeyID)
+	checkEnv(t, testEnvK8sVersionAWS)
 	checkEnv(t, testAWSSecretAccessKey)
 	checkEnv(t, testEnvAWSVPCID)
 	checkEnv(t, testEnvAWSNodeDC)
+	checkEnv(t, testEnvK8sOlderVersion)
+	checkEnv(t, testEnvProjectID)
 }
 
 func testAccPreCheck(t *testing.T) {
 	t.Helper()
 	checkEnv(t, "METAKUBE_HOST")
 	checkEnv(t, "METAKUBE_TOKEN")
-	checkEnv(t, testEnvK8sVersion)
-	checkEnv(t, testEnvK8sOlderVersion)
-	checkEnv(t, testEnvProjectID)
 }
 
 func checkEnv(t *testing.T, n string) {

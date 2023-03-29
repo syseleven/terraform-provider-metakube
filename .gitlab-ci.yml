@@ -26,8 +26,9 @@ env:
   - apt-get update
   - apt-get install jq curl -y
   - touch test.env
-  - echo export METAKUBE_K8S_VERSION=$(./scripts/get_versions.sh |jq '.[] | select(.default == true) | .version') >> test.env
-  - echo export METAKUBE_K8S_OLDER_VERSION=$(./scripts/get_versions.sh| jq 'map(select(.default == null)) | last | .version') >> test.env
+  - echo export METAKUBE_K8S_VERSION_OS=$(./scripts/get_versions.sh openstack|jq '.[] | select(.default == true) | .version') >> test.env
+  - echo export METAKUBE_K8S_VERSION_AWS=$(./scripts/get_versions.sh aws| jq 'map(select(.default == null)) | last | .version') >> test.env
+  - echo export METAKUBE_K8S_OLDER_VERSION=$(./scripts/get_versions.sh openstack| jq 'map(select(.default == null)) | last | .version') >> test.env
   - echo export METAKUBE_OPENSTACK_IMAGE=$(./scripts/get_openstack_images.sh | jq 'map(select(.Metadata.os_distro == "ubuntu")) | map(select(.Metadata.os_version=="20.04")) | last | .Name') >> test.env
   - echo export METAKUBE_OPENSTACK_IMAGE2=$(./scripts/get_openstack_images.sh | jq 'map(select(.Metadata.os_distro == "ubuntu")) | map(select(.Metadata.os_version=="18.04")) | last | .Name') >> test.env
   - echo export METAKUBE_OPENSTACK_IMAGE_FLATCAR=$(./scripts/get_openstack_images.sh | jq 'map(select(.Metadata.os_distro == "flatcar")) | last| .Name') >> test.env

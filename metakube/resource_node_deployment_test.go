@@ -25,7 +25,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 	image := os.Getenv(testEnvOpenstackImage)
 	image2 := os.Getenv(testEnvOpenstackImage2)
 	flavor := os.Getenv(testEnvOpenstackFlavor)
-	k8sVersionNew := os.Getenv(testEnvK8sVersion)
+	k8sVersionNew := os.Getenv(testEnvK8sVersionOpenstack)
 	k8sVersionOld := os.Getenv(testEnvK8sOlderVersion)
 
 	resource.Test(t, resource.TestCase{
@@ -300,7 +300,7 @@ func TestAccMetakubeNodeDeployment_AWS_Basic(t *testing.T) {
 	subnetID := os.Getenv(testEnvAWSSubnetID)
 	availabilityZone := os.Getenv(testEnvAWSAvailabilityZone)
 	diskSize := os.Getenv(testEnvAWSDiskSize)
-	k8sVersion := os.Getenv(testEnvK8sVersion)
+	k8sVersion := os.Getenv(testEnvK8sVersionAWS)
 	osProject := os.Getenv(testEnvOpenstackProjectName)
 
 	resource.Test(t, resource.TestCase{
@@ -409,7 +409,7 @@ func TestAccMetakubeNodeDeployment_ValidationAgainstCluster(t *testing.T) {
 	accessKeySecret := os.Getenv(testAWSSecretAccessKey)
 	vpcID := os.Getenv(testEnvAWSVPCID)
 	nodeDC := os.Getenv(testEnvAWSNodeDC)
-	k8sVersion17 := os.Getenv(testEnvK8sVersion)
+	k8sVersion17 := os.Getenv(testEnvK8sVersionAWS)
 	instanceType := os.Getenv(testEnvAWSInstanceType)
 	subnetID := os.Getenv(testEnvAWSSubnetID)
 	availabilityZone := os.Getenv(testEnvAWSAvailabilityZone)
