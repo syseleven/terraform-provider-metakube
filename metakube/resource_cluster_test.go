@@ -318,6 +318,10 @@ terraform {
 	}
 }
 
+data "metakube_project" "something" {
+	name = "some"
+}
+
 provider "openstack" {
 	auth_url = "{{ .OpenstackAuthURL }}"
 	user_name = "{{ .OpenstackUser }}"

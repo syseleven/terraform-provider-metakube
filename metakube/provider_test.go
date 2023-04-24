@@ -21,7 +21,8 @@ const (
 	testEnvK8sVersionAWS       = "METAKUBE_K8S_VERSION_AWS"
 	testEnvK8sOlderVersion     = "METAKUBE_K8S_OLDER_VERSION"
 
-	testEnvProjectID = "METAKUBE_PROJECT_ID"
+	testEnvProjectID   = "METAKUBE_PROJECT_ID"
+	testEnvProjectName = "METAKUBE_PROJECT_NAME"
 
 	testEnvOpenstackNodeDC                       = "METAKUBE_OPENSTACK_NODE_DC"
 	testEnvOpenstackApplicationCredentialsID     = "METAKUBE_OPENSTACK_APPLICATION_CREDENTIALS_ID"
