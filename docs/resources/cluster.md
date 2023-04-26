@@ -23,7 +23,7 @@ resource "metakube_cluster" "example" {
 
 # create admin.conf file
 resource "local_file" "kubeconfig" {
-  content     = metakube_cluster.cluster.kube_config
+  content     = metakube_cluster.example.kube_config
   filename = "${path.module}/admin.conf"
 }
 ```
