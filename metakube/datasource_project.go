@@ -36,11 +36,19 @@ func metakubeDataSourceProjectRead(ctx context.Context, d *schema.ResourceData, 
 	}
 
 	name := d.Get("name").(string)
+	matches := 0
 	for _, r := range res.Payload {
 		if r != nil && r.Name == name {
 			d.SetId(r.ID)
-			return nil
+			matches++
 		}
 	}
+
+	if matches == 0 {
+		return diag.Errorf("Could not find a project with name: %s", name)
+	} else if matches > 1 {
+		return diag.Errorf("Found multiple projects with name: %s", name)
+	}
+
 	return nil
 }
