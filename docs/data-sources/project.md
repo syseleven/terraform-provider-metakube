@@ -14,7 +14,7 @@ data "metakube_project" "example" {
 }
 
 resource "metakube_cluster" "foo" {
-  project_id = data.metakube_project.id
+  project_id = data.metakube_project.example.id
   # ...
 }
 ```
