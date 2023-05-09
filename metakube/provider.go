@@ -88,6 +88,7 @@ func Provider() *schema.Provider {
 		DataSourcesMap: map[string]*schema.Resource{
 			"metakube_k8s_version": dataSourceMetakubeK8sClusterVersion(),
 			"metakube_sshkey":      dataSourceMetakubeSSHKey(),
+			"metakube_project":     dataSourceMetakubeProject(),
 		},
 	}
 
