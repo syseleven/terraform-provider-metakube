@@ -66,7 +66,7 @@ func metakubeResourceNodeDeployment() *schema.Resource {
 				Required:    true,
 				Description: "Node deployment specification",
 				Elem: &schema.Resource{
-					Schema: matakubeResourceNodeDeploymentSpecFields(),
+					Schema: metakubeResourceNodeDeploymentSpecFields(),
 				},
 			},
 
