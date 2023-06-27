@@ -105,7 +105,6 @@ func TestMetakubeMaintenanceCronJobFlattenMaintenanceJobSpec(t *testing.T) {
 				},
 				Rollback: false,
 				Type:     "maintenance_job_type",
-				Cluster:  &models.ObjectReference{},
 			},
 			[]interface{}{
 				map[string]interface{}{
@@ -114,7 +113,6 @@ func TestMetakubeMaintenanceCronJobFlattenMaintenanceJobSpec(t *testing.T) {
 					},
 					"rollback": false,
 					"type":     "maintenance_job_type",
-					"cluster":  []interface{}{map[string]interface{}{}},
 				},
 			},
 		},
@@ -136,11 +134,6 @@ func TestMetakubeMaintenanceCronJobFlattenMaintenanceJobSpec(t *testing.T) {
 			t.Fatalf("Unexpected output from flattener: mismatch (-want +got):\n%s", diff)
 		}
 	}
-}
-
-// TODO need for a discussion
-func TestMetakubeMaintenanceCronJobFlattenClusterObjectReference(t *testing.T) {
-
 }
 
 func TestMetakubeMaintenanceCronJobExpandSpec(t *testing.T) {
@@ -241,7 +234,6 @@ func TestMetakubeMaintenanceCronJobExpandMaintenanceJobSpec(t *testing.T) {
 				},
 				"rollback": false,
 				"type":     "maintenance_job_type",
-				"cluster":  []interface{}{map[string]interface{}{}},
 			},
 		},
 			&models.MaintenanceJobSpec{
@@ -250,7 +242,6 @@ func TestMetakubeMaintenanceCronJobExpandMaintenanceJobSpec(t *testing.T) {
 				},
 				Rollback: false,
 				Type:     "maintenance_job_type",
-				Cluster:  &models.ObjectReference{},
 			},
 		},
 		{
@@ -271,9 +262,4 @@ func TestMetakubeMaintenanceCronJobExpandMaintenanceJobSpec(t *testing.T) {
 			t.Fatalf("Unexpected output from flattener: mismatch (-want +got):\n%s", diff)
 		}
 	}
-}
-
-// TODO need for a discussion
-func TestMetakubeExpandClusterObjectReference(t *testing.T) {
-
 }

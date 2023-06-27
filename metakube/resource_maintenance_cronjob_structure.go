@@ -82,48 +82,6 @@ func metakubeMaintenanceCronJobFlattenMaintenanceJobSpec(in *models.MaintenanceJ
 		att["type"] = in.Type
 	}
 
-	if in.Cluster != nil {
-		att["cluster"] = metakubeMaintenanceCronJobFlattenClusterObjectReference(in.Cluster)
-	}
-
-	return []interface{}{att}
-}
-
-func metakubeMaintenanceCronJobFlattenClusterObjectReference(in *models.ObjectReference) []interface{} {
-	if in == nil {
-		return []interface{}{}
-	}
-
-	att := make(map[string]interface{})
-
-	if in.APIVersion != "" {
-		att["api_version"] = in.APIVersion
-	}
-
-	if in.FieldPath != "" {
-		att["field_path"] = in.FieldPath
-	}
-
-	if in.Kind != "" {
-		att["kind"] = in.Kind
-	}
-
-	if in.Name != "" {
-		att["name"] = in.Name
-	}
-
-	if in.Namespace != "" {
-		att["namespace"] = in.Namespace
-	}
-
-	if in.ResourceVersion != "" {
-		att["resource_version"] = in.ResourceVersion
-	}
-
-	if in.UID != "" {
-		att["uid"] = in.UID
-	}
-
 	return []interface{}{att}
 }
 
@@ -250,71 +208,6 @@ func metakubeMaintenanceCronJobExpandMaintenanceJobSpec(p []interface{}) *models
 	if v, ok := in["type"]; ok {
 		if vv, ok := v.(string); ok {
 			obj.Type = vv
-		}
-	}
-
-	if v, ok := in["cluster"]; ok {
-		if vv, ok := v.([]interface{}); ok {
-			obj.Cluster = metakubeExpandClusterObjectReference(vv)
-		}
-	}
-
-	return obj
-}
-
-func metakubeExpandClusterObjectReference(p []interface{}) *models.ObjectReference {
-	if len(p) < 1 {
-		return nil
-	}
-
-	obj := &models.ObjectReference{}
-	if p[0] == nil {
-		return obj
-	}
-
-	in := p[0].(map[string]interface{})
-
-	if v, ok := in["api_version"]; ok {
-		if vv, ok := v.(string); ok {
-			obj.APIVersion = vv
-		}
-
-	}
-
-	if v, ok := in["field_path"]; ok {
-		if vv, ok := v.(string); ok {
-			obj.APIVersion = vv
-		}
-		obj.FieldPath = v.(string)
-	}
-
-	if v, ok := in["kind"]; ok {
-		if vv, ok := v.(string); ok {
-			obj.Kind = vv
-		}
-	}
-
-	if v, ok := in["name"]; ok {
-		if vv, ok := v.(string); ok {
-			obj.Name = vv
-		}
-	}
-
-	if v, ok := in["namespace"]; ok {
-		if vv, ok := v.(string); ok {
-			obj.Namespace = vv
-		}
-	}
-
-	if v, ok := in["resource_version"]; ok {
-		if vv, ok := v.(string); ok {
-			obj.ResourceVersion = vv
-		}
-	}
-
-	if v, ok := in["uid"]; ok {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.UID = models.UID(vv)
 		}
 	}
 
