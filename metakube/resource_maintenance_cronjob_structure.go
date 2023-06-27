@@ -255,14 +255,14 @@ func metakubeMaintenanceCronJobExpandMaintenanceJobSpec(p []interface{}) *models
 
 	if v, ok := in["cluster"]; ok {
 		if vv, ok := v.([]interface{}); ok {
-			obj.Cluster = expandClusterObjectReference(vv)
+			obj.Cluster = metakubeExpandClusterObjectReference(vv)
 		}
 	}
 
 	return obj
 }
 
-func expandClusterObjectReference(p []interface{}) *models.ObjectReference {
+func metakubeExpandClusterObjectReference(p []interface{}) *models.ObjectReference {
 	if len(p) < 1 {
 		return nil
 	}
