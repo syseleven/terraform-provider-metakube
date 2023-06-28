@@ -119,7 +119,7 @@ var testAccCheckMetaKubeMaintenanceCronJobBasicTemplate = mustParseTemplate("mai
 	resource "metakube_maintenance_cron_job" "acctest" {
 		project_id = "{{ .ProjectID }}"
 		cluster_id = metakube_cluster.acctest.id
-		maintenance_cron_job_name = "{{ .MaintenanceCronJobName }}"
+		name = "{{ .MaintenanceCronJobName }}"
 		timeouts {
 			create = "15m"
 			update = "15m"
