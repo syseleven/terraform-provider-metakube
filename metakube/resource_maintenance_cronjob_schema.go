@@ -7,19 +7,19 @@ import (
 func metakubeResourceMaintenanceCronJobSpecFields() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
 		"failed_jobs_history_limit": {
-			Type:        schema.TypeString,
+			Type:        schema.TypeInt,
 			Optional:    true,
 			Computed:    true,
 			Description: "Number of failed finished maintenance jobs to retain",
 		},
 		"starting_deadline_seconds": {
-			Type:        schema.TypeString,
+			Type:        schema.TypeInt,
 			Optional:    true,
 			Computed:    true,
 			Description: "An optional deadline in seconds",
 		},
 		"successful_jobs_history_limit": {
-			Type:        schema.TypeString,
+			Type:        schema.TypeInt,
 			Optional:    true,
 			Computed:    true,
 			Description: "Number of successful finished maintenance jobs to retain",
