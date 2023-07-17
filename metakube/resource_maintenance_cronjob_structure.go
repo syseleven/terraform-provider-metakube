@@ -13,55 +13,18 @@ func metakubeMaintenanceCronJobFlattenSpec(in *models.MaintenanceCronJobSpec) []
 
 	att := make(map[string]interface{})
 
-	if in.FailedJobsHistoryLimit != 0 {
-		att["failed_jobs_history_limit"] = in.FailedJobsHistoryLimit
-	}
-
-	if in.StartingDeadlineSeconds != 0 {
-		att["starting_deadline_seconds"] = in.StartingDeadlineSeconds
-	}
-
-	if in.SuccessfulJobsHistoryLimit != 0 {
-		att["successful_jobs_history_limit"] = in.SuccessfulJobsHistoryLimit
-	}
-
 	if in.Schedule != "" {
 		att["schedule"] = in.Schedule
 	}
 
 	if in.MaintenanceJobTemplate != nil {
-		att["maintenance_job_template"] = metakubeMaintenanceCronJobFlattenMaintenanceJobTemplateSpec(in.MaintenanceJobTemplate)
+		att["maintenance_job_template"] = metakubeMaintenanceCronJobFlattenMaintenanceJobTemplate(in.MaintenanceJobTemplate)
 	}
 
 	return []interface{}{att}
 }
 
-func metakubeMaintenanceCronJobFlattenMaintenanceJobTemplateSpec(in *models.MaintenanceJobTemplateSpec) []interface{} {
-	if in == nil {
-		return []interface{}{}
-	}
-
-	att := make(map[string]interface{})
-
-	if l := len(in.Labels); l > 0 {
-		labels := make(map[string]string, l)
-		for key, val := range in.Labels {
-			labels[key] = val
-		}
-		att["labels"] = labels
-	}
-
-	if in.Name != "" {
-		att["name"] = in.Name
-	}
-
-	if in.Spec != nil {
-		att["spec"] = metakubeMaintenanceCronJobFlattenMaintenanceJobSpec(in.Spec)
-	}
-
-	return []interface{}{att}
-}
-func metakubeMaintenanceCronJobFlattenMaintenanceJobSpec(in *models.MaintenanceJobSpec) []interface{} {
+func metakubeMaintenanceCronJobFlattenMaintenanceJobTemplate(in *models.MaintenanceJobTemplate) []interface{} {
 	if in == nil {
 		return []interface{}{}
 	}
@@ -101,24 +64,6 @@ func metakubeMaintenanceCronJobExpandSpec(p []interface{}) *models.MaintenanceCr
 		return obj
 	}
 
-	if v, ok := in["failed_jobs_history_limit"]; ok {
-		if vv, ok := v.(int); ok {
-			obj.FailedJobsHistoryLimit = int32(vv)
-		}
-	}
-
-	if v, ok := in["starting_deadline_seconds"]; ok {
-		if vv, ok := v.(int); ok {
-			obj.StartingDeadlineSeconds = int64(vv)
-		}
-	}
-
-	if v, ok := in["successful_jobs_history_limit"]; ok {
-		if vv, ok := v.(int); ok {
-			obj.SuccessfulJobsHistoryLimit = int32(vv)
-		}
-	}
-
 	if v, ok := in["schedule"]; ok {
 		if vv, ok := v.(string); ok {
 			obj.Schedule = vv
@@ -127,58 +72,18 @@ func metakubeMaintenanceCronJobExpandSpec(p []interface{}) *models.MaintenanceCr
 
 	if v, ok := in["maintenance_job_template"]; ok {
 		if vv, ok := v.([]interface{}); ok {
-			obj.MaintenanceJobTemplate = metakubeMaintenanceCronJobExpandMaintenanceJobTemplateSpec(vv)
+			obj.MaintenanceJobTemplate = metakubeMaintenanceCronJobExpandMaintenanceJobTemplate(vv)
 		}
 	}
 
 	return obj
 }
 
-func metakubeMaintenanceCronJobExpandMaintenanceJobTemplateSpec(p []interface{}) *models.MaintenanceJobTemplateSpec {
+func metakubeMaintenanceCronJobExpandMaintenanceJobTemplate(p []interface{}) *models.MaintenanceJobTemplate {
 	if len(p) < 1 {
 		return nil
 	}
-	obj := &models.MaintenanceJobTemplateSpec{}
-	if p[0] == nil {
-		return obj
-	}
-
-	in, ok := p[0].(map[string]interface{})
-	if !ok {
-		return obj
-	}
-
-	if v, ok := in["labels"]; ok {
-		obj.Labels = make(map[string]string)
-		if vv, ok := v.(map[string]interface{}); ok {
-			for key, val := range vv {
-				if s, ok := val.(string); ok && s != "" {
-					obj.Labels[key] = s
-				}
-			}
-		}
-	}
-
-	if v, ok := in["name"]; ok {
-		if vv, ok := v.(string); ok {
-			obj.Name = vv
-		}
-	}
-
-	if v, ok := in["spec"]; ok {
-		if vv, ok := v.([]interface{}); ok {
-			obj.Spec = metakubeMaintenanceCronJobExpandMaintenanceJobSpec(vv)
-		}
-	}
-
-	return obj
-}
-
-func metakubeMaintenanceCronJobExpandMaintenanceJobSpec(p []interface{}) *models.MaintenanceJobSpec {
-	if len(p) < 1 {
-		return nil
-	}
-	obj := &models.MaintenanceJobSpec{}
+	obj := &models.MaintenanceJobTemplate{}
 	if p[0] == nil {
 		return obj
 	}

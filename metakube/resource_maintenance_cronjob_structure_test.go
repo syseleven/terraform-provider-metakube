@@ -14,19 +14,15 @@ func TestMetakubeMaintenanceCronJobFlattenSpec(t *testing.T) {
 	}{
 		{
 			&models.MaintenanceCronJobSpec{
-				FailedJobsHistoryLimit:     1,
-				StartingDeadlineSeconds:    1,
-				SuccessfulJobsHistoryLimit: 1,
-				Schedule:                   "5 4 * * *",
-				MaintenanceJobTemplate:     &models.MaintenanceJobTemplateSpec{},
+				Schedule:               "5 4 * * *",
+				MaintenanceJobTemplate: &models.MaintenanceJobTemplate{},
 			},
 			[]interface{}{
 				map[string]interface{}{
-					"failed_jobs_history_limit":     int32(1),
-					"starting_deadline_seconds":     int64(1),
-					"successful_jobs_history_limit": int32(1),
-					"schedule":                      "5 4 * * *",
-					"maintenance_job_template":      []interface{}{map[string]interface{}{}},
+					"schedule": "5 4 * * *",
+					"maintenance_job_template": []interface{}{map[string]interface{}{
+						"rollback": false,
+					}},
 				},
 			},
 		},
@@ -50,56 +46,13 @@ func TestMetakubeMaintenanceCronJobFlattenSpec(t *testing.T) {
 	}
 }
 
-func TestMetakubeMaintenanceCronJobFlattenMaintenanceJobTemplateSpec(t *testing.T) {
+func TestMetakubeMaintenanceCronJobFlattenMaintenanceJobTemplate(t *testing.T) {
 	cases := []struct {
-		Input          *models.MaintenanceJobTemplateSpec
+		Input          *models.MaintenanceJobTemplate
 		ExpectedOutput []interface{}
 	}{
 		{
-			&models.MaintenanceJobTemplateSpec{
-				Labels: map[string]string{
-					"foo": "bar",
-				},
-				Name: "maintenance_job_template_spec_name",
-				Spec: &models.MaintenanceJobSpec{},
-			},
-			[]interface{}{
-				map[string]interface{}{
-					"labels": map[string]string{
-						"foo": "bar",
-					},
-					"name": "maintenance_job_template_spec_name",
-					"spec": []interface{}{map[string]interface{}{"rollback": false}},
-				},
-			},
-		},
-		{
-			&models.MaintenanceJobTemplateSpec{},
-			[]interface{}{
-				map[string]interface{}{},
-			},
-		},
-		{
-			nil,
-			[]interface{}{},
-		},
-	}
-
-	for _, tc := range cases {
-		output := metakubeMaintenanceCronJobFlattenMaintenanceJobTemplateSpec(tc.Input)
-		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
-			t.Fatalf("Unexpected output from flattener: mismatch (-want +got):\n%s", diff)
-		}
-	}
-}
-
-func TestMetakubeMaintenanceCronJobFlattenMaintenanceJobSpec(t *testing.T) {
-	cases := []struct {
-		Input          *models.MaintenanceJobSpec
-		ExpectedOutput []interface{}
-	}{
-		{
-			&models.MaintenanceJobSpec{
+			&models.MaintenanceJobTemplate{
 				Options: map[string]string{
 					"foo": "bar",
 				},
@@ -117,7 +70,7 @@ func TestMetakubeMaintenanceCronJobFlattenMaintenanceJobSpec(t *testing.T) {
 			},
 		},
 		{
-			&models.MaintenanceJobSpec{},
+			&models.MaintenanceJobTemplate{},
 			[]interface{}{
 				map[string]interface{}{"rollback": false},
 			},
@@ -129,7 +82,7 @@ func TestMetakubeMaintenanceCronJobFlattenMaintenanceJobSpec(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		output := metakubeMaintenanceCronJobFlattenMaintenanceJobSpec(tc.Input)
+		output := metakubeMaintenanceCronJobFlattenMaintenanceJobTemplate(tc.Input)
 		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
 			t.Fatalf("Unexpected output from flattener: mismatch (-want +got):\n%s", diff)
 		}
@@ -144,19 +97,13 @@ func TestMetakubeMaintenanceCronJobExpandSpec(t *testing.T) {
 		{
 			[]interface{}{
 				map[string]interface{}{
-					"failed_jobs_history_limit":     1,
-					"starting_deadline_seconds":     1,
-					"successful_jobs_history_limit": 1,
-					"schedule":                      "5 4 * * *",
-					"maintenance_job_template":      []interface{}{map[string]interface{}{}},
+					"schedule":                 "5 4 * * *",
+					"maintenance_job_template": []interface{}{map[string]interface{}{}},
 				},
 			},
 			&models.MaintenanceCronJobSpec{
-				FailedJobsHistoryLimit:     int32(1),
-				StartingDeadlineSeconds:    int64(1),
-				SuccessfulJobsHistoryLimit: int32(1),
-				Schedule:                   "5 4 * * *",
-				MaintenanceJobTemplate:     &models.MaintenanceJobTemplateSpec{},
+				Schedule:               "5 4 * * *",
+				MaintenanceJobTemplate: &models.MaintenanceJobTemplate{},
 			},
 		},
 		{
@@ -179,53 +126,10 @@ func TestMetakubeMaintenanceCronJobExpandSpec(t *testing.T) {
 	}
 }
 
-func TestMetakubeMaintenanceCronJobExpandMaintenanceJobTemplateSpec(t *testing.T) {
+func TestMetakubeMaintenanceCronJobExpandMaintenanceJobTemplate(t *testing.T) {
 	cases := []struct {
 		Input          []interface{}
-		ExpectedOutput *models.MaintenanceJobTemplateSpec
-	}{
-		{
-			[]interface{}{
-				map[string]interface{}{
-					"labels": map[string]interface{}{
-						"foo": "bar",
-					},
-					"name": "maintenance_job_template_spec_name",
-					"spec": []interface{}{map[string]interface{}{}},
-				},
-			},
-			&models.MaintenanceJobTemplateSpec{
-				Labels: map[string]string{
-					"foo": "bar",
-				},
-				Name: "maintenance_job_template_spec_name",
-				Spec: &models.MaintenanceJobSpec{},
-			},
-		},
-		{
-			[]interface{}{
-				map[string]interface{}{},
-			},
-			&models.MaintenanceJobTemplateSpec{},
-		},
-		{
-			[]interface{}{},
-			nil,
-		},
-	}
-
-	for _, tc := range cases {
-		output := metakubeMaintenanceCronJobExpandMaintenanceJobTemplateSpec(tc.Input)
-		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
-			t.Fatalf("Unexpected output from expander: mismatch (-want +got):\n%s", diff)
-		}
-	}
-}
-
-func TestMetakubeMaintenanceCronJobExpandMaintenanceJobSpec(t *testing.T) {
-	cases := []struct {
-		Input          []interface{}
-		ExpectedOutput *models.MaintenanceJobSpec
+		ExpectedOutput *models.MaintenanceJobTemplate
 	}{
 		{[]interface{}{
 			map[string]interface{}{
@@ -236,7 +140,7 @@ func TestMetakubeMaintenanceCronJobExpandMaintenanceJobSpec(t *testing.T) {
 				"type":     "maintenance_job_type",
 			},
 		},
-			&models.MaintenanceJobSpec{
+			&models.MaintenanceJobTemplate{
 				Options: map[string]string{
 					"foo": "bar",
 				},
@@ -248,7 +152,7 @@ func TestMetakubeMaintenanceCronJobExpandMaintenanceJobSpec(t *testing.T) {
 			[]interface{}{
 				map[string]interface{}{},
 			},
-			&models.MaintenanceJobSpec{},
+			&models.MaintenanceJobTemplate{},
 		},
 		{
 			[]interface{}{},
@@ -257,7 +161,7 @@ func TestMetakubeMaintenanceCronJobExpandMaintenanceJobSpec(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		output := metakubeMaintenanceCronJobExpandMaintenanceJobSpec(tc.Input)
+		output := metakubeMaintenanceCronJobExpandMaintenanceJobTemplate(tc.Input)
 		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
 			t.Fatalf("Unexpected output from flattener: mismatch (-want +got):\n%s", diff)
 		}

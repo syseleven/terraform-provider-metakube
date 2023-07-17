@@ -54,21 +54,10 @@ func TestAccMetakubeCluster_MaintenanceCronJob_Basic(t *testing.T) {
 					testAccCheckMetaKubeMaintenanceCronJobExists(&maintenanceCronJob),
 					resource.TestCheckResourceAttr(resourceName, "maintenance_cron_job_name", params.MaintenanceCronJobName),
 					resource.TestCheckResourceAttr(resourceName, "spec.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.failed_jobs_history_limit", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.starting_deadline_seconds", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.successful_jobs_history_limit", "1"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.schedule", "5 4 * * *"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.maintenance_job_template.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.maintenance_job_template.0.labels.%", "2"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.maintenance_job_template.0.labels.a", "b"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.maintenance_job_template.0.labels.c", "d"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.maintenance_job_template.0.name", params.MaintenanceJobTemplateName),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.maintenance_job_template.0.spec.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.maintenance_job_template.0.spec.0.labels.%", "2"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.maintenance_job_template.0.spec.0.labels.a", "b"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.maintenance_job_template.0.spec.0.labels.c", "d"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.maintenance_job_template.0.spec.0.rollback", "false"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.maintenance_job_template.0.spec.0.type", params.MaintenanceJobType),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.maintenance_job_template.0.rollback", "false"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.maintenance_job_template.0.type", params.MaintenanceJobType),
 					resource.TestCheckResourceAttrSet(resourceName, "creation_timestamp"),
 					resource.TestCheckResourceAttrSet(resourceName, "deletion_timestamp"),
 				),
@@ -126,24 +115,14 @@ var testAccCheckMetaKubeMaintenanceCronJobBasicTemplate = mustParseTemplate("mai
 			delete = "15m"
 		}
 		spec {
-			failed_jobs_history_limit 		= 1
-			starting_deadline_seconds 		= 1
-			successful_jobs_history_limit 	= 1
 			schedule						= "5 4 * * *"
 			maintenance_job_template {
-				labels = {
+				options = {
 					"a" = "b"
 					"c" = "d"
 				}
-				name 	= "{{ .MaintenanceJobTemplateName }}"
-				spec {
-					options = {
-					"a" = "b"
-					"c" = "d"
-					}
-					rollback 	= false
-					type		= "{{ .MaintenanceJobType }}"
-				}
+				rollback 	= false
+				type		= "{{ .MaintenanceJobType }}"
 			}
 		}
 	}`)
@@ -161,7 +140,7 @@ func testAccCheckMetaKubeMaintenanceCronJobDestroy(s *terraform.State) error {
 		p := project.NewGetMaintenanceCronJobParams().WithProjectID(projectID).WithMaintenanceCronJobID(rs.Primary.ID)
 		r, err := k.client.Project.GetMaintenanceCronJob(p, k.auth)
 		if err == nil && r.Payload != nil {
-			return fmt.Errorf("Cluster still exists")
+			return fmt.Errorf("MaintenanceCronJob still exists")
 		}
 	}
 

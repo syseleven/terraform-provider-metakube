@@ -6,24 +6,6 @@ import (
 
 func metakubeResourceMaintenanceCronJobSpecFields() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
-		"failed_jobs_history_limit": {
-			Type:        schema.TypeInt,
-			Optional:    true,
-			Computed:    true,
-			Description: "Number of failed finished maintenance jobs to retain",
-		},
-		"starting_deadline_seconds": {
-			Type:        schema.TypeInt,
-			Optional:    true,
-			Computed:    true,
-			Description: "An optional deadline in seconds",
-		},
-		"successful_jobs_history_limit": {
-			Type:        schema.TypeInt,
-			Optional:    true,
-			Computed:    true,
-			Description: "Number of successful finished maintenance jobs to retain",
-		},
 		"schedule": {
 			Type:        schema.TypeString,
 			Required:    true,
@@ -35,39 +17,13 @@ func metakubeResourceMaintenanceCronJobSpecFields() map[string]*schema.Schema {
 			Required:    true,
 			Description: "MaintenanceJob template specification",
 			Elem: &schema.Resource{
-				Schema: map[string]*schema.Schema{
-					"labels": {
-						Type:        schema.TypeMap,
-						Optional:    true,
-						Description: "Map of string keys and values that can be used to organize and categorize (scope and select) objects.",
-						Elem: &schema.Schema{
-							Type: schema.TypeString,
-						},
-					},
-					"name": {
-						Type:        schema.TypeString,
-						Optional:    true,
-						Computed:    true,
-						ForceNew:    true,
-						Description: "Maintenance job template name",
-					},
-					"spec": {
-						Type:        schema.TypeList,
-						Required:    true,
-						MinItems:    1,
-						MaxItems:    1,
-						Description: "Maintenance job spec",
-						Elem: &schema.Resource{
-							Schema: metakubeMaintenanceJobSpecSchema(),
-						},
-					},
-				},
+				Schema: metakubeMaintenanceJobTemplateSchema(),
 			},
 		},
 	}
 }
 
-func metakubeMaintenanceJobSpecSchema() map[string]*schema.Schema {
+func metakubeMaintenanceJobTemplateSchema() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
 		"options": {
 			Type:        schema.TypeList,

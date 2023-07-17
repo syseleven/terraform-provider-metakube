@@ -121,7 +121,7 @@ func metakubeResourceMaintenanceCronJobCreate(ctx context.Context, d *schema.Res
 			}
 			return resource.NonRetryableError(fmt.Errorf(e))
 		}
-		id = r.Payload.UID
+		id = models.UID(r.Payload.Name)
 		return nil
 	})
 	if err != nil {
@@ -259,9 +259,7 @@ func metakubeResourceMaintenanceCronJobWaitForReady(ctx context.Context, k *meta
 			return resource.RetryableError(fmt.Errorf("unable to get maintenance cron job %s", stringifyResponseError(err)))
 		}
 
-		if r.Payload.Status.Active == nil || r.Payload.Name == "" || r.Payload.Spec.MaintenanceJobTemplate == nil ||
-			r.Payload.Spec.MaintenanceJobTemplate.Name == "" || r.Payload.Spec.MaintenanceJobTemplate.Spec.Type == "" {
-			k.log.Debugf("waiting for maintenance cron job '%s' to be ready, %+v", id, r.Payload.Status)
+		if r.Payload.Name == "" || r.Payload.Spec.MaintenanceJobTemplate == nil || r.Payload.Spec.MaintenanceJobTemplate.Type == "" {
 			return resource.RetryableError(fmt.Errorf("waiting for maintenance cron job '%s' to be ready", id))
 		}
 
