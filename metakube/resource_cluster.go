@@ -212,7 +212,13 @@ func metakubeResourceClusterCreate(ctx context.Context, d *schema.ResourceData, 
 	}
 
 	if err := metakubeResourceClusterWaitForReady(ctx, meta, d.Timeout(schema.TimeoutCreate), projectID, d.Id()); err != nil {
-		return diag.Errorf("cluster '%s' is not ready: %v", r.Payload.ID, err)
+		// In case of timeout, we still want to return the cluster resource
+		retDiags = append(retDiags, metakubeResourceClusterRead(ctx, d, m)...)
+		retDiags = append(retDiags, diag.Diagnostic{
+			Severity: diag.Error,
+			Summary:  fmt.Sprintf("Cluster '%s' is not ready: %v", r.Payload.ID, err),
+		})
+		return retDiags
 	}
 
 	return metakubeResourceClusterRead(ctx, d, m)
@@ -379,12 +385,7 @@ func metakubeResourceClusterRead(ctx context.Context, d *schema.ResourceData, m 
 	}
 
 	if _, ok := d.GetOk("spec.0.syseleven_auth.0.realm"); ok {
-		dc, errd := metakubeResourceClusterFindDatacenterByName(ctx, k, d)
-		if errd != nil {
-			return errd
-		}
-
-		if conf, err := metakubeClusterUpdateOIDCKubeconfig(ctx, k, projectID, dc.Spec.Seed, d.Id()); err != nil {
+		if conf, err := metakubeClusterUpdateOIDCKubeconfig(ctx, k, projectID, d.Id()); err != nil {
 			return diag.Diagnostics{{
 				Severity:      diag.Warning,
 				Summary:       fmt.Sprintf("could not update OIDC kubeconfig: %s", stringifyResponseError(err)),
@@ -397,7 +398,7 @@ func metakubeResourceClusterRead(ctx context.Context, d *schema.ResourceData, m 
 			}
 		}
 
-		if conf, err := metakubeClusterUpdateKubeloginKubeconfig(ctx, k, projectID, dc.Spec.Seed, d.Id()); err != nil {
+		if conf, err := metakubeClusterUpdateKubeloginKubeconfig(ctx, k, projectID, d.Id()); err != nil {
 			return diag.Diagnostics{{
 				Severity:      diag.Warning,
 				Summary:       fmt.Sprintf("could not update kubelogin kubeconfig: %v", err),
@@ -426,7 +427,7 @@ func metakubeClusterUpdateKubeconfig(ctx context.Context, k *metakubeProviderMet
 	return string(ret.Payload), nil
 }
 
-func metakubeClusterUpdateOIDCKubeconfig(ctx context.Context, k *metakubeProviderMeta, projectID, seedName, clusterID string) (string, error) {
+func metakubeClusterUpdateOIDCKubeconfig(ctx context.Context, k *metakubeProviderMeta, projectID, clusterID string) (string, error) {
 	kubeConfigParams := project.NewGetOidcClusterKubeconfigV2Params()
 	kubeConfigParams.SetContext(ctx)
 	kubeConfigParams.SetProjectID(projectID)
@@ -438,7 +439,7 @@ func metakubeClusterUpdateOIDCKubeconfig(ctx context.Context, k *metakubeProvide
 	return string(ret.Payload), nil
 }
 
-func metakubeClusterUpdateKubeloginKubeconfig(ctx context.Context, k *metakubeProviderMeta, projectID, seedName, clusterID string) (string, error) {
+func metakubeClusterUpdateKubeloginKubeconfig(ctx context.Context, k *metakubeProviderMeta, projectID, clusterID string) (string, error) {
 	kubeConfigParams := project.NewGetKubeLoginClusterKubeconfigV2Params()
 	kubeConfigParams.SetContext(ctx)
 	kubeConfigParams.SetProjectID(projectID)
@@ -735,7 +736,7 @@ func assignSSHKeysToCluster(projectID, clusterID string, sshkeyIDs []string, k *
 		p := project.NewAssignSSHKeyToClusterV2Params().WithProjectID(projectID).WithClusterID(clusterID).WithKeyID(id)
 		_, err := k.client.Project.AssignSSHKeyToClusterV2(p, k.auth)
 		if err != nil {
-			return fmt.Errorf("Can't assign sshkeys to cluster '%s': %v", clusterID, err)
+			return fmt.Errorf("can't assign sshkeys to cluster '%s': %v", clusterID, err)
 		}
 	}
 

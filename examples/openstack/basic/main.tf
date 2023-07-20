@@ -49,7 +49,7 @@ resource "metakube_sshkey" "local" {
 
 data "metakube_k8s_version" "cluster" {
   major = "1"
-  minor = "21"
+  minor = "26"
 }
 
 resource "metakube_cluster" "cluster" {
