@@ -20,7 +20,7 @@ func metakubeResourceSystemLabelOrTag(key string) bool {
 	return false
 }
 
-func matakubeResourceNodeDeploymentSpecFields() map[string]*schema.Schema {
+func metakubeResourceNodeDeploymentSpecFields() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
 		"dynamic_config": {
 			Type:        schema.TypeBool,

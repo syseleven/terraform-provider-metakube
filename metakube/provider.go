@@ -83,6 +83,7 @@ func Provider() *schema.Provider {
 			"metakube_role_binding":         metakubeResourceRoleBinding(),
 			"metakube_node_deployment":      metakubeResourceNodeDeployment(),
 			"metakube_sshkey":               metakubeResourceSSHKey(),
+			"metakube_maintenance_cron_job": metakubeResourceMaintenanceCronJob(),
 		},
 
 		DataSourcesMap: map[string]*schema.Resource{
