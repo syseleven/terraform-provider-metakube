@@ -193,9 +193,9 @@ func metakubeResourceMaintenanceCronJobRead(ctx context.Context, d *schema.Resou
 
 	_ = d.Set("spec", metakubeMaintenanceCronJobFlattenSpec(r.Payload.Spec))
 
-	_ = d.Set("creation_timestamp", r.Payload.CreationTimestamp)
+	_ = d.Set("creation_timestamp", r.Payload.CreationTimestamp.String())
 
-	_ = d.Set("deletion_timestamp", r.Payload.DeletionTimestamp)
+	_ = d.Set("deletion_timestamp", r.Payload.DeletionTimestamp.String())
 
 	return nil
 }

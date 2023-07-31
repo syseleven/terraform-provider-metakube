@@ -3,7 +3,6 @@ package metakube
 import (
 	"fmt"
 	"os"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -27,34 +26,27 @@ func TestAccMetakubeCluster_MaintenanceCronJob_Basic(t *testing.T) {
 		OpenstackApplicationCredentialID:     os.Getenv(testEnvOpenstackApplicationCredentialsID),
 		OpenstackApplicationCredentialSecret: os.Getenv(testEnvOpenstackApplicationCredentialsSecret),
 
-		MaintenanceCronJobName:     "test_maintenance_cron_job_name",
-		MaintenanceJobTemplateName: "test_maintenance_job_template_name",
-		MaintenanceJobType:         "test_maintenance_job_type",
-	}
-	var config strings.Builder
-	if err := testAccCheckMetaKubeMaintenanceCronJobBasicTemplate.Execute(&config, params); err != nil {
-		t.Fatal(err)
+		MaintenanceCronJobName:     randomName("test-maintenancecronjob", 5),
+		MaintenanceJobTemplateName: randomName("test-maintenancecronjob-template", 5),
+		MaintenanceJobType:         "kubernetesPatchUpdate",
+		Schedule:                   "5 4 * * *",
 	}
 
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
 			testAccPreCheckForOpenstack(t)
 		},
-		Providers: testAccProviders,
-		ExternalProviders: map[string]resource.ExternalProvider{
-			"openstack": {
-				Source: "terraform-provider-openstack/openstack",
-			},
-		},
+		Providers:    testAccProviders,
 		CheckDestroy: testAccCheckMetaKubeMaintenanceCronJobDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: config.String(),
+				Config: testAccCheckMetaKubeMaintenanceCronJobBasicConfig(t, params),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeMaintenanceCronJobExists(&maintenanceCronJob),
-					resource.TestCheckResourceAttr(resourceName, "maintenance_cron_job_name", params.MaintenanceCronJobName),
+					testAccCheckMetaKubeMaintenanceCronJobFields(&maintenanceCronJob, params.MaintenanceCronJobName, params.Schedule, params.MaintenanceJobType),
+					resource.TestCheckResourceAttr(resourceName, "name", params.MaintenanceCronJobName),
 					resource.TestCheckResourceAttr(resourceName, "spec.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.schedule", "5 4 * * *"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.schedule", params.Schedule),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.maintenance_job_template.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.maintenance_job_template.0.rollback", "false"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.maintenance_job_template.0.type", params.MaintenanceJobType),
@@ -63,11 +55,8 @@ func TestAccMetakubeCluster_MaintenanceCronJob_Basic(t *testing.T) {
 				),
 			},
 			{
-				ResourceName:      resourceName,
-				ImportState:       true,
-				ImportStateVerify: false,
-				ImportStateId:     "x:y:123xyz",
-				ExpectError:       regexp.MustCompile(`(Please verify the ID is correct|Cannot import non-existent remote object)`),
+				Config:   testAccCheckMetaKubeMaintenanceCronJobBasicConfig(t, params),
+				PlanOnly: true,
 			},
 		},
 	})
@@ -84,9 +73,14 @@ type testAccCheckMetaKubeMaintenanceCronJobBasicParams struct {
 	MaintenanceCronJobName     string
 	MaintenanceJobTemplateName string
 	MaintenanceJobType         string
+	Schedule                   string
 }
 
-var testAccCheckMetaKubeMaintenanceCronJobBasicTemplate = mustParseTemplate("maintenanceCronJobBasic", `
+func testAccCheckMetaKubeMaintenanceCronJobBasicConfig(t *testing.T, params *testAccCheckMetaKubeMaintenanceCronJobBasicParams) string {
+	t.Helper()
+
+	var result strings.Builder
+	err := mustParseTemplate("metakube maintenance cron job test template", `
 	resource "metakube_cluster" "acctest" {
 		name = "{{ .ClusterName }}"
 		dc_name = "{{ .DatacenterName }}"
@@ -106,26 +100,65 @@ var testAccCheckMetaKubeMaintenanceCronJobBasicTemplate = mustParseTemplate("mai
 	}
 
 	resource "metakube_maintenance_cron_job" "acctest" {
-		project_id = "{{ .ProjectID }}"
 		cluster_id = metakube_cluster.acctest.id
 		name = "{{ .MaintenanceCronJobName }}"
-		timeouts {
-			create = "15m"
-			update = "15m"
-			delete = "15m"
-		}
+
 		spec {
-			schedule						= "5 4 * * *"
+			schedule		= "{{ .Schedule }}"
 			maintenance_job_template {
-				options = {
-					"a" = "b"
-					"c" = "d"
-				}
 				rollback 	= false
 				type		= "{{ .MaintenanceJobType }}"
 			}
 		}
-	}`)
+	}
+`).Execute(&result, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return result.String()
+}
+
+func testAccCheckMetaKubeMaintenanceCronJobBasicSecondConfig(t *testing.T, params *testAccCheckMetaKubeMaintenanceCronJobBasicParams) string {
+	t.Helper()
+
+	var result strings.Builder
+	err := mustParseTemplate("metakube maintenance cron job test template", `
+	resource "metakube_cluster" "acctest" {
+		name = "{{ .ClusterName }}"
+		dc_name = "{{ .DatacenterName }}"
+		project_id = "{{ .ProjectID }}"
+	
+		spec {
+			version = "{{ .Version }}"
+			cloud {
+				openstack {
+					application_credentials {
+						id = "{{ .OpenstackApplicationCredentialID }}"
+						secret ="{{ .OpenstackApplicationCredentialSecret }}"
+					}
+				}
+			}
+		}
+	}
+
+	resource "metakube_maintenance_cron_job" "acctest" {
+		cluster_id = metakube_cluster.acctest.id
+		name = "{{ .MaintenanceCronJobName }}"
+
+		spec {
+			schedule		= "{{ .Schedule }}"
+			maintenance_job_template {
+				rollback 	= true
+				type		= "{{ .MaintenanceJobType }}"
+			}
+		}
+	}
+`).Execute(&result, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return result.String()
+}
 
 func testAccCheckMetaKubeMaintenanceCronJobDestroy(s *terraform.State) error {
 	k := testAccProvider.Meta().(*metakubeProviderMeta)
@@ -160,7 +193,8 @@ func testAccCheckMetaKubeMaintenanceCronJobExists(maintenanceCronJob *models.Mai
 
 		k := testAccProvider.Meta().(*metakubeProviderMeta)
 		projectID := rs.Primary.Attributes["project_id"]
-		p := project.NewGetMaintenanceCronJobParams().WithProjectID(projectID).WithMaintenanceCronJobID(rs.Primary.ID)
+		clusterID := rs.Primary.Attributes["cluster_id"]
+		p := project.NewGetMaintenanceCronJobParams().WithProjectID(projectID).WithClusterID(clusterID).WithMaintenanceCronJobID(rs.Primary.ID)
 		ret, err := k.client.Project.GetMaintenanceCronJob(p, k.auth)
 		if err != nil {
 			return fmt.Errorf("GetMaintenanceCronJob %v", err)
@@ -170,6 +204,42 @@ func testAccCheckMetaKubeMaintenanceCronJobExists(maintenanceCronJob *models.Mai
 		}
 
 		*maintenanceCronJob = *ret.Payload
+
+		return nil
+	}
+}
+
+func testAccCheckMetaKubeMaintenanceCronJobFields(mcj *models.MaintenanceCronJob, name, schedule, maintenanceJobType string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		if mcj == nil {
+			return fmt.Errorf("No Record")
+		}
+
+		if mcj.Spec == nil {
+			return fmt.Errorf("No Maintenance Cron Job spec present")
+		}
+
+		if mcj.Spec.Schedule == "" {
+			return fmt.Errorf("No Maintenance Cron Job schedule present")
+		}
+
+		if mcj.Spec.MaintenanceJobTemplate == nil {
+			return fmt.Errorf("No Maintenance Job Template present")
+		}
+
+		if mcj.Name != name {
+			return fmt.Errorf("want MaintenanceCronJob.Name=%s, got %s", name, mcj.Name)
+		}
+
+		if mcj.Spec.Schedule != schedule {
+			return fmt.Errorf("want MaintenanceCronJob.Schedule=%s, got %s", schedule, mcj.Spec.Schedule)
+		}
+
+		maintenanceJobTemplate := mcj.Spec.MaintenanceJobTemplate
+
+		if maintenanceJobTemplate.Type != maintenanceJobType {
+			return fmt.Errorf("want MaintenanceJobTemplate.Type=%s, got %s", maintenanceJobType, maintenanceJobTemplate.Type)
+		}
 
 		return nil
 	}
