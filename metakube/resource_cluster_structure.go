@@ -21,7 +21,9 @@ func metakubeResourceClusterFlattenSpec(values clusterPreserveValues, in *models
 		att["update_window"] = flattenUpdateWindow(in.UpdateWindow)
 	}
 
-	att["enable_ssh_agent"] = in.EnableUserSSHKeyAgent
+	if in.EnableUserSSHKeyAgent != nil {
+		att["enable_ssh_agent"] = *in.EnableUserSSHKeyAgent
+	}
 
 	att["audit_logging"] = false
 	if in.AuditLogging != nil {
@@ -314,7 +316,7 @@ func metakubeResourceClusterExpandSpec(p []interface{}, dcName string, include f
 
 	if v, ok := in["enable_ssh_agent"]; ok && include("enable_ssh_agent") {
 		if vv, ok := v.(bool); ok {
-			obj.EnableUserSSHKeyAgent = vv
+			obj.EnableUserSSHKeyAgent = &vv
 		}
 	}
 

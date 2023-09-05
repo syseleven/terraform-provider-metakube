@@ -9,6 +9,7 @@ import (
 )
 
 func TestMetakubeClusterFlattenSpec(t *testing.T) {
+	trueBool := true
 	cases := []struct {
 		Input          *models.ClusterSpec
 		ExpectedOutput []interface{}
@@ -20,7 +21,7 @@ func TestMetakubeClusterFlattenSpec(t *testing.T) {
 					Start:  "Tue 02:00",
 					Length: "3h",
 				},
-				EnableUserSSHKeyAgent: true,
+				EnableUserSSHKeyAgent: &trueBool,
 				AuditLogging:          &models.AuditLoggingSettings{},
 				Cloud: &models.CloudSpec{
 					DatacenterName: "eu-west-1",
@@ -83,7 +84,6 @@ func TestMetakubeClusterFlattenSpec(t *testing.T) {
 					"audit_logging":       false,
 					"pod_security_policy": false,
 					"pod_node_selector":   false,
-					"enable_ssh_agent":    false,
 				},
 			},
 		},
