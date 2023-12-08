@@ -299,22 +299,39 @@ func metakubeNodeDeploymentExpandSpec(p []interface{}) *models.NodeDeploymentSpe
 		return obj
 	}
 
-	if v, ok := in["min_replicas"]; ok {
-		if vv, ok := v.(int); ok {
-			obj.MinReplicas = int32(vv)
-			obj.Replicas = int32ToPtr(obj.MinReplicas)
-		}
-	}
-
-	if v, ok := in["max_replicas"]; ok {
-		if vv, ok := v.(int); ok {
-			obj.MaxReplicas = int32(vv)
-		}
-	}
-
+	var replicas int32
 	if v, ok := in["replicas"]; ok && obj.MinReplicas == 0 {
 		if vv, ok := v.(int); ok {
 			obj.Replicas = int32ToPtr(int32(vv))
+			replicas = int32(vv)
+		}
+	}
+
+	var min_replicas int32
+	if v, ok := in["min_replicas"]; ok {
+		if vv, ok := v.(int); ok {
+			obj.MinReplicas = int32(vv)
+			min_replicas = int32(vv)
+		}
+	}
+
+	var max_replicas int32
+	if v, ok := in["max_replicas"]; ok {
+		if vv, ok := v.(int); ok {
+			obj.MaxReplicas = int32(vv)
+			max_replicas = int32(vv)
+		}
+	}
+
+	// Make sure replicas is between min and max
+	// Only set replicas if max_replicas is set
+	if max_replicas > 0 {
+		if replicas > max_replicas {
+			obj.Replicas = int32ToPtr(max_replicas)
+		} else if replicas < min_replicas {
+			obj.Replicas = int32ToPtr(min_replicas)
+		} else {
+			obj.Replicas = int32ToPtr(replicas)
 		}
 	}
 
