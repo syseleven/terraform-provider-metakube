@@ -156,7 +156,7 @@ func metakubeResourceClusterSpecFields() map[string]*schema.Schema {
 					"type": {
 						Type:         schema.TypeString,
 						Required:     true,
-						ValidateFunc: validation.StringInSlice([]string{"canal", "none"}, false),
+						ValidateFunc: validation.StringInSlice([]string{"cilium", "canal", "none"}, false),
 						Description:  "Define the type of CNI plugin",
 					},
 				},

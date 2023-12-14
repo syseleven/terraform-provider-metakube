@@ -39,8 +39,6 @@ testacc:
 # METAKUBE_K8S_VERSION - the kubernetes version
 # METAKUBE_K8S_OLDER_VERSION - lower kubernetes version then METAKUBE_K8S_VERSION
 # METAKUBE_OPENSTACK_AUTH_URL
-# METAKUBE_OPENSTACK_APPLICATION_CREDENTIALS_ID
-# METAKUBE_OPENSTACK_APPLICATION_CREDENTIALS_SECRET
 # METAKUBE_OPENSTACK_IMAGE - an image available for openstack clusters
 # METAKUBE_OPENSTACK_IMAGE2 - another image available for openstack clusters
 # METAKUBE_OPENSTACK_FLAVOR - openstack flavor to use
