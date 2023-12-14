@@ -401,11 +401,11 @@ resource "metakube_cluster" "acctest_cluster" {
 		}
 		services_cidr = "10.240.16.0/18"
 		pods_cidr = "172.25.0.0/18"
-		{{if .CNIPlugin}}
+		{{ if .CNIPlugin }}
 		cni_plugin {
 			type = "{{ .CNIPlugin }}"
 		  }
-		{{end}}
+		{{ end }}
 	}
 }
 
