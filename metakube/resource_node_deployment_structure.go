@@ -285,7 +285,7 @@ func metakubeNodeDeploymentFlattenAzureSpec(in *models.AzureNodeSpec) []interfac
 
 // expanders
 
-func metakubeNodeDeploymentExpandSpec(p []interface{}) *models.NodeDeploymentSpec {
+func metakubeNodeDeploymentExpandSpec(p []interface{}, isCreate bool) *models.NodeDeploymentSpec {
 	if len(p) < 1 {
 		return nil
 	}
@@ -302,7 +302,9 @@ func metakubeNodeDeploymentExpandSpec(p []interface{}) *models.NodeDeploymentSpe
 	if v, ok := in["min_replicas"]; ok {
 		if vv, ok := v.(int); ok {
 			obj.MinReplicas = int32(vv)
-			obj.Replicas = int32ToPtr(obj.MinReplicas)
+			if isCreate {
+				obj.Replicas = int32ToPtr(obj.MinReplicas)
+			}
 		}
 	}
 

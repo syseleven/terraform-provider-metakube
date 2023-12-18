@@ -404,7 +404,7 @@ func TestExpandNodeDeploymentSpec(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		output := metakubeNodeDeploymentExpandSpec(tc.Input)
+		output := metakubeNodeDeploymentExpandSpec(tc.Input, false)
 		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
 			t.Fatalf("Unexpected output from expander: mismatch (-want +got):\n%s", diff)
 		}

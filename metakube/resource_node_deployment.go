@@ -116,7 +116,7 @@ func metakubeResourceNodeDeploymentCreate(ctx context.Context, d *schema.Resourc
 
 	nodeDeployment := &models.NodeDeployment{
 		Name: d.Get("name").(string),
-		Spec: metakubeNodeDeploymentExpandSpec(d.Get("spec").([]interface{})),
+		Spec: metakubeNodeDeploymentExpandSpec(d.Get("spec").([]interface{}), true),
 	}
 
 	if err := metakubeResourceNodeDeploymentVersionCompatibleWithCluster(ctx, k, projectID, clusterID, nodeDeployment); err != nil {
@@ -223,7 +223,7 @@ func metakubeResourceNodeDeploymentUpdate(ctx context.Context, d *schema.Resourc
 	clusterID := d.Get("cluster_id").(string)
 
 	nodeDeployment := &models.NodeDeployment{
-		Spec: metakubeNodeDeploymentExpandSpec(d.Get("spec").([]interface{})),
+		Spec: metakubeNodeDeploymentExpandSpec(d.Get("spec").([]interface{}), false),
 	}
 
 	if err := metakubeResourceNodeDeploymentVersionCompatibleWithCluster(ctx, k, projectID, clusterID, nodeDeployment); err != nil {
