@@ -193,6 +193,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttrSet(resourceName, "deletion_timestamp"),
 				),
 			},
+			// Uncomment this block once cilium reconciliation is done.
 			// {
 			// 	Config: config4.String(),
 			// 	Check: resource.ComposeAggregateTestCheckFunc(
