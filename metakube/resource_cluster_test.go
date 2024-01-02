@@ -71,6 +71,15 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 	if err := clusterOpenstackBasicTemplate3.Execute(&config3, data); err != nil {
 		t.Fatal(err)
 	}
+	// Uncomment this block once cilium reconciliation is done.
+	// data4 := *data
+	// data4.Name += "-cilium"
+	// data4.CNIPlugin = "cilium"
+	// var config4 strings.Builder
+	// if err := clusterOpenstackBasicTemplate.Execute(&config4, data4); err != nil {
+	// 	t.Fatal(err)
+	// }
+	t.Log("Generated randomname: ", data.Name)
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
 			testAccPreCheckForOpenstack(t)
@@ -184,6 +193,38 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttrSet(resourceName, "deletion_timestamp"),
 				),
 			},
+			// Uncomment this block once cilium reconciliation is done.
+			// {
+			// 	Config: config4.String(),
+			// 	Check: resource.ComposeAggregateTestCheckFunc(
+			// 		testAccCheckMetaKubeClusterExists(&cluster),
+			// 		testAccCheckMetaKubeClusterOpenstackAttributes(&cluster, data4.Name, data4.DatacenterName, data4.Version, false),
+			// 		resource.TestCheckResourceAttr(resourceName, "dc_name", data4.DatacenterName),
+			// 		resource.TestCheckResourceAttr(resourceName, "name", data4.Name),
+			// 		resource.TestCheckResourceAttr(resourceName, "labels.%", "2"),
+			// 		resource.TestCheckResourceAttr(resourceName, "labels.a", "b"),
+			// 		resource.TestCheckResourceAttr(resourceName, "labels.c", "d"),
+			// 		resource.TestCheckResourceAttr(resourceName, "spec.#", "1"),
+			// 		resource.TestCheckResourceAttr(resourceName, "spec.0.version", data.Version),
+			// 		resource.TestCheckResourceAttr(resourceName, "spec.0.update_window.0.start", "Tue 02:00"),
+			// 		resource.TestCheckResourceAttr(resourceName, "spec.0.update_window.0.length", "2h"),
+			// 		resource.TestCheckResourceAttr(resourceName, "spec.0.services_cidr", "10.240.16.0/18"),
+			// 		resource.TestCheckResourceAttr(resourceName, "spec.0.pods_cidr", "172.25.0.0/18"),
+			// 		resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.#", "1"),
+			// 		resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.0.type", "cilium"),
+			// 		resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.#", "1"),
+			// 		resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.aws.#", "0"),
+			// 		resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.#", "1"),
+			// 		resource.TestCheckResourceAttrSet(resourceName, "spec.0.cloud.0.openstack.0.security_group"),
+			// 		resource.TestCheckResourceAttrSet(resourceName, "spec.0.cloud.0.openstack.0.network"),
+			// 		resource.TestCheckResourceAttrSet(resourceName, "spec.0.cloud.0.openstack.0.subnet_id"),
+			// 		resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.0.subnet_cidr", "192.168.2.0/24"),
+			// 		resource.TestCheckResourceAttrSet(resourceName, "kube_config"),
+			// 		resource.TestCheckResourceAttr(resourceName, "spec.0.audit_logging", "false"),
+			// 		resource.TestCheckResourceAttrSet(resourceName, "creation_timestamp"),
+			// 		resource.TestCheckResourceAttrSet(resourceName, "deletion_timestamp"),
+			// 	),
+			// },
 			{
 				ResourceName:            resourceName,
 				ImportState:             true,
@@ -307,6 +348,7 @@ type clusterOpenstackBasicData struct {
 	DatacenterName string
 	ProjectID      string
 	Version        string
+	CNIPlugin      string
 }
 
 var clusterOpenstackBasicTemplate = mustParseTemplate("clusterOpenstackBasic", `
@@ -316,10 +358,6 @@ terraform {
 			source = "terraform-provider-openstack/openstack"
 		}
 	}
-}
-
-data "metakube_project" "something" {
-	name = "some"
 }
 
 provider "openstack" {
@@ -333,10 +371,10 @@ resource "metakube_cluster" "acctest_cluster" {
 	name = "{{ .Name }}"
 	dc_name = "{{ .DatacenterName }}"
 	project_id = "{{ .ProjectID }}"
-	
+
 	labels = {
 		"a" = "b"
-	  	"c" = "d"
+		"c" = "d"
 	}
 
     timeouts {
@@ -367,6 +405,11 @@ resource "metakube_cluster" "acctest_cluster" {
 		}
 		services_cidr = "10.240.16.0/18"
 		pods_cidr = "172.25.0.0/18"
+		{{ if .CNIPlugin }}
+		cni_plugin {
+			type = "{{ .CNIPlugin }}"
+		  }
+		{{ end }}
 	}
 }
 

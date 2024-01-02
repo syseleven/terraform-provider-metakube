@@ -107,7 +107,17 @@ func TestFlattenCniPlugin(t *testing.T) {
 		ExpectedOutput []interface{}
 	}{
 		{
+			&models.CNIPluginSettings{
+				Type: models.CNIPluginType("cilium"),
+			},
+			[]interface{}{
+				map[string]interface{}{
+					"type": "cilium",
+				},
+			},
+		},
 
+		{
 			&models.CNIPluginSettings{
 				Type: models.CNIPluginType("canal"),
 			},
