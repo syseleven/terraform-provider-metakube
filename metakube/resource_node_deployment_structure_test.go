@@ -14,22 +14,20 @@ func TestMetakubeNodeDeploymentFlatten(t *testing.T) {
 	}{
 		{
 			&models.NodeDeploymentSpec{
-				Replicas:      int32ToPtr(1),
-				Template:      &models.NodeSpec{},
-				DynamicConfig: true,
+				Replicas: int32ToPtr(1),
+				Template: &models.NodeSpec{},
 			},
 			[]interface{}{
 				map[string]interface{}{
-					"replicas":       int32(1),
-					"template":       []interface{}{map[string]interface{}{}},
-					"dynamic_config": true,
+					"replicas": int32(1),
+					"template": []interface{}{map[string]interface{}{}},
 				},
 			},
 		},
 		{
 			&models.NodeDeploymentSpec{},
 			[]interface{}{
-				map[string]interface{}{"dynamic_config": false},
+				map[string]interface{}{},
 			},
 		},
 		{
@@ -379,15 +377,13 @@ func TestExpandNodeDeploymentSpec(t *testing.T) {
 		{
 			[]interface{}{
 				map[string]interface{}{
-					"replicas":       1,
-					"template":       []interface{}{map[string]interface{}{}},
-					"dynamic_config": true,
+					"replicas": 1,
+					"template": []interface{}{map[string]interface{}{}},
 				},
 			},
 			&models.NodeDeploymentSpec{
-				Replicas:      int32ToPtr(1),
-				Template:      &models.NodeSpec{},
-				DynamicConfig: true,
+				Replicas: int32ToPtr(1),
+				Template: &models.NodeSpec{},
 			},
 		},
 		{

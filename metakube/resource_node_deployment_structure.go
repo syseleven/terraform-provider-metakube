@@ -28,8 +28,6 @@ func metakubeNodeDeploymentFlattenSpec(in *models.NodeDeploymentSpec) []interfac
 		att["template"] = metakubeNodeDeploymentFlattenNodeSpec(in.Template)
 	}
 
-	att["dynamic_config"] = in.DynamicConfig
-
 	return []interface{}{att}
 }
 
@@ -323,12 +321,6 @@ func metakubeNodeDeploymentExpandSpec(p []interface{}, isCreate bool) *models.No
 	if v, ok := in["template"]; ok {
 		if vv, ok := v.([]interface{}); ok {
 			obj.Template = metakubeNodeDeploymentExpandNodeSpec(vv)
-		}
-	}
-
-	if v, ok := in["dynamic_config"]; ok {
-		if vv, ok := v.(bool); ok {
-			obj.DynamicConfig = vv
 		}
 	}
 
