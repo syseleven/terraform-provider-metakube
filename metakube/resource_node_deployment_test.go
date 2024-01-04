@@ -14,7 +14,7 @@ import (
 
 func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 	var ndepl models.NodeDeployment
-	testName := makeRandomName()
+	testName := makeRandomName() + "-os-nodedepl"
 	resourceName := "metakube_node_deployment.acctest_nd"
 
 	projectID := os.Getenv(testEnvProjectID)
@@ -287,7 +287,7 @@ func testAccCheckMetaKubeNodeDeploymentFields(rec *models.NodeDeployment, flavor
 
 func TestAccMetakubeNodeDeployment_AWS_Basic(t *testing.T) {
 	var nodedepl models.NodeDeployment
-	testName := makeRandomName()
+	testName := makeRandomName() + "-aws-nodedepl"
 
 	projectID := os.Getenv(testEnvProjectID)
 	accessKeyID := os.Getenv(testEnvAWSAccessKeyID)
@@ -399,7 +399,7 @@ func testAccCheckMetaKubeNodeDeploymentExists(n string, rec *models.NodeDeployme
 }
 
 func TestAccMetakubeNodeDeployment_ValidationAgainstCluster(t *testing.T) {
-	testName := makeRandomName()
+	testName := makeRandomName() + "-nodedepl-valid"
 
 	projectID := os.Getenv(testEnvProjectID)
 	osProjectID := os.Getenv(testEnvOpenstackProjectID)

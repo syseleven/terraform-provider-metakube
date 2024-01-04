@@ -51,7 +51,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 
 	resourceName := "metakube_cluster.acctest_cluster"
 	data := &clusterOpenstackBasicData{
-		Name:               makeRandomName(),
+		Name:               makeRandomName() + "-basic",
 		OpenstackAuthURL:   os.Getenv(testEnvOpenstackAuthURL),
 		OpenstackUser:      os.Getenv(testEnvOpenstackUsername),
 		OpenstackPassword:  os.Getenv(testEnvOpenstackPassword),
@@ -220,7 +220,7 @@ func TestAccMetakubeCluster_Openstack_ApplicationCredentials(t *testing.T) {
 	var cluster models.Cluster
 	resourceName := "metakube_cluster.acctest_cluster"
 	data := &clusterOpenstackApplicationCredentailsData{
-		Name:                                 makeRandomName(),
+		Name:                                 makeRandomName() + "-appcred",
 		DatacenterName:                       os.Getenv(testEnvOpenstackNodeDC),
 		ProjectID:                            os.Getenv(testEnvProjectID),
 		Version:                              os.Getenv(testEnvK8sVersionOpenstack),
@@ -260,7 +260,7 @@ func TestAccMetakubeCluster_Openstack_UpgradeVersion(t *testing.T) {
 	resourceName := "metakube_cluster.acctest_cluster"
 	versionedConfig := func(version string) string {
 		data := &clusterOpenstackBasicData{
-			Name:               makeRandomName(),
+			Name:               makeRandomName() + "-upgrade",
 			Version:            version,
 			OpenstackAuthURL:   os.Getenv(testEnvOpenstackAuthURL),
 			OpenstackUser:      os.Getenv(testEnvOpenstackUsername),
@@ -508,7 +508,7 @@ func TestAccMetakubeCluster_SSHKeys(t *testing.T) {
 	resourceName := "metakube_cluster.acctest_cluster"
 
 	data := &clusterOpenstackWithSSHKeyData{
-		Name:               makeRandomName(),
+		Name:               makeRandomName() + "-sshkeys",
 		OpenstackUser:      os.Getenv(testEnvOpenstackUsername),
 		OpenstackPassword:  os.Getenv(testEnvOpenstackPassword),
 		OpenstackProjectID: os.Getenv(testEnvOpenstackProjectID),
@@ -665,7 +665,7 @@ func TestAccMetakubeCluster_AWS_Basic(t *testing.T) {
 	var cluster models.Cluster
 	resourceName := "metakube_cluster.acctest_cluster"
 	data := &clusterAWSBasicData{
-		Name:                 makeRandomName(),
+		Name:                 makeRandomName() + "-aws-basic",
 		ProjectID:            os.Getenv(testEnvProjectID),
 		AccessID:             os.Getenv(testEnvAWSAccessKeyID),
 		AccessSecret:         os.Getenv(testAWSSecretAccessKey),
