@@ -22,12 +22,6 @@ func metakubeResourceSystemLabelOrTag(key string) bool {
 
 func metakubeResourceNodeDeploymentSpecFields() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
-		"dynamic_config": {
-			Type:        schema.TypeBool,
-			Optional:    true,
-			Default:     false,
-			Description: "Enable metakube kubelete dynamic config",
-		},
 		"replicas": {
 			Type:          schema.TypeInt,
 			Optional:      true,

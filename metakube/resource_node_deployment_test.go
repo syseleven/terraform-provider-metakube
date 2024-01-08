@@ -50,7 +50,6 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.image", image),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.operating_system.0.ubuntu.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.versions.0.kubelet", k8sVersionOld),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.dynamic_config", "false"),
 				),
 			},
 			{
@@ -75,7 +74,6 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.disk_size", "8"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.operating_system.0.ubuntu.0.dist_upgrade_on_boot", "true"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.versions.0.kubelet", k8sVersionNew),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.dynamic_config", "true"),
 				),
 			},
 			{
@@ -192,7 +190,6 @@ func testAccCheckMetaKubeNodeDeploymentBasic2(projectID, testName, nodeDC, usern
 		cluster_id = metakube_cluster.acctest_cluster.id
 		name = "%s"
 		spec {
-			dynamic_config = true
 			replicas = 1
 			template {
 				labels = {

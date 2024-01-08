@@ -195,8 +195,6 @@ resource "metakube_node_deployment" "acctest_nd" {
     min_replicas = var.node_min_replicas
     max_replicas = var.node_max_replicas
 
-    dynamic_config = true
-
     template {
       labels = {
         key = "value"
