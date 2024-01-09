@@ -10,7 +10,7 @@ import (
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/customdiff"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/syseleven/go-metakube/client/project"
 	"github.com/syseleven/go-metakube/client/versions"
@@ -128,7 +128,7 @@ func metakubeResourceNodeDeploymentCreate(ctx context.Context, d *schema.Resourc
 	}
 
 	// Some cloud providers, like AWS, take some time to finish initializing.
-	err := resource.RetryContext(ctx, d.Timeout(schema.TimeoutCreate), func() *resource.RetryError {
+	err := retry.RetryContext(ctx, d.Timeout(schema.TimeoutCreate), func() *retry.RetryError {
 		p := project.NewListMachineDeploymentsParams().
 			WithContext(ctx).
 			WithProjectID(projectID).
@@ -137,9 +137,9 @@ func metakubeResourceNodeDeploymentCreate(ctx context.Context, d *schema.Resourc
 		_, err := k.client.Project.ListMachineDeployments(p, k.auth)
 		if err != nil {
 			if e, ok := err.(*project.ListMachineDeploymentsDefault); ok && e.Code() != http.StatusOK {
-				return resource.RetryableError(fmt.Errorf("unable to list node deployments %v", err))
+				return retry.RetryableError(fmt.Errorf("unable to list node deployments %v", err))
 			}
-			return resource.NonRetryableError(err)
+			return retry.NonRetryableError(err)
 		}
 
 		return nil
@@ -155,14 +155,14 @@ func metakubeResourceNodeDeploymentCreate(ctx context.Context, d *schema.Resourc
 		WithBody(nodeDeployment)
 
 	var id string
-	err = resource.RetryContext(ctx, d.Timeout(schema.TimeoutCreate), func() *resource.RetryError {
+	err = retry.RetryContext(ctx, d.Timeout(schema.TimeoutCreate), func() *retry.RetryError {
 		r, err := k.client.Project.CreateMachineDeployment(p, k.auth)
 		if err != nil {
 			e := stringifyResponseError(err)
 			if strings.Contains(e, "failed calling webhook") || strings.Contains(e, "Cluster components are not ready yet") {
-				return resource.RetryableError(fmt.Errorf(e))
+				return retry.RetryableError(fmt.Errorf(e))
 			}
-			return resource.NonRetryableError(fmt.Errorf(e))
+			return retry.NonRetryableError(fmt.Errorf(e))
 		}
 		id = r.Payload.ID
 		return nil
@@ -286,13 +286,13 @@ func metakubeResourceNodeDeploymentUpdate(ctx context.Context, d *schema.Resourc
 			p.SetMachineDeploymentID(d.Id())
 			p.SetPatch(&patch)
 
-			err := resource.RetryContext(ctx, d.Timeout(schema.TimeoutUpdate), func() *resource.RetryError {
+			err := retry.RetryContext(ctx, d.Timeout(schema.TimeoutUpdate), func() *retry.RetryError {
 				_, err := k.client.Project.PatchMachineDeployment(p, k.auth)
 				if err != nil {
 					if strings.Contains(stringifyResponseError(err), "the object has been modified") {
-						return resource.RetryableError(fmt.Errorf("machine deployment patch conflict: %v", err))
+						return retry.RetryableError(fmt.Errorf("machine deployment patch conflict: %v", err))
 					}
-					return resource.NonRetryableError(fmt.Errorf("patch machine deployment '%s': %v", d.Id(), err))
+					return retry.NonRetryableError(fmt.Errorf("patch machine deployment '%s': %v", d.Id(), err))
 				}
 				return nil
 			})
@@ -381,7 +381,7 @@ func validateKubeletVersionIsAvailable(k *metakubeProviderMeta, kubeletVersion, 
 }
 
 func metakubeResourceNodeDeploymentWaitForReady(ctx context.Context, k *metakubeProviderMeta, timeout time.Duration, projectID, clusterID, id string) error {
-	return resource.RetryContext(ctx, timeout, func() *resource.RetryError {
+	return retry.RetryContext(ctx, timeout, func() *retry.RetryError {
 		p := project.NewGetMachineDeploymentParams().
 			WithContext(ctx).
 			WithProjectID(projectID).
@@ -390,12 +390,12 @@ func metakubeResourceNodeDeploymentWaitForReady(ctx context.Context, k *metakube
 
 		r, err := k.client.Project.GetMachineDeployment(p, k.auth)
 		if err != nil {
-			return resource.RetryableError(fmt.Errorf("unable to get node deployment %s", stringifyResponseError(err)))
+			return retry.RetryableError(fmt.Errorf("unable to get node deployment %s", stringifyResponseError(err)))
 		}
 
 		if r.Payload.Spec.Replicas == nil || r.Payload.Status == nil || r.Payload.Status.ReadyReplicas < *r.Payload.Spec.Replicas || r.Payload.Status.UnavailableReplicas != 0 {
 			k.log.Debugf("waiting for node deployment '%s' to be ready, %+v", id, r.Payload.Status)
-			return resource.RetryableError(fmt.Errorf("waiting for node deployment '%s' to be ready", id))
+			return retry.RetryableError(fmt.Errorf("waiting for node deployment '%s' to be ready", id))
 		}
 
 		// Check all nodes are ready
@@ -406,16 +406,16 @@ func metakubeResourceNodeDeploymentWaitForReady(ctx context.Context, k *metakube
 			WithMachineDeploymentID(id)
 		r2, err := k.client.Project.ListMachineDeploymentNodes(p2, k.auth)
 		if err != nil {
-			return resource.RetryableError(fmt.Errorf("unable to list nodes %s", stringifyResponseError(err)))
+			return retry.RetryableError(fmt.Errorf("unable to list nodes %s", stringifyResponseError(err)))
 		}
 		if len(r2.Payload) != int(*r.Payload.Spec.Replicas) {
 			k.log.Debug("node count mismatch, want %v got %v", *r.Payload.Spec.Replicas, len(r2.Payload))
-			return resource.RetryableError(fmt.Errorf("want %v nodes, got %v", *r.Payload.Spec.Replicas, len(r2.Payload)))
+			return retry.RetryableError(fmt.Errorf("want %v nodes, got %v", *r.Payload.Spec.Replicas, len(r2.Payload)))
 		}
 		for _, node := range r2.Payload {
 			if node.Status == nil || node.Status.NodeInfo == nil || node.Status.NodeInfo.KernelVersion == "" {
 				k.log.Debug("found not ready node")
-				return resource.RetryableError(fmt.Errorf("some nodes are not ready"))
+				return retry.RetryableError(fmt.Errorf("some nodes are not ready"))
 			}
 		}
 		return nil
@@ -441,7 +441,7 @@ func metakubeResourceNodeDeploymentDelete(ctx context.Context, d *schema.Resourc
 		return diag.Errorf("unable to delete node deployment '%s': %s", d.Id(), stringifyResponseError(err))
 	}
 
-	err = resource.RetryContext(ctx, d.Timeout(schema.TimeoutDelete), func() *resource.RetryError {
+	err = retry.RetryContext(ctx, d.Timeout(schema.TimeoutDelete), func() *retry.RetryError {
 		p := project.NewGetMachineDeploymentParams().
 			WithContext(ctx).
 			WithProjectID(projectID).
@@ -455,12 +455,12 @@ func metakubeResourceNodeDeploymentDelete(ctx context.Context, d *schema.Resourc
 				d.SetId("")
 				return nil
 			}
-			return resource.NonRetryableError(fmt.Errorf("unable to get node deployment '%s': %s", d.Id(), stringifyResponseError(err)))
+			return retry.NonRetryableError(fmt.Errorf("unable to get node deployment '%s': %s", d.Id(), stringifyResponseError(err)))
 		}
 
 		k.log.Debugf("node deployment '%s' deletion in progress, deletionTimestamp: %s",
 			d.Id(), r.Payload.DeletionTimestamp.String())
-		return resource.RetryableError(fmt.Errorf("node deployment '%s' deletion in progress", d.Id()))
+		return retry.RetryableError(fmt.Errorf("node deployment '%s' deletion in progress", d.Id()))
 	})
 	if err != nil {
 		return diag.FromErr(err)

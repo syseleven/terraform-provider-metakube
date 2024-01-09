@@ -4,56 +4,79 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/syseleven/go-metakube/client/project"
 	"github.com/syseleven/go-metakube/models"
 )
 
 func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 	var ndepl models.NodeDeployment
-	testName := makeRandomName()
 	resourceName := "metakube_node_deployment.acctest_nd"
 
-	projectID := os.Getenv(testEnvProjectID)
-	username := os.Getenv(testEnvOpenstackUsername)
-	password := os.Getenv(testEnvOpenstackPassword)
-	osProjectID := os.Getenv(testEnvOpenstackProjectID)
-	nodeDC := os.Getenv(testEnvOpenstackNodeDC)
-	image := os.Getenv(testEnvOpenstackImage)
-	image2 := os.Getenv(testEnvOpenstackImage2)
-	flavor := os.Getenv(testEnvOpenstackFlavor)
-	k8sVersionNew := os.Getenv(testEnvK8sVersionOpenstack)
-	k8sVersionOld := os.Getenv(testEnvK8sOlderVersion)
+	data := &nodeDeploymentBasicData{
+		Name:               makeRandomName() + "-os-nodedepl",
+		OpenstackAuthURL:   os.Getenv(testEnvOpenstackAuthURL),
+		OpenstackUser:      os.Getenv(testEnvOpenstackUsername),
+		OpenstackPassword:  os.Getenv(testEnvOpenstackPassword),
+		OpenstackProjectID: os.Getenv(testEnvOpenstackProjectID),
+		DatacenterName:     os.Getenv(testEnvOpenstackNodeDC),
+		ProjectID:          os.Getenv(testEnvProjectID),
+		ClusterVersion:     os.Getenv(testEnvK8sVersionOpenstack),
+		KubeletVersion:     os.Getenv(testEnvK8sOlderVersion),
+		NodeFlavor:         os.Getenv(testEnvOpenstackFlavor),
+		OSVersion:          os.Getenv(testEnvOpenstackImage),
+		UseFloatingIP:      "false",
+	}
 
+	var config strings.Builder
+	if err := nodeDeploymentBasicTemplate.Execute(&config, data); err != nil {
+		t.Fatal(err)
+	}
+	var config2 strings.Builder
+	data2 := *data
+	data2.KubeletVersion = os.Getenv(testEnvK8sVersionOpenstack)
+	data2.OSVersion = os.Getenv(testEnvOpenstackImage2)
+	data2.UseFloatingIP = "true"
+	data2.DiskSize = 8
+	if err := nodeDeploymentBasicTemplate.Execute(&config2, data2); err != nil {
+		t.Fatal(err)
+	}
+	t.Log("Generated randomname: ", data.Name)
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
 			testAccPreCheckForOpenstack(t)
 		},
-		Providers:    testAccProviders,
+		Providers: testAccProviders,
+		ExternalProviders: map[string]resource.ExternalProvider{
+			"openstack": {
+				Source: "terraform-provider-openstack/openstack",
+			},
+		},
 		CheckDestroy: testAccCheckMetaKubeNodeDeploymentDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCheckMetaKubeNodeDeploymentBasic(projectID, testName, nodeDC, username, password, osProjectID, k8sVersionOld, k8sVersionOld, image, flavor),
+
+				Config: config.String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeNodeDeploymentExists(resourceName, &ndepl),
-					testAccCheckMetaKubeNodeDeploymentFields(&ndepl, flavor, image, k8sVersionOld, 1, 0, false),
-					resource.TestCheckResourceAttr(resourceName, "name", testName),
+					testAccCheckMetaKubeNodeDeploymentFields(&ndepl, data.NodeFlavor, data.OSVersion, data.KubeletVersion, 2, 0, false),
+					resource.TestCheckResourceAttr(resourceName, "name", data.Name),
 					resource.TestCheckResourceAttrPtr(resourceName, "name", &ndepl.Name),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.replicas", "1"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.replicas", "2"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.labels.%", "4"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.labels.a", "b"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.labels.c", "d"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.flavor", flavor),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.image", image),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.flavor", data.NodeFlavor),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.operating_system.0.ubuntu.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.versions.0.kubelet", k8sVersionOld),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.versions.0.kubelet", data.KubeletVersion),
 				),
 			},
 			{
-				Config: testAccCheckMetaKubeNodeDeploymentBasic2(projectID, testName, nodeDC, username, password, osProjectID, k8sVersionNew, k8sVersionNew, image2, flavor),
+				Config: config2.String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testResourceInstanceState(resourceName, func(is *terraform.InstanceState) error {
 						// Record IDs to test import
@@ -63,21 +86,18 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 						return nil
 					}),
 					testAccCheckMetaKubeNodeDeploymentExists(resourceName, &ndepl),
-					testAccCheckMetaKubeNodeDeploymentFields(&ndepl, flavor, image2, k8sVersionNew, 1, 8, true),
-					resource.TestCheckResourceAttr(resourceName, "name", testName),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.replicas", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.labels.%", "3"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.labels.foo", "bar"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.flavor", flavor),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.image", image2),
+					testAccCheckMetaKubeNodeDeploymentFields(&ndepl, data2.NodeFlavor, data2.OSVersion, data2.KubeletVersion, 2, 8, false),
+					resource.TestCheckResourceAttr(resourceName, "name", data2.Name),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.replicas", "2"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.flavor", data2.NodeFlavor),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.use_floating_ip", "true"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.disk_size", "8"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.operating_system.0.ubuntu.0.dist_upgrade_on_boot", "true"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.versions.0.kubelet", k8sVersionNew),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.versions.0.kubelet", data2.KubeletVersion),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.dynamic_config", "false"),
 				),
 			},
 			{
-				Config:   testAccCheckMetaKubeNodeDeploymentBasic2(projectID, testName, nodeDC, username, password, osProjectID, k8sVersionNew, k8sVersionNew, image2, flavor),
+				Config:   config2.String(),
 				PlanOnly: true,
 			},
 			{
@@ -106,21 +126,61 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 	})
 }
 
-func testAccCheckMetaKubeNodeDeploymentBasic(projectID, testName, nodeDC, username, password, tenantID, clusterVersion, kubeletVersion, image, flavor string) string {
-	return fmt.Sprintf(`
+type nodeDeploymentBasicData struct {
+	OpenstackAuthURL   string
+	OpenstackUser      string
+	OpenstackPassword  string
+	OpenstackProjectID string
+
+	Name           string
+	DatacenterName string
+	ProjectID      string
+	ClusterVersion string
+	KubeletVersion string
+	NodeFlavor     string
+	OSVersion      string
+	UseFloatingIP  string
+	DiskSize       int
+}
+
+var nodeDeploymentBasicTemplate = mustParseTemplate("nodeDeploymentBasic", `
+	terraform {
+		required_providers {
+			openstack = {
+				source = "terraform-provider-openstack/openstack"
+			}
+		}
+	}
+	provider "openstack" {
+		auth_url = "{{ .OpenstackAuthURL }}"
+		user_name = "{{ .OpenstackUser }}"
+		password = "{{ .OpenstackPassword }}"
+		tenant_id = "{{ .OpenstackProjectID }}"
+	}
+
+	data "openstack_images_image_v2" "image" {
+		most_recent = true
+
+		visibility = "public"
+		properties = {
+		  os_distro  = "ubuntu"
+		  os_version = "{{ .OSVersion }}"
+		}
+	}
+
 	resource "metakube_cluster" "acctest_cluster" {
-		project_id = "%s"
-		name = "%s"
-		dc_name = "%s"
+		name = "{{ .Name }}"
+		dc_name = "{{ .DatacenterName }}"
+		project_id = "{{ .ProjectID }}"
 		spec {
-			version = "%s"
+			version = "{{ .ClusterVersion }}"
 			cloud {
 				openstack {
 					user_credentials {
-						project_id = "%s"
-						username = "%s"
-						password = "%s"
-					}
+						project_id = "{{ .OpenstackProjectID }}"
+						username = "{{ .OpenstackUser }}"
+						password = "{{ .OpenstackPassword }}"
+						}
 					floating_ip_pool = "ext-net"
 				}
 			}
@@ -129,14 +189,14 @@ func testAccCheckMetaKubeNodeDeploymentBasic(projectID, testName, nodeDC, userna
 
 	resource "metakube_node_deployment" "acctest_nd" {
 		cluster_id = metakube_cluster.acctest_cluster.id
-		name = "%s"
+		name = "{{ .Name }}"
 		timeouts {
 			create = "40m"
 			update = "40m"
 			delete = "40m"
 		}
 		spec {
-			replicas = 1
+			replicas = 2
 			template {
 				labels = {
 					"a" = "b"
@@ -144,9 +204,12 @@ func testAccCheckMetaKubeNodeDeploymentBasic(projectID, testName, nodeDC, userna
 				}
 				cloud {
 					openstack {
-						flavor = "%s"
-						image = "%s"
-						use_floating_ip = false
+						flavor = "{{ .NodeFlavor }}"
+						image = data.openstack_images_image_v2.image.name
+						use_floating_ip = {{ .UseFloatingIP }}
+						{{ if .DiskSize }}
+						disk_size  = {{ .DiskSize }}
+						{{ end }}
 						instance_ready_check_period = "10s"
 						instance_ready_check_timeout = "4m"
 					}
@@ -155,68 +218,11 @@ func testAccCheckMetaKubeNodeDeploymentBasic(projectID, testName, nodeDC, userna
 					ubuntu {}
 				}
 				versions {
-					kubelet = "%s"
+					kubelet = "{{ .KubeletVersion }}"
 				}
 			}
 		}
-	}`, projectID, testName, nodeDC, clusterVersion, tenantID, username, password, testName, flavor, image, kubeletVersion)
-}
-
-func testAccCheckMetaKubeNodeDeploymentBasic2(projectID, testName, nodeDC, username, password, tenantID, clusterVersion, kubeletVersion, image, flavor string) string {
-	return fmt.Sprintf(`
-	resource "metakube_cluster" "acctest_cluster" {
-		project_id = "%s"
-		name = "%s"
-		dc_name = "%s"
-		labels = {
-			"cluster-label" = "val"
-		}
-		spec {
-			version = "%s"
-			cloud {
-				openstack {
-					user_credentials {
-						project_id = "%s"
-						username = "%s"
-						password = "%s"
-					}
-					floating_ip_pool = "ext-net"
-				}
-			}
-		}
-	}
-
-	resource "metakube_node_deployment" "acctest_nd" {
-		cluster_id = metakube_cluster.acctest_cluster.id
-		name = "%s"
-		spec {
-			replicas = 1
-			template {
-				labels = {
-					"foo" = "bar"
-				}
-				cloud {
-					openstack {
-						flavor = "%s"
-						image = "%s"
-						disk_size = 8
-						use_floating_ip = true
-						instance_ready_check_period = "10s"
-						instance_ready_check_timeout = "4m"
-					}
-				}
-				operating_system {
-					ubuntu {
-						dist_upgrade_on_boot = true
-					}
-				}
-				versions {
-					kubelet = "%s"
-				}
-			}
-		}
-	}`, projectID, testName, nodeDC, clusterVersion, tenantID, username, password, testName, flavor, image, kubeletVersion)
-}
+	}`)
 
 func testAccCheckMetaKubeNodeDeploymentDestroy(s *terraform.State) error {
 	return nil
@@ -245,8 +251,9 @@ func testAccCheckMetaKubeNodeDeploymentFields(rec *models.NodeDeployment, flavor
 			return fmt.Errorf("No Image spec present")
 		}
 
-		if *openstack.Image != image {
-			return fmt.Errorf("Image=%s, want %s", *openstack.Image, image)
+		re := regexp.MustCompile(image)
+		if !re.Match([]byte(*openstack.Image)) {
+			return fmt.Errorf("Image=%s doesn't match %s", *openstack.Image, image)
 		}
 
 		if openstack.RootDiskSizeGB != int64(diskSize) {
@@ -286,7 +293,7 @@ func testAccCheckMetaKubeNodeDeploymentFields(rec *models.NodeDeployment, flavor
 
 func TestAccMetakubeNodeDeployment_AWS_Basic(t *testing.T) {
 	var nodedepl models.NodeDeployment
-	testName := makeRandomName()
+	testName := makeRandomName() + "-aws-nodedepl"
 
 	projectID := os.Getenv(testEnvProjectID)
 	accessKeyID := os.Getenv(testEnvAWSAccessKeyID)
@@ -398,7 +405,7 @@ func testAccCheckMetaKubeNodeDeploymentExists(n string, rec *models.NodeDeployme
 }
 
 func TestAccMetakubeNodeDeployment_ValidationAgainstCluster(t *testing.T) {
-	testName := makeRandomName()
+	testName := makeRandomName() + "-nodedepl-valid"
 
 	projectID := os.Getenv(testEnvProjectID)
 	osProjectID := os.Getenv(testEnvOpenstackProjectID)

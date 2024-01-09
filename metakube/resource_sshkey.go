@@ -7,7 +7,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/syseleven/go-metakube/client/project"
@@ -99,7 +99,7 @@ func metakubeResourceSSHKeyFindByID(ctx context.Context, d *schema.ResourceData,
 	}
 
 	const pending, target = "Unavailable", "Ready"
-	listStateConf := &resource.StateChangeConf{
+	listStateConf := &retry.StateChangeConf{
 		Pending: []string{
 			pending,
 		},

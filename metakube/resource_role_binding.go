@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 	"github.com/syseleven/go-metakube/client/project"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
@@ -93,7 +93,7 @@ func metakubeResourceRoleBindingCreate(ctx context.Context, d *schema.ResourceDa
 
 	subjects := metakubeRoleBindingExpandSubjects(d.Get("subject"))
 	for _, sub := range subjects {
-		err := resource.RetryContext(ctx, d.Timeout(schema.TimeoutCreate), func() *resource.RetryError {
+		err := retry.RetryContext(ctx, d.Timeout(schema.TimeoutCreate), func() *retry.RetryError {
 			params := project.NewBindUserToRoleV2Params().
 				WithContext(ctx).
 				WithProjectID(d.Get("project_id").(string)).
@@ -105,7 +105,7 @@ func metakubeResourceRoleBindingCreate(ctx context.Context, d *schema.ResourceDa
 			if err != nil {
 				e, ok := err.(*project.BindUserToRoleV2Default)
 				if ok && (e.Code() == http.StatusConflict || e.Code() == http.StatusNotFound) {
-					return resource.RetryableError(err)
+					return retry.RetryableError(err)
 				}
 			}
 			return nil

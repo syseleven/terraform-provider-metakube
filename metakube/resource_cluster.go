@@ -10,7 +10,7 @@ import (
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/customdiff"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/syseleven/go-metakube/client/datacenter"
@@ -648,13 +648,13 @@ func metakubeResourceClusterSendPatchReq(ctx context.Context, d *schema.Resource
 		"spec":   clusterSpec,
 	})
 
-	err := resource.RetryContext(ctx, d.Timeout(schema.TimeoutUpdate), func() *resource.RetryError {
+	err := retry.RetryContext(ctx, d.Timeout(schema.TimeoutUpdate), func() *retry.RetryError {
 		_, err := k.client.Project.PatchClusterV2(p, k.auth)
 		if err != nil {
 			if e, ok := err.(*project.PatchClusterV2Default); ok && e.Code() == http.StatusConflict {
-				return resource.RetryableError(fmt.Errorf("cluster patch conflict: %v", err))
+				return retry.RetryableError(fmt.Errorf("cluster patch conflict: %v", err))
 			}
-			return resource.NonRetryableError(fmt.Errorf("patch cluster '%s': %v", d.Id(), stringifyResponseError(err)))
+			return retry.NonRetryableError(fmt.Errorf("patch cluster '%s': %v", d.Id(), stringifyResponseError(err)))
 		}
 		return nil
 	})
@@ -744,7 +744,7 @@ func assignSSHKeysToCluster(projectID, clusterID string, sshkeyIDs []string, k *
 }
 
 func metakubeResourceClusterWaitForReady(ctx context.Context, k *metakubeProviderMeta, timeout time.Duration, projectID, clusterID string) error {
-	return resource.RetryContext(ctx, timeout, func() *resource.RetryError {
+	return retry.RetryContext(ctx, timeout, func() *retry.RetryError {
 
 		p := project.NewGetClusterHealthV2Params()
 		p.SetContext(ctx)
@@ -753,7 +753,7 @@ func metakubeResourceClusterWaitForReady(ctx context.Context, k *metakubeProvide
 
 		r, err := k.client.Project.GetClusterHealthV2(p, k.auth)
 		if err != nil {
-			return resource.RetryableError(fmt.Errorf("unable to get cluster '%s' health: %s", clusterID, stringifyResponseError(err)))
+			return retry.RetryableError(fmt.Errorf("unable to get cluster '%s' health: %s", clusterID, stringifyResponseError(err)))
 		}
 
 		const up models.HealthStatus = 1
@@ -769,7 +769,7 @@ func metakubeResourceClusterWaitForReady(ctx context.Context, k *metakubeProvide
 		}
 
 		k.log.Debugf("waiting for cluster '%s' to be ready, %+v", clusterID, r.Payload)
-		return resource.RetryableError(fmt.Errorf("waiting for cluster '%s' to be ready", clusterID))
+		return retry.RetryableError(fmt.Errorf("waiting for cluster '%s' to be ready", clusterID))
 	})
 }
 
@@ -782,13 +782,13 @@ func metakubeResourceClusterDelete(ctx context.Context, d *schema.ResourceData, 
 	p.SetClusterID(d.Id())
 
 	deleteSent := false
-	err := resource.RetryContext(ctx, d.Timeout(schema.TimeoutDelete), func() *resource.RetryError {
+	err := retry.RetryContext(ctx, d.Timeout(schema.TimeoutDelete), func() *retry.RetryError {
 		if !deleteSent {
 			_, err := k.client.Project.DeleteClusterV2(p, k.auth)
 			if err != nil {
 				if e, ok := err.(*project.DeleteClusterV2Default); ok {
 					if e.Code() == http.StatusConflict {
-						return resource.RetryableError(err)
+						return retry.RetryableError(err)
 					}
 					if e.Code() == http.StatusNotFound {
 						return nil
@@ -797,7 +797,7 @@ func metakubeResourceClusterDelete(ctx context.Context, d *schema.ResourceData, 
 				if _, ok := err.(*project.DeleteClusterV2Forbidden); ok {
 					return nil
 				}
-				return resource.NonRetryableError(fmt.Errorf("unable to delete cluster '%s': %s", d.Id(), stringifyResponseError(err)))
+				return retry.NonRetryableError(fmt.Errorf("unable to delete cluster '%s': %s", d.Id(), stringifyResponseError(err)))
 			}
 			deleteSent = true
 		}
@@ -813,18 +813,18 @@ func metakubeResourceClusterDelete(ctx context.Context, d *schema.ResourceData, 
 					k.log.Debugf("cluster '%s' has been destroyed, returned http code: %d", d.Id(), e.Code())
 					return nil
 				} else if e.Code() == http.StatusInternalServerError {
-					return resource.RetryableError(err)
+					return retry.RetryableError(err)
 				}
 			}
 			if _, ok := err.(*project.GetClusterV2Forbidden); ok {
-				return resource.RetryableError(err)
+				return retry.RetryableError(err)
 			}
-			return resource.NonRetryableError(fmt.Errorf("unable to get cluster '%s': %v", d.Id(), err))
+			return retry.NonRetryableError(fmt.Errorf("unable to get cluster '%s': %v", d.Id(), err))
 		}
 
 		k.log.Debugf("cluster '%s' deletion in progress, deletionTimestamp: %s",
 			d.Id(), r.Payload.DeletionTimestamp.String())
-		return resource.RetryableError(fmt.Errorf("cluster '%s' deletion in progress", d.Id()))
+		return retry.RetryableError(fmt.Errorf("cluster '%s' deletion in progress", d.Id()))
 	})
 	if err != nil {
 		return diag.FromErr(err)

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/syseleven/go-metakube/client/project"
 	"github.com/syseleven/go-metakube/models"
@@ -112,14 +112,14 @@ func metakubeResourceMaintenanceCronJobCreate(ctx context.Context, d *schema.Res
 		WithBody(maintenanceCronJob)
 
 	var id models.UID
-	err := resource.RetryContext(ctx, d.Timeout(schema.TimeoutCreate), func() *resource.RetryError {
+	err := retry.RetryContext(ctx, d.Timeout(schema.TimeoutCreate), func() *retry.RetryError {
 		r, err := k.client.Project.CreateMaintenanceCronJob(p, k.auth)
 		if err != nil {
 			e := stringifyResponseError(err)
 			if strings.Contains(e, "failed calling webhook") || strings.Contains(e, "Cluster components are not ready yet") {
-				return resource.RetryableError(fmt.Errorf(e))
+				return retry.RetryableError(fmt.Errorf(e))
 			}
-			return resource.NonRetryableError(fmt.Errorf(e))
+			return retry.NonRetryableError(fmt.Errorf(e))
 		}
 		id = models.UID(r.Payload.Name)
 		return nil
@@ -219,7 +219,7 @@ func metakubeResourceMaintenanceCronJobDelete(ctx context.Context, d *schema.Res
 		return diag.Errorf("unable to delete maintenance cron job '%s': %s", d.Id(), stringifyResponseError(err))
 	}
 
-	err = resource.RetryContext(ctx, d.Timeout(schema.TimeoutDelete), func() *resource.RetryError {
+	err = retry.RetryContext(ctx, d.Timeout(schema.TimeoutDelete), func() *retry.RetryError {
 		p := project.NewGetMaintenanceCronJobParams().
 			WithContext(ctx).
 			WithProjectID(projectID).
@@ -233,12 +233,12 @@ func metakubeResourceMaintenanceCronJobDelete(ctx context.Context, d *schema.Res
 				d.SetId("")
 				return nil
 			}
-			return resource.NonRetryableError(fmt.Errorf("unable to get maintenance cron job '%s': %s", d.Id(), stringifyResponseError(err)))
+			return retry.NonRetryableError(fmt.Errorf("unable to get maintenance cron job '%s': %s", d.Id(), stringifyResponseError(err)))
 		}
 
 		k.log.Debugf("maintenance cron job '%s' deletion in progress, deletionTimestamp: %s",
 			d.Id(), r.Payload.DeletionTimestamp)
-		return resource.RetryableError(fmt.Errorf("maintenance cron job '%s' deletion in progress", d.Id()))
+		return retry.RetryableError(fmt.Errorf("maintenance cron job '%s' deletion in progress", d.Id()))
 	})
 	if err != nil {
 		return diag.FromErr(err)
@@ -247,7 +247,7 @@ func metakubeResourceMaintenanceCronJobDelete(ctx context.Context, d *schema.Res
 }
 
 func metakubeResourceMaintenanceCronJobWaitForReady(ctx context.Context, k *metakubeProviderMeta, timeout time.Duration, projectID, clusterID, id string) error {
-	return resource.RetryContext(ctx, timeout, func() *resource.RetryError {
+	return retry.RetryContext(ctx, timeout, func() *retry.RetryError {
 		p := project.NewGetMaintenanceCronJobParams().
 			WithContext(ctx).
 			WithProjectID(projectID).
@@ -256,11 +256,11 @@ func metakubeResourceMaintenanceCronJobWaitForReady(ctx context.Context, k *meta
 
 		r, err := k.client.Project.GetMaintenanceCronJob(p, k.auth)
 		if err != nil {
-			return resource.RetryableError(fmt.Errorf("unable to get maintenance cron job %s", stringifyResponseError(err)))
+			return retry.RetryableError(fmt.Errorf("unable to get maintenance cron job %s", stringifyResponseError(err)))
 		}
 
 		if r.Payload.Name == "" || r.Payload.Spec.MaintenanceJobTemplate == nil || r.Payload.Spec.MaintenanceJobTemplate.Type == "" {
-			return resource.RetryableError(fmt.Errorf("waiting for maintenance cron job '%s' to be ready", id))
+			return retry.RetryableError(fmt.Errorf("waiting for maintenance cron job '%s' to be ready", id))
 		}
 
 		return nil
