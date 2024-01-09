@@ -1,6 +1,6 @@
 module github.com/syseleven/terraform-provider-metakube
 
-go 1.19
+go 1.20
 
 replace (
 	github.com/hashicorp/terraform-plugin-sdk/v2 => github.com/syseleven/terraform-plugin-sdk/v2 v2.31.0-sys11-2
