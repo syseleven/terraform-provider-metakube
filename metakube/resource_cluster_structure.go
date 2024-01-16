@@ -604,23 +604,23 @@ func expandOpenstackCloudSpec(p []interface{}, include func(string) bool) *model
 	if v, ok := in["user_credentials"]; ok {
 		if vv, ok := v.([]interface{}); ok && len(vv) > 0 && vv[0] != nil {
 			if m, ok := vv[0].(map[string]interface{}); ok {
-				if v, ok := m["username"]; ok && include("user_credentials.0.username") {
+				if v, ok := m["username"]; ok {
 					if vv, ok := v.(string); ok && vv != "" {
 						obj.Username = vv
 					}
 				}
-				if v, ok := m["password"]; ok && include("user_credentials.0.password") {
+				if v, ok := m["password"]; ok {
 					if vv, ok := v.(string); ok && vv != "" {
 						obj.Password = vv
 					}
 				}
-				if v, ok := m["project_id"]; ok && include("user_credentials.0.project_id") {
+				if v, ok := m["project_id"]; ok {
 					if vv, ok := v.(string); ok && vv != "" {
 						obj.ProjectID = vv
 					}
 				}
 
-				if v, ok := m["project_name"]; ok && include("user_credentials.0.project_name") {
+				if v, ok := m["project_name"]; ok {
 					if vv, ok := v.(string); ok && vv != "" {
 						obj.Project = vv
 					}
