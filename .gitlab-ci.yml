@@ -35,8 +35,8 @@ env:
   artifacts:
     paths:
     - test.env
-  only:
-    - master
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_BRANCH =~ /k8s-.*/ || $CI_PIPELINE_SOURCE == "web"
 
 test:
   stage: test
@@ -51,5 +51,5 @@ test:
     - TF_ACC=1 go test ./metakube -v -timeout 3h --parallel 10 -run TestAcc
   needs:
     - env
-  only:
-    - master
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_BRANCH =~ /k8s-.*/ || $CI_PIPELINE_SOURCE == "web"
