@@ -238,6 +238,10 @@ github.com/stretchr/testify v1.8.0 h1:pSgiaMZlXftHpm5L7V1+rVB+AZJydKsMxsQBIJw4PK
 github.com/stretchr/testify v1.8.0/go.mod h1:yNjHg4UonilssWZ8iaSj1OCr/vHnekPRkoO+kdMU+MU=
 github.com/syseleven/go-metakube v0.0.0-20230901105753-2acbd56de0ef h1:vHHN4hkSmM1hkdDwO3/Ty3Ywwk5KHF69POdzRmo5sgk=
 github.com/syseleven/go-metakube v0.0.0-20230901105753-2acbd56de0ef/go.mod h1:Wmf9qWGkFXBGAJxXuwGH+SH6eq9txahkGRpTUz/JFhY=
+github.com/syseleven/go-metakube v0.0.0-20240211202621-277eddb8f1a0 h1:pJzmO6gQjkg7z+vWCbZTyOD2V0i2qcJQt5zFCFjlRaA=
+github.com/syseleven/go-metakube v0.0.0-20240211202621-277eddb8f1a0/go.mod h1:Wmf9qWGkFXBGAJxXuwGH+SH6eq9txahkGRpTUz/JFhY=
+github.com/syseleven/go-metakube v0.0.0-20240214142853-81d7b38e0508 h1:rScPM+QK5iFQgm9rKo88jI9HuDMS9F5MWy22VgLhGVE=
+github.com/syseleven/go-metakube v0.0.0-20240214142853-81d7b38e0508/go.mod h1:Wmf9qWGkFXBGAJxXuwGH+SH6eq9txahkGRpTUz/JFhY=
 github.com/syseleven/terraform-plugin-sdk/v2 v2.31.0-sys11-2 h1:vywVVW9AnKcEiqgbZe16wwuaQaZ8VtMe+xmNBdvdMnU=
 github.com/syseleven/terraform-plugin-sdk/v2 v2.31.0-sys11-2/go.mod h1:i2C41tszDjiWfziPQDL5R/f3Zp0gahXe5No/MIO9rCE=
 github.com/tidwall/pretty v1.0.0 h1:HsD+QiTn7sK6flMKIvNmpqz1qrpP3Ps6jOKIKMooyg4=
