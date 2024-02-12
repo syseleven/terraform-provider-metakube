@@ -246,6 +246,10 @@ func metakubeNodeDeploymentFlattenOpenstackSpec(in *models.OpenstackNodeSpec) []
 		att["disk_size"] = in.RootDiskSizeGB
 	}
 
+	if in.ServerGroupID != "" {
+		att["server_group_id"] = in.ServerGroupID
+	}
+
 	return []interface{}{att}
 }
 
@@ -667,6 +671,12 @@ func metakubeNodeDeploymentExpandOpenstackSpec(p []interface{}) *models.Openstac
 	if v, ok := in["disk_size"]; ok {
 		if vv, ok := v.(int); ok {
 			obj.RootDiskSizeGB = int64(vv)
+		}
+	}
+
+	if v, ok := in["server_group_id"]; ok {
+		if vv, ok := v.(string); ok {
+			obj.ServerGroupID = vv
 		}
 	}
 

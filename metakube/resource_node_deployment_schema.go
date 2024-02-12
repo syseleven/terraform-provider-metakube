@@ -335,6 +335,17 @@ func matakubeResourceNodeDeploymentCloudOpenstackSchema() map[string]*schema.Sch
 			Description:      "Specifies how long should the controller check if instance is ready before timing out",
 			ValidateDiagFunc: isNonEmptyDurationString,
 		},
+		"server_group_id": {
+			Type:     schema.TypeString,
+			Optional: true,
+			Default:  "",
+			DiffSuppressFunc: func(k, oldValue, newValue string, d *schema.ResourceData) bool {
+				// if the value is set in the state and unset in the config, the update will not change it
+				// => suppress the diff
+				return oldValue != "" && newValue == ""
+			},
+			Description: "Specifies the ID of the server group for nodes in the nodes deployment. Defaults to the cluster setting",
+		},
 	}
 }
 
