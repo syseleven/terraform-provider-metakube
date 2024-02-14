@@ -221,7 +221,7 @@ func TestMetakubeNodeDeploymentFlattenAWSSpec(t *testing.T) {
 				Tags: map[string]string{
 					"foo": "bar",
 				},
-				VolumeSize: int64ToPtr(25),
+				VolumeSize: intToInt32Ptr(25),
 				VolumeType: strToPtr("standard"),
 			},
 			[]interface{}{
@@ -234,7 +234,7 @@ func TestMetakubeNodeDeploymentFlattenAWSSpec(t *testing.T) {
 					"tags": map[string]string{
 						"foo": "bar",
 					},
-					"disk_size":   int64(25),
+					"disk_size":   int32(25),
 					"volume_type": "standard",
 				},
 			},
@@ -595,7 +595,7 @@ func TestExpandAWSNodeSpec(t *testing.T) {
 				Tags: map[string]string{
 					"foo": "bar",
 				},
-				VolumeSize: int64ToPtr(25),
+				VolumeSize: intToInt32Ptr(25),
 				VolumeType: strToPtr("standard"),
 			},
 		},

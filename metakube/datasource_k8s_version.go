@@ -56,7 +56,7 @@ func dataSourceMetakubeK8sClusterVersionRead(ctx context.Context, d *schema.Reso
 	var all []string
 	for _, item := range r.Payload {
 		if item != nil {
-			all = append(all, item.Version.(string))
+			all = append(all, item.Version)
 		}
 	}
 
