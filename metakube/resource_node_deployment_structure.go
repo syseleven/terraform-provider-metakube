@@ -563,7 +563,7 @@ func metakubeNodeDeploymentExpandAWSSpec(p []interface{}) *models.AWSNodeSpec {
 
 	if v, ok := in["disk_size"]; ok {
 		if vv, ok := v.(int); ok {
-			obj.VolumeSize = int64ToPtr(vv)
+			obj.VolumeSize = intToInt32Ptr(vv)
 		}
 	}
 

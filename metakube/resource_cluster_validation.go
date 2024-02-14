@@ -100,9 +100,8 @@ func metakubeResourceClusterValidateVersionUpgrade(ctx context.Context, projectI
 	}
 	var available []string
 	for _, item := range r.Payload {
-		v := item.Version.(string)
-		available = append(available, v)
-		if v == newVersion {
+		available = append(available, item.Version)
+		if item.Version == newVersion {
 			return nil
 		}
 	}
@@ -127,8 +126,8 @@ func metakubeResourceValidateVersionExistence(ctx context.Context, d *schema.Res
 
 	available := make([]string, 0)
 	for _, v := range r.Payload {
-		available = append(available, v.Version.(string))
-		if v.Version.(string) == version {
+		available = append(available, v.Version)
+		if v.Version == version {
 			return nil
 		}
 	}

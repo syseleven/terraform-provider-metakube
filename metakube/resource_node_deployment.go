@@ -371,11 +371,10 @@ func validateKubeletVersionIsAvailable(k *metakubeProviderMeta, kubeletVersion, 
 
 	var availableVersions []string
 	for _, v := range r.Payload {
-		s, ok := v.Version.(string)
-		if ok && s == kubeletVersion && !v.RestrictedByKubeletVersion {
+		if v.Version == kubeletVersion && !v.RestrictedByKubeletVersion {
 			return nil
 		}
-		availableVersions = append(availableVersions, s)
+		availableVersions = append(availableVersions, v.Version)
 	}
 
 	return fmt.Errorf("unknown version for node deployment %s, available versions %v", kubeletVersion, availableVersions)

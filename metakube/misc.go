@@ -43,7 +43,7 @@ func int32ToPtr(v int32) *int32 {
 	return &v
 }
 
-func int64ToPtr(v int) *int64 {
-	vv := int64(v)
+func intToInt32Ptr(v int) *int32 {
+	vv := int32(v)
 	return &vv
 }
