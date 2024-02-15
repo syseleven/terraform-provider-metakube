@@ -187,6 +187,7 @@ func TestAccMetakubeCluster_Openstack_ApplicationCredentials(t *testing.T) {
 		Version:                              os.Getenv(testEnvK8sVersionOpenstack),
 		OpenstackApplicationCredentialID:     os.Getenv(testEnvOpenstackApplicationCredentialsID),
 		OpenstackApplicationCredentialSecret: os.Getenv(testEnvOpenstackApplicationCredentialsSecret),
+		Dynamic:                              false,
 	}
 	var config strings.Builder
 	if err := clusterOpenstackApplicationCredentialsBasicTemplate.Execute(&config, data); err != nil {
@@ -209,6 +210,45 @@ func TestAccMetakubeCluster_Openstack_ApplicationCredentials(t *testing.T) {
 					testAccCheckMetaKubeClusterExists(&cluster),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.0.application_credentials.0.id", data.OpenstackApplicationCredentialID),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.0.application_credentials.0.secret", data.OpenstackApplicationCredentialSecret),
+				),
+			},
+		},
+	})
+}
+
+func TestAccMetakubeCluster_Openstack_ApplicationCredentials_Dynammic(t *testing.T) {
+	t.Parallel()
+	var cluster models.Cluster
+	resourceName := "metakube_cluster.acctest_cluster"
+	data := &clusterOpenstackApplicationCredentailsData{
+		Name:                                 makeRandomName() + "-appcred-dynamic",
+		DatacenterName:                       os.Getenv(testEnvOpenstackNodeDC),
+		ProjectID:                            os.Getenv(testEnvProjectID),
+		Version:                              os.Getenv(testEnvK8sVersionOpenstack),
+		OpenstackApplicationCredentialID:     os.Getenv(testEnvOpenstackApplicationCredentialsID),
+		OpenstackApplicationCredentialSecret: os.Getenv(testEnvOpenstackApplicationCredentialsSecret),
+		Dynamic:                              true,
+	}
+	var config strings.Builder
+	if err := clusterOpenstackApplicationCredentialsBasicTemplate.Execute(&config, data); err != nil {
+		t.Fatal(err)
+	}
+	resource.Test(t, resource.TestCase{
+		PreCheck:  func() { testAccPreCheckForOpenstack(t) },
+		Providers: testAccProviders,
+		ExternalProviders: map[string]resource.ExternalProvider{
+			"openstack": {
+				Source: "terraform-provider-openstack/openstack",
+			},
+		},
+		CheckDestroy: testAccCheckMetaKubeClusterDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: config.String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testAccCheckMetaKubeClusterExists(&cluster),
+					resource.TestCheckResourceAttrSet(resourceName, "spec.0.cloud.0.openstack.0.application_credentials.0.id"),
+					resource.TestCheckResourceAttrSet(resourceName, "spec.0.cloud.0.openstack.0.application_credentials.0.secret"),
 				),
 			},
 		},
@@ -383,6 +423,7 @@ type clusterOpenstackApplicationCredentailsData struct {
 	Version                              string
 	OpenstackApplicationCredentialID     string
 	OpenstackApplicationCredentialSecret string
+	Dynamic                              bool
 }
 
 var clusterOpenstackApplicationCredentialsBasicTemplate = mustParseTemplate("clusterOpenstackApplicationCredentials", `
@@ -393,6 +434,12 @@ terraform {
 		}
 	}
 }
+
+{{ if .Dynamic }}
+resource "openstack_identity_application_credential_v3" "app_credential" {
+	name        = "{{ .Name }}"
+  }
+{{ end }}
 
 resource "metakube_cluster" "acctest_cluster" {
 	name = "{{ .Name }}"
@@ -413,8 +460,13 @@ resource "metakube_cluster" "acctest_cluster" {
 		cloud {
 			openstack {
 				application_credentials {
+{{ if .Dynamic }}
+					id=openstack_identity_application_credential_v3.app_credential.id
+					secret=openstack_identity_application_credential_v3.app_credential.secret
+{{ else }}
 					id="{{ .OpenstackApplicationCredentialID }}"
 					secret="{{ .OpenstackApplicationCredentialSecret }}"
+{{ end }}
 				}
 			}
 		}

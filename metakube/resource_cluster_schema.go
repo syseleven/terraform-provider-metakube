@@ -1,7 +1,6 @@
 package metakube
 
 import (
-	"os"
 	"regexp"
 	"time"
 
@@ -293,29 +292,6 @@ func metakubeResourceClusterOpenstackCloudSpecFields() map[string]*schema.Schema
 			MaxItems:      1,
 			Optional:      true,
 			ConflictsWith: []string{"spec.0.cloud.0.openstack.0.application_credentials"},
-			DiffSuppressFunc: func(_, _, _ string, d *schema.ResourceData) bool {
-				v, ok := d.GetOkConfigured("spec.0.cloud.0.openstack.0.application_credentials")
-				if ok && len(v.([]interface{})) != 0 {
-					return false
-				}
-
-				v, ok = d.GetOkConfigured("spec.0.cloud.0.openstack.0.user_credentials")
-				if !ok || len(v.([]interface{})) == 0 {
-					return true
-				}
-				for _, item := range [][]string{
-					{"username", "OS_USERNAME"},
-					{"password", "OS_PASSWORD"},
-					{"project_id", "OS_PROJECT_ID"},
-					{"project_name", "OS_PROJECT_NAME"},
-				} {
-					_, ok := d.GetOkConfigured("spec.0.cloud.0.openstack.0.user_credentials.0." + item[0])
-					if ok || os.Getenv(item[1]) != "" {
-						return false
-					}
-				}
-				return true
-			},
 			Elem: &schema.Resource{
 				Schema: metakubeResourceClusterOpenstackCloudSpecUserCredentialsFields(),
 			},
@@ -325,27 +301,6 @@ func metakubeResourceClusterOpenstackCloudSpecFields() map[string]*schema.Schema
 			MaxItems:      1,
 			Optional:      true,
 			ConflictsWith: []string{"spec.0.cloud.0.openstack.0.user_credentials"},
-			DiffSuppressFunc: func(_, _, _ string, d *schema.ResourceData) bool {
-				v, ok := d.GetOkConfigured("spec.0.cloud.0.openstack.0.user_credentials")
-				if ok && len(v.([]interface{})) != 0 {
-					return false
-				}
-
-				v, ok = d.GetOkConfigured("spec.0.cloud.0.openstack.0.application_credentials")
-				if !ok || len(v.([]interface{})) == 0 {
-					return true
-				}
-				for _, item := range [][]string{
-					{"id", "OS_APPLICATION_CREDENTIAL_ID"},
-					{"secret", "OS_APPLICATION_CREDENTIAL_SECRET"},
-				} {
-					_, ok := d.GetOkConfigured("spec.0.cloud.0.openstack.0.application_credentials.0." + item[0])
-					if ok || os.Getenv(item[1]) != "" {
-						return false
-					}
-				}
-				return true
-			},
 			Elem: &schema.Resource{
 				Schema: metakubeResourceClusterOpenstackCloudSpecApplicationCredentialsFields(),
 			},
