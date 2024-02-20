@@ -143,22 +143,12 @@ func metakubeResourceClusterCreate(ctx context.Context, d *schema.ResourceData, 
 	dcname := d.Get("dc_name").(string)
 	clusterSpec := metakubeResourceClusterExpandSpec(spec, dcname, func(_ string) bool { return true })
 	clusterLabels := metakubeResourceClusterLabels(d)
-	resourceProject, err := getProject(meta, d.Get("project_id").(string))
-	if err != nil {
-		return diag.FromErr(err)
-	}
-	if key := mapFirstContains(clusterLabels, resourceProject.Labels); key != "" {
-		return diag.Diagnostics{{
-			Summary:       fmt.Sprintf("The label '%s' used by project and cannot be used here", key),
-			AttributePath: cty.GetAttrPath("labels"),
-		}}
-	}
 	createClusterSpec := &models.CreateClusterSpec{
 		Cluster: &models.Cluster{
 			Name:   d.Get("name").(string),
 			Spec:   clusterSpec,
 			Type:   "kubernetes",
-			Labels: mapExclude(clusterLabels, resourceProject.Labels),
+			Labels: clusterLabels,
 		},
 	}
 	if n := clusterSpec.ClusterNetwork; n != nil {

@@ -41,6 +41,7 @@ func metakubeResourceNodeDeployment() *schema.Resource {
 			"project_id": {
 				Type:        schema.TypeString,
 				Computed:    true,
+				Optional:    true,
 				Description: "Project the cluster belongs to",
 			},
 
