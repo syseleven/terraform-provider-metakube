@@ -36,7 +36,7 @@ env:
     paths:
     - test.env
   rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_BRANCH =~ /k8s-.*/ || $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_BRANCH =~ /k8s-.*/i || $CI_PIPELINE_SOURCE == "web"
 
 test:
   stage: test
@@ -48,8 +48,8 @@ test:
     - go test -race $(go list ./... | grep -v /vendor/)
     - go build -race -ldflags "-extldflags '-static'" -o $CI_PROJECT_DIR/mybinary
     - go test ./metakube -v -sweep=all
-    - TF_ACC=1 go test ./metakube -v -timeout 3h --parallel 10 -run TestAcc
+    - TF_ACC=1 go test ./metakube -v -timeout 3h -parallel 10 -run TestAcc
   needs:
     - env
   rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_BRANCH =~ /k8s-.*/ || $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_BRANCH =~ /k8s-.*/i || $CI_PIPELINE_SOURCE == "web"
