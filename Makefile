@@ -16,6 +16,9 @@ default: install
 build: goimportscheck
 	go build -v -o ${BINARY}
 
+build-debug: goimportscheck
+	go build -v -gcflags='all=-N -l' -o ${BINARY}
+
 install: build
 	mkdir -p ~/.terraform.d/plugins/${DOMAIN}/${NAMESPACE}/${PKG_NAME}/${VERSION}/${PLATFORM}
 	mv ${BINARY} ~/.terraform.d/plugins/${DOMAIN}/${NAMESPACE}/${PKG_NAME}/${VERSION}/${PLATFORM}

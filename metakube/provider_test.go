@@ -32,6 +32,7 @@ const (
 	testEnvOpenstackPassword                     = "METAKUBE_OPENSTACK_PASSWORD"
 	testEnvOpenstackProjectID                    = "METAKUBE_OPENSTACK_PROJECT_ID"
 	testEnvOpenstackProjectName                  = "METAKUBE_OPENSTACK_PROJECT_NAME"
+	testEnvOpenstackRegion                       = "METAKUBE_OPENSTACK_REGION"
 	testEnvOpenstackImage                        = "METAKUBE_OPENSTACK_IMAGE"
 	testEnvOpenstackImage2                       = "METAKUBE_OPENSTACK_IMAGE2"
 	testEnvOpenstackFlavor                       = "METAKUBE_OPENSTACK_FLAVOR"
@@ -84,6 +85,7 @@ func testAccPreCheckForOpenstack(t *testing.T) {
 	checkEnv(t, testEnvOpenstackPassword)
 	checkEnv(t, testEnvOpenstackProjectID)
 	checkEnv(t, testEnvOpenstackProjectName)
+	checkEnv(t, testEnvOpenstackRegion)
 	checkEnv(t, testEnvOpenstackNodeDC)
 	checkEnv(t, testEnvOpenstackImage)
 	checkEnv(t, testEnvOpenstackImage2)

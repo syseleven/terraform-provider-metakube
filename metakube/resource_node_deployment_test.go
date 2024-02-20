@@ -23,6 +23,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 		OpenstackUser:      os.Getenv(testEnvOpenstackUsername),
 		OpenstackPassword:  os.Getenv(testEnvOpenstackPassword),
 		OpenstackProjectID: os.Getenv(testEnvOpenstackProjectID),
+		OpenstackRegion:    os.Getenv(testEnvOpenstackRegion),
 		DatacenterName:     os.Getenv(testEnvOpenstackNodeDC),
 		ProjectID:          os.Getenv(testEnvProjectID),
 		ClusterVersion:     os.Getenv(testEnvK8sVersionOpenstack),
@@ -130,6 +131,7 @@ type nodeDeploymentBasicData struct {
 	OpenstackUser      string
 	OpenstackPassword  string
 	OpenstackProjectID string
+	OpenstackRegion    string
 
 	Name           string
 	DatacenterName string
@@ -155,6 +157,7 @@ var nodeDeploymentBasicTemplate = mustParseTemplate("nodeDeploymentBasic", `
 		user_name = "{{ .OpenstackUser }}"
 		password = "{{ .OpenstackPassword }}"
 		tenant_id = "{{ .OpenstackProjectID }}"
+		region = "{{ .OpenstackRegion }}"
 	}
 
 	data "openstack_images_image_v2" "image" {
