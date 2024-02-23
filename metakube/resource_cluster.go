@@ -632,18 +632,27 @@ func metakubeResourceClusterSendPatchReq(ctx context.Context, d *schema.Resource
 		"spec":   clusterSpec,
 	})
 
+	var patchedCluster *models.Cluster
 	err := retry.RetryContext(ctx, d.Timeout(schema.TimeoutUpdate), func() *retry.RetryError {
-		_, err := k.client.Project.PatchClusterV2(p, k.auth)
+		patchResult, err := k.client.Project.PatchClusterV2(p, k.auth)
 		if err != nil {
 			if e, ok := err.(*project.PatchClusterV2Default); ok && e.Code() == http.StatusConflict {
 				return retry.RetryableError(fmt.Errorf("cluster patch conflict: %v", err))
 			}
 			return retry.NonRetryableError(fmt.Errorf("patch cluster '%s': %v", d.Id(), stringifyResponseError(err)))
 		}
+		patchedCluster = patchResult.GetPayload()
 		return nil
 	})
 	if err != nil {
 		return err
+	}
+
+	if patchedCluster.Labels == nil {
+		// if the cluster has no labels after patching, set them to nil in the state data explicitly
+		// otherwise, if the cluster had labels before that were all removed by the patch, remnants
+		// (empty labels) would remain in the data, showing up as a permanent difference on subsequent runs
+		_ = d.Set("labels", nil)
 	}
 
 	return nil
