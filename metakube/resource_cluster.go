@@ -324,18 +324,12 @@ func metakubeResourceClusterRead(ctx context.Context, d *schema.ResourceData, m 
 	_ = d.Set("dc_name", r.Payload.Spec.Cloud.DatacenterName)
 	_ = d.Set("name", r.Payload.Name)
 	if len(r.Payload.Labels) > 0 {
-		resourceProject, err := getProject(k, projectID)
-		if err != nil {
-			return diag.FromErr(err)
-		}
-		if labels := mapExclude(r.Payload.Labels, resourceProject.Labels); len(labels) > 0 {
-			if err := d.Set("labels", labels); err != nil {
-				return diag.Diagnostics{{
-					Severity:      diag.Error,
-					Summary:       "Invalid value",
-					AttributePath: cty.Path{cty.GetAttrStep{Name: "labels"}},
-				}}
-			}
+		if err := d.Set("labels", r.Payload.Labels); err != nil {
+			return diag.Diagnostics{{
+				Severity:      diag.Error,
+				Summary:       "Invalid value",
+				AttributePath: cty.Path{cty.GetAttrStep{Name: "labels"}},
+			}}
 		}
 	}
 
