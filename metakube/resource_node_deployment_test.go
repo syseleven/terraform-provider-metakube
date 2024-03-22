@@ -15,7 +15,9 @@ import (
 
 func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 	var ndepl models.NodeDeployment
+	var sgroupID string
 	resourceName := "metakube_node_deployment.acctest_nd"
+	serverGroupResourceName := "openstack_compute_servergroup_v2.acctest_sg"
 
 	data := &nodeDeploymentBasicData{
 		Name:               makeRandomName() + "-os-nodedepl",
@@ -43,6 +45,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 	data2.OSVersion = os.Getenv(testEnvOpenstackImage2)
 	data2.UseFloatingIP = "true"
 	data2.DiskSize = 8
+	data2.ServerGroupName = makeRandomName() + "-os-servergroup"
 	if err := nodeDeploymentBasicTemplate.Execute(&config2, data2); err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +77,12 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.flavor", data.NodeFlavor),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.operating_system.0.ubuntu.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.versions.0.kubelet", data.KubeletVersion),
+					resource.TestMatchResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.server_group_id", regexp.MustCompile(`.+`)),
 				),
+			},
+			{
+				Config:   config.String(),
+				PlanOnly: true,
 			},
 			{
 				Config: config2.String(),
@@ -94,6 +102,8 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.use_floating_ip", "true"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.disk_size", "8"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.versions.0.kubelet", data2.KubeletVersion),
+					testMatchAndGetResourceAttr(serverGroupResourceName, "id", regexp.MustCompile(`.+`), &sgroupID),
+					resource.TestCheckResourceAttrPtr(resourceName, "spec.0.template.0.cloud.0.openstack.0.server_group_id", &sgroupID),
 				),
 			},
 			{
@@ -133,15 +143,16 @@ type nodeDeploymentBasicData struct {
 	OpenstackProjectID string
 	OpenstackRegion    string
 
-	Name           string
-	DatacenterName string
-	ProjectID      string
-	ClusterVersion string
-	KubeletVersion string
-	NodeFlavor     string
-	OSVersion      string
-	UseFloatingIP  string
-	DiskSize       int
+	Name            string
+	DatacenterName  string
+	ProjectID       string
+	ClusterVersion  string
+	KubeletVersion  string
+	NodeFlavor      string
+	OSVersion       string
+	UseFloatingIP   string
+	DiskSize        int
+	ServerGroupName string
 }
 
 var nodeDeploymentBasicTemplate = mustParseTemplate("nodeDeploymentBasic", `
@@ -189,6 +200,13 @@ var nodeDeploymentBasicTemplate = mustParseTemplate("nodeDeploymentBasic", `
 		}
 	}
 
+	{{ if .ServerGroupName }}
+	resource "openstack_compute_servergroup_v2" "acctest_sg" {
+	  name     = "{{ .ServerGroupName }}"
+	  policies = ["soft-anti-affinity"]
+	}
+	{{ end }}
+
 	resource "metakube_node_deployment" "acctest_nd" {
 		cluster_id = metakube_cluster.acctest_cluster.id
 		name = "{{ .Name }}"
@@ -214,6 +232,9 @@ var nodeDeploymentBasicTemplate = mustParseTemplate("nodeDeploymentBasic", `
 						{{ end }}
 						instance_ready_check_period = "10s"
 						instance_ready_check_timeout = "4m"
+						{{ if .ServerGroupName }}
+						server_group_id = openstack_compute_servergroup_v2.acctest_sg.id
+						{{ end }}
 					}
 				}
 				operating_system {
@@ -228,6 +249,30 @@ var nodeDeploymentBasicTemplate = mustParseTemplate("nodeDeploymentBasic", `
 
 func testAccCheckMetaKubeNodeDeploymentDestroy(s *terraform.State) error {
 	return nil
+}
+
+// testMatchAndGetResourceAttr makes a test function that checks whether the given resource's
+// key value matches the given regexp just like TestMatchResourceAttr does, then writes the
+// actual value into the string the output pointer points to
+func testMatchAndGetResourceAttr(name, key string, r *regexp.Regexp, output *string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[name]
+		if !ok {
+			return fmt.Errorf("Not found: %s", name)
+		}
+
+		*output = rs.Primary.Attributes[key]
+		if !r.MatchString(*output) {
+			return fmt.Errorf(
+				"%s: Attribute '%s' didn't match %q, got %#v",
+				name,
+				key,
+				r.String(),
+				rs.Primary.Attributes[key])
+		}
+
+		return nil
+	}
 }
 
 func testAccCheckMetaKubeNodeDeploymentFields(rec *models.NodeDeployment, flavor, image, kubeletVersion string, replicas, diskSize int, distUpgrade bool) resource.TestCheckFunc {
