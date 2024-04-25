@@ -115,7 +115,7 @@ One of the following must be selected.
 ### `openstack`
 * `flavor` - (Required) Instance type.
 * `image` - (Required) Image to use.
-* `disk_size` - (Optional) Set disk size when network storage flavors is used.
+* `disk_size` - (Optional) If set, the rootDisk will be a cinder volume of that size in GiB. If unset, the rootDisk will be ephemeral nova root storage and its size will be derived from the flavor.
 * `tags` - (Optional) Additional instance tags.
 * `use_floating_ip` - (Optional) Indicate use of floating ip in case of floating_ip_pool presense. Defaults to true.
 * `instance_ready_check_period` - (Optional) Specify custom value for how often to check if instance is ready before timing out.

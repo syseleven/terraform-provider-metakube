@@ -292,7 +292,7 @@ func matakubeResourceNodeDeploymentCloudOpenstackSchema() map[string]*schema.Sch
 			Type:         schema.TypeInt,
 			Optional:     true,
 			ValidateFunc: validation.IntAtLeast(1),
-			Description:  "If set, the rootDisk will be a volume. If not, the rootDisk will be on ephemeral storage and its size will be derived from the flavor",
+			Description:  "If set, the rootDisk will be a cinder volume of that size in GiB. If unset, the rootDisk will be ephemeral nova root storage and its size will be derived from the flavor",
 		},
 		"tags": {
 			Type:        schema.TypeMap,
