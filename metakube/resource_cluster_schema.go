@@ -147,7 +147,7 @@ func metakubeResourceClusterSpecFields() map[string]*schema.Schema {
 			DiffSuppressFunc: func(_, _, _ string, d *schema.ResourceData) bool {
 				configured, ok := d.GetOkConfigured("spec.0.cni_plugin.0.type")
 				newValue := d.Get("spec.0.cni_plugin.0.type")
-				return (!ok || configured == "") && newValue == "canal"
+				return (!ok || configured == "") && (newValue == "canal" || newValue == "cilium")
 			},
 			Description: "Contains the spec of the CNI plugin used by the Cluster",
 			Elem: &schema.Resource{
