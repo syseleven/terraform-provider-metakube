@@ -201,7 +201,7 @@ func metakubeResourceClusterCreate(ctx context.Context, d *schema.ResourceData, 
 		return diag.FromErr(err)
 	}
 
-	if err := metakubeResourceClusterWaitForReady(ctx, meta, d.Timeout(schema.TimeoutCreate), projectID, d.Id()); err != nil {
+	if err := metakubeResourceClusterWaitForReady(ctx, meta, d.Timeout(schema.TimeoutCreate), projectID, d.Id(), ""); err != nil {
 		// In case of timeout, we still want to return the cluster resource
 		retDiags = append(retDiags, metakubeResourceClusterRead(ctx, d, m)...)
 		retDiags = append(retDiags, diag.Diagnostic{
@@ -610,7 +610,11 @@ func metakubeResourceClusterUpdate(ctx context.Context, d *schema.ResourceData, 
 		}
 	}
 
-	if err := metakubeResourceClusterWaitForReady(ctx, k, d.Timeout(schema.TimeoutUpdate), projectID, d.Id()); err != nil {
+	configuredVersion, ok := d.GetOk("spec.0.version")
+	if !ok {
+		return nil
+	}
+	if err := metakubeResourceClusterWaitForReady(ctx, k, d.Timeout(schema.TimeoutUpdate), projectID, d.Id(), configuredVersion.(string)); err != nil {
 		return diag.Errorf("cluster '%s' is not ready: %v", d.Id(), err)
 	}
 
@@ -736,28 +740,22 @@ func assignSSHKeysToCluster(projectID, clusterID string, sshkeyIDs []string, k *
 	return nil
 }
 
-func metakubeResourceClusterWaitForReady(ctx context.Context, k *metakubeProviderMeta, timeout time.Duration, projectID, clusterID string) error {
+func metakubeResourceClusterWaitForReady(ctx context.Context, k *metakubeProviderMeta, timeout time.Duration, projectID, clusterID, configuredVersion string) error {
 	return retry.RetryContext(ctx, timeout, func() *retry.RetryError {
 
-		p := project.NewGetClusterHealthV2Params()
+		p := project.NewGetClusterV2Params()
 		p.SetContext(ctx)
 		p.SetProjectID(projectID)
 		p.SetClusterID(clusterID)
 
-		r, err := k.client.Project.GetClusterHealthV2(p, k.auth)
+		r, err := k.client.Project.GetClusterV2(p, k.auth)
 		if err != nil {
-			return retry.RetryableError(fmt.Errorf("unable to get cluster '%s' health: %s", clusterID, stringifyResponseError(err)))
+			return retry.RetryableError(fmt.Errorf("unable to get cluster '%s': %s", clusterID, stringifyResponseError(err)))
 		}
 
-		const up models.HealthStatus = 1
-
-		if r.Payload.Apiserver == up &&
-			r.Payload.CloudProviderInfrastructure == up &&
-			r.Payload.Controller == up &&
-			r.Payload.Etcd == up &&
-			r.Payload.MachineController == up &&
-			r.Payload.Scheduler == up &&
-			r.Payload.UserClusterControllerManager == up {
+		if configuredVersion == "" {
+			return nil
+		} else if r.Payload.Status.Version == models.Semver(configuredVersion) {
 			return nil
 		}
 
