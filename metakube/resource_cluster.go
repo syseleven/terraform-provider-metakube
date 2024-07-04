@@ -748,18 +748,37 @@ func metakubeResourceClusterWaitForReady(ctx context.Context, k *metakubeProvide
 		p.SetProjectID(projectID)
 		p.SetClusterID(clusterID)
 
-		r, err := k.client.Project.GetClusterV2(p, k.auth)
+		cluster, err := k.client.Project.GetClusterV2(p, k.auth)
 		if err != nil {
 			return retry.RetryableError(fmt.Errorf("unable to get cluster '%s': %s", clusterID, stringifyResponseError(err)))
 		}
 
-		if configuredVersion == "" {
-			return nil
-		} else if r.Payload.Status.Version == models.Semver(configuredVersion) {
-			return nil
+		p1 := project.NewGetClusterHealthV2Params()
+		p1.SetContext(ctx)
+		p1.SetProjectID(projectID)
+		p1.SetClusterID(clusterID)
+
+		clusterHealth, err := k.client.Project.GetClusterHealthV2(p1, k.auth)
+		if err != nil {
+			return retry.RetryableError(fmt.Errorf("unable to get cluster '%s' health: %s", clusterID, stringifyResponseError(err)))
 		}
 
-		k.log.Debugf("waiting for cluster '%s' to be ready, %+v", clusterID, r.Payload)
+		const up models.HealthStatus = 1
+		if clusterHealth.Payload.Apiserver == up &&
+			clusterHealth.Payload.CloudProviderInfrastructure == up &&
+			clusterHealth.Payload.Controller == up &&
+			clusterHealth.Payload.Etcd == up &&
+			clusterHealth.Payload.MachineController == up &&
+			clusterHealth.Payload.Scheduler == up &&
+			clusterHealth.Payload.UserClusterControllerManager == up {
+			if configuredVersion == "" {
+				return nil
+			} else if cluster.Payload.Status.Version == models.Semver(configuredVersion) {
+				return nil
+			}
+		}
+
+		k.log.Debugf("waiting for cluster '%s' to be ready, %+v", clusterID, clusterHealth.Payload)
 		return retry.RetryableError(fmt.Errorf("waiting for cluster '%s' to be ready", clusterID))
 	})
 }

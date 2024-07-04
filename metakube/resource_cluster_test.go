@@ -51,7 +51,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 
 	resourceName := "metakube_cluster.acctest_cluster"
 	data := &clusterOpenstackBasicData{
-		Name:                                  makeRandomName() + "-basic",
+		Name:                                  makeRandomName() + "-cluster-os-basic",
 		OpenstackAuthURL:                      os.Getenv(testEnvOpenstackAuthURL),
 		OpenstackApplicationCredentialsID:     os.Getenv(testEnvOpenstackApplicationCredentialsID),
 		OpenstackApplicationCredentialsSecret: os.Getenv(testEnvOpenstackApplicationCredentialsSecret),
@@ -159,7 +159,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 				ResourceName:            resourceName,
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"spec.0.cloud.0.openstack.0.user_credentials", "kube_login_kube_config", "oidc_kube_config"},
+				ImportStateVerifyIgnore: []string{"spec.0.cloud.0.openstack.0.application_credentials", "kube_login_kube_config", "oidc_kube_config"},
 			},
 			{
 				Config:   config2.String(),
@@ -171,7 +171,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 				ImportState:       true,
 				ImportStateVerify: false,
 				ImportStateId:     "123abc",
-				ExpectError:       regexp.MustCompile(`(Please verify the ID is correct|Cannot import non-existent remote object)`),
+				ExpectError:       regexp.MustCompile(`(no object exists with the given id|Cannot import non-existent remote object)`),
 			},
 		},
 	})
@@ -222,25 +222,29 @@ func TestAccMetakubeCluster_Openstack_ApplicationCredentials_Dynammic(t *testing
 	var cluster models.Cluster
 	resourceName := "metakube_cluster.acctest_cluster"
 	data := &clusterOpenstackApplicationCredentailsData{
-		Name:                                  makeRandomName() + "-appcred-dynamic",
-		OpenstackAuthURL:                      os.Getenv(testEnvOpenstackAuthURL),
-		OpenstackApplicationCredentialsID:     os.Getenv(testEnvOpenstackApplicationCredentialsID),
-		OpenstackApplicationCredentialsSecret: os.Getenv(testEnvOpenstackApplicationCredentialsSecret),
-		OpenstackProjectID:                    os.Getenv(testEnvOpenstackProjectID),
-		OpenstackRegion:                       os.Getenv(testEnvOpenstackRegion),
-		DatacenterName:                        os.Getenv(testEnvOpenstackNodeDC),
-		ProjectID:                             os.Getenv(testEnvProjectID),
-		Version:                               os.Getenv(testEnvK8sVersionOpenstack),
-		OpenstackApplicationCredentialID:      os.Getenv(testEnvOpenstackApplicationCredentialsID),
-		OpenstackApplicationCredentialSecret:  os.Getenv(testEnvOpenstackApplicationCredentialsSecret),
-		Dynamic:                               true,
+		Name:                                 makeRandomName() + "-appcred-dynamic",
+		OpenstackAuthURL:                     os.Getenv(testEnvOpenstackAuthURL),
+		OpenstackUser:                        os.Getenv(testEnvOpenstackUsername),
+		OpenstackPassword:                    os.Getenv(testEnvOpenstackPassword),
+		OpenstackProjectID:                   os.Getenv(testEnvOpenstackProjectID),
+		OpenstackRegion:                      os.Getenv(testEnvOpenstackRegion),
+		DatacenterName:                       os.Getenv(testEnvOpenstackNodeDC),
+		ProjectID:                            os.Getenv(testEnvProjectID),
+		Version:                              os.Getenv(testEnvK8sVersionOpenstack),
+		OpenstackApplicationCredentialID:     os.Getenv(testEnvOpenstackApplicationCredentialsID),
+		OpenstackApplicationCredentialSecret: os.Getenv(testEnvOpenstackApplicationCredentialsSecret),
+		Dynamic:                              true,
 	}
 	var config strings.Builder
 	if err := clusterOpenstackApplicationCredentialsBasicTemplate.Execute(&config, data); err != nil {
 		t.Fatal(err)
 	}
 	resource.Test(t, resource.TestCase{
-		PreCheck:  func() { testAccPreCheckForOpenstack(t) },
+		PreCheck: func() {
+			testAccPreCheckForOpenstack(t)
+			checkEnv(t, testEnvOpenstackUsername)
+			checkEnv(t, testEnvOpenstackPassword)
+		},
 		Providers: testAccProviders,
 		ExternalProviders: map[string]resource.ExternalProvider{
 			"openstack": {
@@ -267,7 +271,7 @@ func TestAccMetakubeCluster_Openstack_UpgradeVersion(t *testing.T) {
 	resourceName := "metakube_cluster.acctest_cluster"
 	versionedConfig := func(version string) string {
 		data := &clusterOpenstackBasicData{
-			Name:                                  makeRandomName() + "-upgrade",
+			Name:                                  makeRandomName() + "-cluster-os-upgrade",
 			Version:                               version,
 			OpenstackAuthURL:                      os.Getenv(testEnvOpenstackAuthURL),
 			OpenstackApplicationCredentialsID:     os.Getenv(testEnvOpenstackApplicationCredentialsID),
@@ -424,11 +428,11 @@ resource "openstack_networking_subnet_v2" "subnet_tf_test" {
 }`)
 
 type clusterOpenstackApplicationCredentailsData struct {
-	OpenstackAuthURL                      string
-	OpenstackApplicationCredentialsID     string
-	OpenstackApplicationCredentialsSecret string
-	OpenstackProjectID                    string
-	OpenstackRegion                       string
+	OpenstackAuthURL   string
+	OpenstackUser      string
+	OpenstackPassword  string
+	OpenstackProjectID string
+	OpenstackRegion    string
 
 	Name                                 string
 	DatacenterName                       string
@@ -451,8 +455,9 @@ terraform {
 {{ if .Dynamic }}
 provider "openstack" {
 	auth_url = "{{ .OpenstackAuthURL }}"
-	application_credential_id = "{{ .OpenstackApplicationCredentialsID }}"
-	application_credential_secret = "{{ .OpenstackApplicationCredentialsSecret }}"
+	user_name = "{{ .OpenstackUser }}"
+	password = "{{ .OpenstackPassword }}"
+	tenant_id = "{{ .OpenstackProjectID }}"
 	region = "{{ .OpenstackRegion }}"
 }
 
@@ -696,7 +701,7 @@ func TestAccMetakubeCluster_AWS_Basic(t *testing.T) {
 	var cluster models.Cluster
 	resourceName := "metakube_cluster.acctest_cluster"
 	data := &clusterAWSBasicData{
-		Name:                 makeRandomName() + "-aws-basic",
+		Name:                 makeRandomName() + "-cluster-aws-basic",
 		ProjectID:            os.Getenv(testEnvProjectID),
 		AccessID:             os.Getenv(testEnvAWSAccessKeyID),
 		AccessSecret:         os.Getenv(testAWSSecretAccessKey),
