@@ -27,9 +27,7 @@ const (
 	testEnvOpenstackNodeDC                       = "METAKUBE_OPENSTACK_NODE_DC"
 	testEnvOpenstackApplicationCredentialsID     = "METAKUBE_OPENSTACK_APPLICATION_CREDENTIALS_ID"
 	testEnvOpenstackApplicationCredentialsSecret = "METAKUBE_OPENSTACK_APPLICATION_CREDENTIALS_SECRET"
-	testEnvOpenstackUsername                     = "METAKUBE_OPENSTACK_USERNAME"
 	testEnvOpenstackAuthURL                      = "METAKUBE_OPENSTACK_AUTH_URL"
-	testEnvOpenstackPassword                     = "METAKUBE_OPENSTACK_PASSWORD"
 	testEnvOpenstackProjectID                    = "METAKUBE_OPENSTACK_PROJECT_ID"
 	testEnvOpenstackProjectName                  = "METAKUBE_OPENSTACK_PROJECT_NAME"
 	testEnvOpenstackRegion                       = "METAKUBE_OPENSTACK_REGION"
@@ -81,8 +79,8 @@ func testAccPreCheckForOpenstack(t *testing.T) {
 	t.Helper()
 	testAccPreCheck(t)
 	checkEnv(t, testEnvK8sVersionOpenstack)
-	checkEnv(t, testEnvOpenstackUsername)
-	checkEnv(t, testEnvOpenstackPassword)
+	checkEnv(t, testEnvOpenstackApplicationCredentialsID)
+	checkEnv(t, testEnvOpenstackApplicationCredentialsSecret)
 	checkEnv(t, testEnvOpenstackProjectID)
 	checkEnv(t, testEnvOpenstackProjectName)
 	checkEnv(t, testEnvOpenstackRegion)
