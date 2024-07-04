@@ -19,7 +19,7 @@ func TestAccMetakubeCluster_MaintenanceCronJob_Basic(t *testing.T) {
 
 	resourceName := "metakube_maintenance_cron_job.acctest"
 	params := &testAccCheckMetaKubeMaintenanceCronJobBasicParams{
-		ClusterName:                          randomName("testacc", 5),
+		ClusterName:                          makeRandomName() + "-maint-cron-job",
 		DatacenterName:                       os.Getenv(testEnvOpenstackNodeDC),
 		ProjectID:                            os.Getenv(testEnvProjectID),
 		Version:                              os.Getenv(testEnvK8sVersionOpenstack),

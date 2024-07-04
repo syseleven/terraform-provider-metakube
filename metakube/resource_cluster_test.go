@@ -372,9 +372,8 @@ resource "metakube_cluster" "acctest_cluster" {
 		cloud {
 			openstack {
 			    application_credentials {
-					project_id = "{{ .OpenstackProjectID }}"
-					application_credential_id = "{{ .OpenstackApplicationCredentialsID }}"
-					application_credential_secret = "{{ .OpenstackApplicationCredentialsSecret }}"
+					id = "{{ .OpenstackApplicationCredentialsID }}"
+					secret = "{{ .OpenstackApplicationCredentialsSecret }}"
 				}
 				floating_ip_pool = "ext-net"
 				security_group = openstack_networking_secgroup_v2.cluster-net.name
@@ -614,9 +613,8 @@ resource "metakube_cluster" "acctest_cluster" {
 		cloud {
 			openstack {
 				application_credentials {
-					project_id = "{{ .OpenstackProjectID }}"
-					application_credential_id = "{{ .OpenstackApplicationCredentialsID }}"
-					application_credential_secret = "{{ .OpenstackApplicationCredentialsSecret }}"
+					id = "{{ .OpenstackApplicationCredentialsID }}"
+					secret = "{{ .OpenstackApplicationCredentialsSecret }}"
 				}
 				floating_ip_pool = "ext-net"
 			}
@@ -646,9 +644,8 @@ resource "metakube_cluster" "acctest_cluster" {
 		cloud {
 			openstack {
 				application_credentials {
-					project_id = "{{ .OpenstackProjectID }}"
-					application_credential_id = "{{ .OpenstackApplicationCredentialsID }}"
-					application_credential_secret = "{{ .OpenstackApplicationCredentialsSecret }}"
+					id = "{{ .OpenstackApplicationCredentialsID }}"
+					secret = "{{ .OpenstackApplicationCredentialsSecret }}"
 				}
 				floating_ip_pool = "ext-net"
 			}

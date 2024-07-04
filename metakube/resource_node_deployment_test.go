@@ -189,9 +189,8 @@ var nodeDeploymentBasicTemplate = mustParseTemplate("nodeDeploymentBasic", `
 			cloud {
 				openstack {
 					application_credentials {
-						project_id = "{{ .OpenstackProjectID }}"
-						application_credential_id = "{{ .OpenstackApplicationCredentialsID }}"
-						application_credential_secret = "{{ .OpenstackApplicationCredentialsSecret }}"
+						id = "{{ .OpenstackApplicationCredentialsID }}"
+						secret = "{{ .OpenstackApplicationCredentialsSecret }}"
 						}
 					floating_ip_pool = "ext-net"
 				}
