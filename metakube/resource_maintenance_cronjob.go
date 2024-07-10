@@ -101,7 +101,7 @@ func metakubeResourceMaintenanceCronJobCreate(ctx context.Context, d *schema.Res
 	}
 
 	// TODO not sure to remove this
-	if err := metakubeResourceClusterWaitForReady(ctx, k, d.Timeout(schema.TimeoutCreate), projectID, clusterID); err != nil {
+	if err := metakubeResourceClusterWaitForReady(ctx, k, d.Timeout(schema.TimeoutCreate), projectID, clusterID, ""); err != nil {
 		return diag.Errorf("cluster is not ready: %v", err)
 	}
 

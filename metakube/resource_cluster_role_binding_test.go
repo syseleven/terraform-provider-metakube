@@ -15,7 +15,7 @@ func TestAccMetakubeClusterRoleBinding(t *testing.T) {
 	t.Parallel()
 	resourceName := "metakube_cluster_role_binding.acctest"
 	params := &testAccCheckMetaKubeClusterRoleBindingBasicParams{
-		ClusterName:                          randomName("testacc", 5),
+		ClusterName:                          makeRandomName() + "-cluster-role-binding",
 		DatacenterName:                       os.Getenv(testEnvOpenstackNodeDC),
 		ProjectID:                            os.Getenv(testEnvProjectID),
 		Version:                              os.Getenv(testEnvK8sVersionOpenstack),

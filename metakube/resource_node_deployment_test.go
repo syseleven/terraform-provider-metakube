@@ -20,19 +20,19 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 	serverGroupResourceName := "openstack_compute_servergroup_v2.acctest_sg"
 
 	data := &nodeDeploymentBasicData{
-		Name:               makeRandomName() + "-os-nodedepl",
-		OpenstackAuthURL:   os.Getenv(testEnvOpenstackAuthURL),
-		OpenstackUser:      os.Getenv(testEnvOpenstackUsername),
-		OpenstackPassword:  os.Getenv(testEnvOpenstackPassword),
-		OpenstackProjectID: os.Getenv(testEnvOpenstackProjectID),
-		OpenstackRegion:    os.Getenv(testEnvOpenstackRegion),
-		DatacenterName:     os.Getenv(testEnvOpenstackNodeDC),
-		ProjectID:          os.Getenv(testEnvProjectID),
-		ClusterVersion:     os.Getenv(testEnvK8sVersionOpenstack),
-		KubeletVersion:     os.Getenv(testEnvK8sOlderVersion),
-		NodeFlavor:         os.Getenv(testEnvOpenstackFlavor),
-		OSVersion:          os.Getenv(testEnvOpenstackImage),
-		UseFloatingIP:      "false",
+		Name:                                  makeRandomName() + "-os-nodedepl",
+		OpenstackAuthURL:                      os.Getenv(testEnvOpenstackAuthURL),
+		OpenstackApplicationCredentialsID:     os.Getenv(testEnvOpenstackApplicationCredentialsID),
+		OpenstackApplicationCredentialsSecret: os.Getenv(testEnvOpenstackApplicationCredentialsSecret),
+		OpenstackProjectID:                    os.Getenv(testEnvOpenstackProjectID),
+		OpenstackRegion:                       os.Getenv(testEnvOpenstackRegion),
+		DatacenterName:                        os.Getenv(testEnvOpenstackNodeDC),
+		ProjectID:                             os.Getenv(testEnvProjectID),
+		ClusterVersion:                        os.Getenv(testEnvK8sVersionOpenstack),
+		KubeletVersion:                        os.Getenv(testEnvK8sOlderVersion),
+		NodeFlavor:                            os.Getenv(testEnvOpenstackFlavor),
+		OSVersion:                             os.Getenv(testEnvOpenstackImage),
+		UseFloatingIP:                         "false",
 	}
 
 	var config strings.Builder
@@ -137,11 +137,11 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 }
 
 type nodeDeploymentBasicData struct {
-	OpenstackAuthURL   string
-	OpenstackUser      string
-	OpenstackPassword  string
-	OpenstackProjectID string
-	OpenstackRegion    string
+	OpenstackAuthURL                      string
+	OpenstackApplicationCredentialsID     string
+	OpenstackApplicationCredentialsSecret string
+	OpenstackProjectID                    string
+	OpenstackRegion                       string
 
 	Name            string
 	DatacenterName  string
@@ -165,9 +165,8 @@ var nodeDeploymentBasicTemplate = mustParseTemplate("nodeDeploymentBasic", `
 	}
 	provider "openstack" {
 		auth_url = "{{ .OpenstackAuthURL }}"
-		user_name = "{{ .OpenstackUser }}"
-		password = "{{ .OpenstackPassword }}"
-		tenant_id = "{{ .OpenstackProjectID }}"
+		application_credential_id = "{{ .OpenstackApplicationCredentialsID }}"
+		application_credential_secret = "{{ .OpenstackApplicationCredentialsSecret }}"
 		region = "{{ .OpenstackRegion }}"
 	}
 
@@ -189,10 +188,9 @@ var nodeDeploymentBasicTemplate = mustParseTemplate("nodeDeploymentBasic", `
 			version = "{{ .ClusterVersion }}"
 			cloud {
 				openstack {
-					user_credentials {
-						project_id = "{{ .OpenstackProjectID }}"
-						username = "{{ .OpenstackUser }}"
-						password = "{{ .OpenstackPassword }}"
+					application_credentials {
+						id = "{{ .OpenstackApplicationCredentialsID }}"
+						secret = "{{ .OpenstackApplicationCredentialsSecret }}"
 						}
 					floating_ip_pool = "ext-net"
 				}
