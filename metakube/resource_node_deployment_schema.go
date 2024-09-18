@@ -25,9 +25,9 @@ func metakubeResourceNodeDeploymentSpecFields() map[string]*schema.Schema {
 		"replicas": {
 			Type:          schema.TypeInt,
 			Optional:      true,
-			Default:       3,
 			Description:   "Number of replicas",
 			ConflictsWith: []string{"spec.0.min_replicas", "spec.0.max_replicas"},
+			ExactlyOneOf:  []string{"spec.0.replicas", "spec.0.max_replicas"},
 			DiffSuppressFunc: func(_, _, _ string, d *schema.ResourceData) bool {
 				minv, ok1 := d.GetOk("spec.0.min_replicas")
 				maxv, ok2 := d.GetOk("spec.0.max_replicas")
