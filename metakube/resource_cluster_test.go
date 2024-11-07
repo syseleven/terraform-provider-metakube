@@ -217,6 +217,83 @@ func TestAccMetakubeCluster_Openstack_ApplicationCredentials(t *testing.T) {
 	})
 }
 
+func TestAccMetakubeCluster_Openstack_Credentials_Switch(t *testing.T) {
+	t.Parallel()
+	var cluster models.Cluster
+	resourceName := "metakube_cluster.acctest_cluster"
+	data := &clusterOpenstackApplicationCredentailsData{
+		Name:                                 makeRandomName() + "-cred-switch",
+		OpenstackUser:                        os.Getenv(testEnvOpenstackUsername),
+		OpenstackPassword:                    os.Getenv(testEnvOpenstackPassword),
+		OpenstackProjectID:                   os.Getenv(testEnvOpenstackProjectID),
+		DatacenterName:                       os.Getenv(testEnvOpenstackNodeDC),
+		ProjectID:                            os.Getenv(testEnvProjectID),
+		Version:                              os.Getenv(testEnvK8sVersionOpenstack),
+		OpenstackApplicationCredentialID:     os.Getenv(testEnvOpenstackApplicationCredentialsID),
+		OpenstackApplicationCredentialSecret: os.Getenv(testEnvOpenstackApplicationCredentialsSecret),
+		Dynamic:                              false,
+		Auth:                                 "user",
+	}
+	var config strings.Builder
+	if err := clusterOpenstackApplicationCredentialsBasicTemplate.Execute(&config, data); err != nil {
+		t.Fatal(err)
+	}
+
+	var config2 strings.Builder
+	data2 := *data
+	data2.Auth = "appcred"
+	if err := clusterOpenstackApplicationCredentialsBasicTemplate.Execute(&config2, data2); err != nil {
+		t.Fatal(err)
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:  func() { testAccPreCheckForOpenstack(t) },
+		Providers: testAccProviders,
+		ExternalProviders: map[string]resource.ExternalProvider{
+			"openstack": {
+				Source: "terraform-provider-openstack/openstack",
+			},
+		},
+		CheckDestroy: testAccCheckMetaKubeClusterDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: config.String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testAccCheckMetaKubeClusterExists(&cluster),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.0.user_credentials.0.username", data.OpenstackUser),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.0.user_credentials.0.password", data.OpenstackPassword),
+				),
+			},
+			{
+				Config: config2.String(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("metakube_cluster.acctest_cluster", plancheck.ResourceActionUpdate),
+					},
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testAccCheckMetaKubeClusterExists(&cluster),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.0.application_credentials.0.id", data2.OpenstackApplicationCredentialID),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.0.application_credentials.0.secret", data2.OpenstackApplicationCredentialSecret),
+				),
+			},
+			{
+				Config: config.String(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("metakube_cluster.acctest_cluster", plancheck.ResourceActionUpdate),
+					},
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testAccCheckMetaKubeClusterExists(&cluster),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.0.user_credentials.0.username", data.OpenstackUser),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.0.user_credentials.0.password", data.OpenstackPassword),
+				),
+			},
+		},
+	})
+}
+
 func TestAccMetakubeCluster_Openstack_ApplicationCredentials_Dynammic(t *testing.T) {
 	t.Parallel()
 	var cluster models.Cluster
@@ -441,6 +518,7 @@ type clusterOpenstackApplicationCredentailsData struct {
 	OpenstackApplicationCredentialID     string
 	OpenstackApplicationCredentialSecret string
 	Dynamic                              bool
+	Auth                                 string
 }
 
 var clusterOpenstackApplicationCredentialsBasicTemplate = mustParseTemplate("clusterOpenstackApplicationCredentials", `
@@ -484,6 +562,13 @@ resource "metakube_cluster" "acctest_cluster" {
 		}
 		cloud {
 			openstack {
+{{ if eq .Auth "user" }}
+				user_credentials {
+					project_id = "{{ .OpenstackProjectID }}"
+					username = "{{ .OpenstackUser }}"
+					password = "{{ .OpenstackPassword }}"
+				}
+{{ else }}
 				application_credentials {
 {{ if .Dynamic }}
 					id=openstack_identity_application_credential_v3.app_credential.id
@@ -493,6 +578,8 @@ resource "metakube_cluster" "acctest_cluster" {
 					secret="{{ .OpenstackApplicationCredentialSecret }}"
 {{ end }}
 				}
+{{ end }}
+
 			}
 		}
 	}

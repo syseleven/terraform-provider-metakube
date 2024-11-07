@@ -15,7 +15,7 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/hashicorp/go-cty v1.4.1-0.20200723130312-85980079f637
 	github.com/hashicorp/go-version v1.6.0
-	github.com/hashicorp/terraform-plugin-sdk/v2 v2.30.0
+	github.com/hashicorp/terraform-plugin-sdk/v2 v2.35.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/syseleven/go-metakube v0.0.0-20240425141409-18c646aed91a
 	go.uber.org/zap v1.19.0
@@ -24,6 +24,7 @@ require (
 
 require (
 	github.com/ProtonMail/go-crypto v0.0.0-20230828082145-3c4c8a2d2371 // indirect
+	github.com/apparentlymart/go-textseg/v12 v12.0.0 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/cloudflare/circl v1.3.3 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
