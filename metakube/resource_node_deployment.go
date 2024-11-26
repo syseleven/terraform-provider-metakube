@@ -355,10 +355,7 @@ func validateKubeletVersionIsAvailable(k *metakubeProviderMeta, kubeletVersion, 
 		return nil
 	}
 
-	versionType := "kubernetes"
-
 	p := versions.NewGetNodeUpgradesParams()
-	p.SetType(&versionType)
 	p.SetControlPlaneVersion(&clusterVersion)
 	r, err := k.client.Versions.GetNodeUpgrades(p, k.auth)
 

@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/syseleven/go-metakube/models"
+	"k8s.io/utils/ptr"
 )
 
 func TestMetakubeNodeDeploymentFlatten(t *testing.T) {
@@ -325,13 +326,13 @@ func TestFlattenOpenstackNodeSpec(t *testing.T) {
 			&models.OpenstackNodeSpec{
 				Flavor:                    strToPtr("big"),
 				Image:                     strToPtr("Ubuntu"),
-				UseFloatingIP:             true,
-				InstanceReadyCheckPeriod:  "10s",
-				InstanceReadyCheckTimeout: "120s",
+				UseFloatingIP:             ptr.To(true),
+				InstanceReadyCheckPeriod:  ptr.To("10s"),
+				InstanceReadyCheckTimeout: ptr.To("120s"),
 				Tags: map[string]string{
 					"foo": "bar",
 				},
-				RootDiskSizeGB: int64(999),
+				RootDiskSizeGB: ptr.To(int64(999)),
 			},
 			[]interface{}{
 				map[string]interface{}{
@@ -640,11 +641,11 @@ func TestExpandOpenstackNodeSpec(t *testing.T) {
 			&models.OpenstackNodeSpec{
 				Flavor:        strToPtr("tiny"),
 				Image:         strToPtr("Ubuntu"),
-				UseFloatingIP: false,
+				UseFloatingIP: ptr.To(false),
 				Tags: map[string]string{
 					"foo": "bar",
 				},
-				RootDiskSizeGB: int64(999),
+				RootDiskSizeGB: ptr.To(int64(999)),
 			},
 		},
 		{
