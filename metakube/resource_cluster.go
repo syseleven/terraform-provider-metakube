@@ -147,7 +147,6 @@ func metakubeResourceClusterCreate(ctx context.Context, d *schema.ResourceData, 
 		Cluster: &models.Cluster{
 			Name:   d.Get("name").(string),
 			Spec:   clusterSpec,
-			Type:   "kubernetes",
 			Labels: clusterLabels,
 		},
 	}

@@ -2,6 +2,7 @@ package metakube
 
 import (
 	"github.com/syseleven/go-metakube/models"
+	"k8s.io/utils/ptr"
 )
 
 // flatteners
@@ -242,8 +243,8 @@ func metakubeNodeDeploymentFlattenOpenstackSpec(in *models.OpenstackNodeSpec) []
 		att["tags"] = in.Tags
 	}
 
-	if in.RootDiskSizeGB != 0 {
-		att["disk_size"] = in.RootDiskSizeGB
+	if in.RootDiskSizeGB != nil && *in.RootDiskSizeGB != 0 {
+		att["disk_size"] = *in.RootDiskSizeGB
 	}
 
 	if in.ServerGroupID != "" {
@@ -643,7 +644,7 @@ func metakubeNodeDeploymentExpandOpenstackSpec(p []interface{}) *models.Openstac
 
 	if v, ok := in["use_floating_ip"]; ok {
 		if vv, ok := v.(bool); ok {
-			obj.UseFloatingIP = vv
+			obj.UseFloatingIP = ptr.To(vv)
 		}
 	}
 
@@ -670,7 +671,7 @@ func metakubeNodeDeploymentExpandOpenstackSpec(p []interface{}) *models.Openstac
 
 	if v, ok := in["disk_size"]; ok {
 		if vv, ok := v.(int); ok {
-			obj.RootDiskSizeGB = int64(vv)
+			obj.RootDiskSizeGB = ptr.To(int64(vv))
 		}
 	}
 
