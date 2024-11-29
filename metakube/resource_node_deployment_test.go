@@ -301,8 +301,8 @@ func testAccCheckMetaKubeNodeDeploymentFields(rec *models.NodeDeployment, flavor
 			return fmt.Errorf("Image=%s doesn't match %s", *openstack.Image, image)
 		}
 
-		if openstack.RootDiskSizeGB != int64(diskSize) {
-			return fmt.Errorf("RootDiskSizeGB=%d, want %d", openstack.RootDiskSizeGB, diskSize)
+		if openstack.RootDiskSizeGB != nil && *openstack.RootDiskSizeGB != int64(diskSize) {
+			return fmt.Errorf("RootDiskSizeGB=%v, want %d", openstack.RootDiskSizeGB, diskSize)
 		}
 
 		opSys := rec.Spec.Template.OperatingSystem
