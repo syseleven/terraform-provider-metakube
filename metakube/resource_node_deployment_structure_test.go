@@ -327,8 +327,8 @@ func TestFlattenOpenstackNodeSpec(t *testing.T) {
 				Flavor:                    strToPtr("big"),
 				Image:                     strToPtr("Ubuntu"),
 				UseFloatingIP:             ptr.To(true),
-				InstanceReadyCheckPeriod:  ptr.To("10s"),
-				InstanceReadyCheckTimeout: ptr.To("120s"),
+				InstanceReadyCheckPeriod:  "10s",
+				InstanceReadyCheckTimeout: "120s",
 				Tags: map[string]string{
 					"foo": "bar",
 				},
@@ -340,7 +340,7 @@ func TestFlattenOpenstackNodeSpec(t *testing.T) {
 					"image":                        "Ubuntu",
 					"instance_ready_check_period":  "10s",
 					"instance_ready_check_timeout": "120s",
-					"use_floating_ip":              true,
+					"use_floating_ip":              ptr.To(true),
 					"tags": map[string]string{
 						"foo": "bar",
 					},
@@ -352,7 +352,7 @@ func TestFlattenOpenstackNodeSpec(t *testing.T) {
 			&models.OpenstackNodeSpec{},
 			[]interface{}{
 				map[string]interface{}{
-					"use_floating_ip": false,
+					"use_floating_ip": (*bool)(nil),
 				},
 			},
 		},
