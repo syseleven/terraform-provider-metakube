@@ -102,8 +102,9 @@ func metakubeResourceCluster() *schema.Resource {
 				Description: "Deletion timestamp",
 			},
 			"kube_config": {
-				Type:     schema.TypeString,
-				Computed: true,
+				Type:      schema.TypeString,
+				Sensitive: true,
+				Computed:  true,
 			},
 			"oidc_kube_config": {
 				Type:     schema.TypeString,
