@@ -107,8 +107,9 @@ func metakubeResourceCluster() *schema.Resource {
 				Computed:  true,
 			},
 			"oidc_kube_config": {
-				Type:     schema.TypeString,
-				Computed: true,
+				Type:      schema.TypeString,
+				Sensitive: true,
+				Computed:  true,
 			},
 			"kube_login_kube_config": {
 				Type:     schema.TypeString,
