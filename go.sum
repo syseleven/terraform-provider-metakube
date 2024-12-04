@@ -179,8 +179,8 @@ github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/
 github.com/stretchr/testify v1.7.2/go.mod h1:R6va5+xMeoiuVRoj+gSkQ7d3FALtqAAGI1FQKckRals=
 github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
 github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
-github.com/syseleven/go-metakube v0.0.0-20241203225354-74465a218b83 h1:bp3I3hfrknpnJlZKVbG9APJfemhCFt7nBcMx1oAOoVE=
-github.com/syseleven/go-metakube v0.0.0-20241203225354-74465a218b83/go.mod h1:KJB8m9a51Dcci9ee2pLwKetFm9MUrOAjDPAm5ZnOnHI=
+github.com/syseleven/go-metakube v0.0.0-20241209175334-b03f742212c2 h1:KfPt3bgBgMa9/9VzuwVoIjmLRkg9mjGBaeRL88VPPb4=
+github.com/syseleven/go-metakube v0.0.0-20241209175334-b03f742212c2/go.mod h1:KJB8m9a51Dcci9ee2pLwKetFm9MUrOAjDPAm5ZnOnHI=
 github.com/syseleven/terraform-plugin-sdk/v2 v2.31.0-sys11-2 h1:vywVVW9AnKcEiqgbZe16wwuaQaZ8VtMe+xmNBdvdMnU=
 github.com/syseleven/terraform-plugin-sdk/v2 v2.31.0-sys11-2/go.mod h1:i2C41tszDjiWfziPQDL5R/f3Zp0gahXe5No/MIO9rCE=
 github.com/vmihailenco/msgpack v3.3.3+incompatible/go.mod h1:fy3FlTQTDXWkZ7Bh6AcGMlsjHatGryHQYUTf1ShIgkk=

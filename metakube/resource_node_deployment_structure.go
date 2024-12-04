@@ -17,12 +17,12 @@ func metakubeNodeDeploymentFlattenSpec(in *models.NodeDeploymentSpec) []interfac
 		att["replicas"] = *in.Replicas
 	}
 
-	if in.MinReplicas >= 0 && in.MaxReplicas > 0 {
-		att["min_replicas"] = in.MinReplicas
+	if in.MinReplicas != nil {
+		att["min_replicas"] = *in.MinReplicas
 	}
 
-	if in.MaxReplicas > 0 {
-		att["max_replicas"] = in.MaxReplicas
+	if in.MaxReplicas != nil {
+		att["max_replicas"] = *in.MaxReplicas
 	}
 
 	if in.Template != nil {
@@ -304,20 +304,20 @@ func metakubeNodeDeploymentExpandSpec(p []interface{}, isCreate bool) *models.No
 
 	if v, ok := in["min_replicas"]; ok {
 		if vv, ok := v.(int); ok {
-			obj.MinReplicas = int32(vv)
+			obj.MinReplicas = ptr.To(int32(vv))
 			if isCreate {
-				obj.Replicas = int32ToPtr(obj.MinReplicas)
+				obj.Replicas = int32ToPtr(*obj.MinReplicas)
 			}
 		}
 	}
 
 	if v, ok := in["max_replicas"]; ok {
 		if vv, ok := v.(int); ok {
-			obj.MaxReplicas = int32(vv)
+			obj.MaxReplicas = ptr.To(int32(vv))
 		}
 	}
 
-	if v, ok := in["replicas"]; ok && obj.MinReplicas == 0 {
+	if v, ok := in["replicas"]; ok && *obj.MinReplicas == 0 {
 		if vv, ok := v.(int); ok {
 			obj.Replicas = int32ToPtr(int32(vv))
 		}
