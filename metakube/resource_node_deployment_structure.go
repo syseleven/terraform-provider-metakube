@@ -317,7 +317,7 @@ func metakubeNodeDeploymentExpandSpec(p []interface{}, isCreate bool) *models.No
 		}
 	}
 
-	if v, ok := in["replicas"]; ok && *obj.MinReplicas == 0 {
+	if v, ok := in["replicas"]; ok && (obj.MinReplicas == nil || *obj.MinReplicas == 0) {
 		if vv, ok := v.(int); ok {
 			obj.Replicas = int32ToPtr(int32(vv))
 		}
