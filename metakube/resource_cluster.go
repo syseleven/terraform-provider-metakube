@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/hashicorp/go-cty/cty"
@@ -33,20 +32,7 @@ func metakubeResourceCluster() *schema.Resource {
 		},
 
 		Importer: &schema.ResourceImporter{
-			StateContext: func(ctx context.Context, d *schema.ResourceData, m interface{}) ([]*schema.ResourceData, error) {
-				parts := strings.Split(d.Id(), ":")
-				switch len(parts) {
-				case 1:
-					d.SetId(parts[0])
-					return []*schema.ResourceData{d}, nil
-				case 2:
-					d.Set("project_id", parts[0])
-					d.SetId(parts[1])
-					return []*schema.ResourceData{d}, nil
-				default:
-					return nil, fmt.Errorf("please provide resource identifier in format 'project_id:cluster_id' or 'cluster_id'")
-				}
-			},
+			StateContext: importResourceWithOptionalProject("cluster_id"),
 		},
 
 		Schema: map[string]*schema.Schema{

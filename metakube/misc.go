@@ -1,9 +1,12 @@
 package metakube
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/syseleven/go-metakube/models"
 )
 
@@ -46,4 +49,34 @@ func int32ToPtr(v int32) *int32 {
 func intToInt32Ptr(v int) *int32 {
 	vv := int32(v)
 	return &vv
+}
+
+func importResourceWithProjectAndClusterID(identifierName string) schema.StateContextFunc {
+	return func(ctx context.Context, d *schema.ResourceData, m interface{}) ([]*schema.ResourceData, error) {
+		parts := strings.Split(d.Id(), ":")
+		if len(parts) != 3 {
+			return nil, fmt.Errorf("please provide resource identifier in format 'project_id:cluster_id:%s'", identifierName)
+		}
+		d.Set("project_id", parts[0])
+		d.Set("cluster_id", parts[1])
+		d.SetId(parts[2])
+		return []*schema.ResourceData{d}, nil
+	}
+}
+
+func importResourceWithOptionalProject(identifierName string) schema.StateContextFunc {
+	return func(ctx context.Context, d *schema.ResourceData, m interface{}) ([]*schema.ResourceData, error) {
+		parts := strings.Split(d.Id(), ":")
+		switch len(parts) {
+		case 1:
+			d.SetId(parts[0])
+			return []*schema.ResourceData{d}, nil
+		case 2:
+			d.Set("project_id", parts[0])
+			d.SetId(parts[1])
+			return []*schema.ResourceData{d}, nil
+		default:
+			return nil, fmt.Errorf("please provide resource identifier in format 'project_id:%s' or '%s'", identifierName, identifierName)
+		}
+	}
 }
