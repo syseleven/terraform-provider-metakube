@@ -20,7 +20,7 @@ func metakubeResourceSSHKey() *schema.Resource {
 		ReadContext:   metakubeResourceSSHKeyRead,
 		DeleteContext: metakubeResourceSSHKeyDelete,
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: importResourceWithOptionalProject("sshkey_id"),
 		},
 
 		Schema: map[string]*schema.Schema{

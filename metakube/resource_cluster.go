@@ -32,7 +32,7 @@ func metakubeResourceCluster() *schema.Resource {
 		},
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: importResourceWithOptionalProject("cluster_id"),
 		},
 
 		Schema: map[string]*schema.Schema{

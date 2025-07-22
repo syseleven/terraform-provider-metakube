@@ -22,7 +22,7 @@ func metakubeResourceMaintenanceCronJob() *schema.Resource {
 		DeleteContext: metakubeResourceMaintenanceCronJobDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: importResourceWithOptionalProject("maintenance_cronjob_id"),
 		},
 
 		Timeouts: &schema.ResourceTimeout{

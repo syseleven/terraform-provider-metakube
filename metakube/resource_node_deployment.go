@@ -86,19 +86,6 @@ func metakubeResourceNodeDeployment() *schema.Resource {
 	}
 }
 
-func importResourceWithProjectAndClusterID(identifierName string) func(ctx context.Context, d *schema.ResourceData, m interface{}) ([]*schema.ResourceData, error) {
-	return func(ctx context.Context, d *schema.ResourceData, m interface{}) ([]*schema.ResourceData, error) {
-		parts := strings.Split(d.Id(), ":")
-		if len(parts) != 3 {
-			return nil, fmt.Errorf("please provide resource identifier in format 'project_id:cluster_id:%s'", identifierName)
-		}
-		d.Set("project_id", parts[0])
-		d.Set("cluster_id", parts[1])
-		d.SetId(parts[2])
-		return []*schema.ResourceData{d}, nil
-	}
-}
-
 func metakubeResourceNodeDeploymentCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	k := m.(*metakubeProviderMeta)
 	clusterID := d.Get("cluster_id").(string)
