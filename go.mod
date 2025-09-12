@@ -17,7 +17,7 @@ require (
 	github.com/hashicorp/go-version v1.6.0
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.30.0
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/syseleven/go-metakube v0.0.0-20250228171952-0b36d01eaad2
+	github.com/syseleven/go-metakube v0.0.0-20250912102141-91146beb0bed
 	go.uber.org/zap v1.19.0
 	golang.org/x/mod v0.14.0
 	k8s.io/utils v0.0.0-20241104163129-6fe5fd82f078
