@@ -41,6 +41,9 @@ func metakubeResourceClusterFlattenSpec(values clusterPreserveValues, in *models
 		if v := network.Services; len(v.CIDRBlocks) > 0 && v.CIDRBlocks[0] != "" {
 			att["services_cidr"] = v.CIDRBlocks[0]
 		}
+		if network.IPFamily != "" {
+			att["ip_family"] = string(network.IPFamily)
+		}
 	}
 
 	if in.CniPlugin != nil && in.CniPlugin.Type != "" {
@@ -363,6 +366,15 @@ func metakubeResourceClusterExpandSpec(p []interface{}, dcName string, include f
 	if v, ok := in["cni_plugin"]; ok {
 		if vv, ok := v.([]interface{}); ok {
 			obj.CniPlugin = expandCniPlugin(vv)
+		}
+	}
+
+	if v, ok := in["ip_family"]; ok && include("ip_family") {
+		if vv, ok := v.(string); ok && vv != "" {
+			if obj.ClusterNetwork == nil {
+				obj.ClusterNetwork = &models.ClusterNetworkingConfig{}
+			}
+			obj.ClusterNetwork.IPFamily = models.IPFamily(vv)
 		}
 	}
 

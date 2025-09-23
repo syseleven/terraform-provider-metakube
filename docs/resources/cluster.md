@@ -73,6 +73,7 @@ The following arguments are supported:
 * `services_cidr` - (Optional) Internal IP range for ClusterIP Services.
 * `pods_cidr` - (Optional) Internal IP range for Pods.
 * `cni_plugin` - (Optional) CNI plugin used by the Cluster.
+* `ip_family` - (Optional) IP family to use for the Cluster.
 
 ### `cloud`
 

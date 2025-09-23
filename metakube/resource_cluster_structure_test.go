@@ -37,6 +37,7 @@ func TestMetakubeClusterFlattenSpec(t *testing.T) {
 					Pods: &models.NetworkRanges{
 						CIDRBlocks: []string{"2.2.0.0/16"},
 					},
+					IPFamily: models.IPFamily("IPv4"),
 				},
 				CniPlugin: &models.CNIPluginSettings{
 					Type: models.CNIPluginType("canal"),
@@ -61,6 +62,7 @@ func TestMetakubeClusterFlattenSpec(t *testing.T) {
 							"type": "canal",
 						},
 					},
+					"ip_family":        "IPv4",
 					"enable_ssh_agent": true,
 					"cloud": []interface{}{
 						map[string]interface{}{
@@ -443,6 +445,7 @@ func TestExpandClusterSpec(t *testing.T) {
 							"type": "canal",
 						},
 					},
+					"ip_family": "IPv4",
 					"cloud": []interface{}{
 						map[string]interface{}{
 							"openstack": []interface{}{
@@ -473,6 +476,7 @@ func TestExpandClusterSpec(t *testing.T) {
 					Pods: &models.NetworkRanges{
 						CIDRBlocks: []string{"2.2.0.0/16"},
 					},
+					IPFamily: models.IPFamily("IPv4"),
 				},
 				Cloud: &models.CloudSpec{
 					DatacenterName: "eu-west-1",
