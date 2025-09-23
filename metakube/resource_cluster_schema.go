@@ -161,6 +161,12 @@ func metakubeResourceClusterSpecFields() map[string]*schema.Schema {
 				},
 			},
 		},
+		"ip_family": {
+			Type:         schema.TypeString,
+			Optional:     true,
+			ValidateFunc: validation.StringInSlice([]string{"IPv4", "IPv4+IPv6"}, false),
+			Description:  "Represents IP address family to use for the Cluster",
+		},
 	}
 }
 
