@@ -95,15 +95,15 @@ When set, start time and length must be configured.
 
 ### `cni_plugin`
 
-When set, type must be configured. Currently `canal` or `none`
+When set, type must be configured. Currently, can be configured as `cilium`, `canal`, `none`.
 
 #### Arguments
 * `type` - (Required) Define the type of CNI plugin. Example: `canal`.
 
 ### `ip_family`
 
-Currently, can be configured `IPv4` or `IPv4+IPv6`.
-> For a dual-stack cluster setup, the `cni_plugin` type must be set to `canal`.
+Currently, can be configured as `IPv4` or `IPv4+IPv6`.
+> For a dual-stack cluster setup, the `cni_plugin` type must be set to `cilium`.
 
 ### `openstack`
 
