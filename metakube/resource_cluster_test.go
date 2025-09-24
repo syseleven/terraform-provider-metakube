@@ -68,6 +68,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 	var config2 strings.Builder
 	data2 := *data
 	data2.CNIPlugin = "canal"
+	data2.IPFamily = "IPv4"
 	data2.SyselevenAuth = true
 	data2.AuditLogging = true
 	data2.PodNodeSelector = true
@@ -106,6 +107,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "spec.0.pods_cidr", "172.25.0.0/18"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.0.type", "canal"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.ip_family", "IPv4"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.aws.#", "0"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.#", "1"),
@@ -138,6 +140,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "spec.0.pods_cidr", "172.25.0.0/18"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.0.type", "canal"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.ip_family", "IPv4"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.pod_node_selector", "true"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.aws.#", "0"),
@@ -330,6 +333,7 @@ type clusterOpenstackBasicData struct {
 	ProjectID       string
 	Version         string
 	CNIPlugin       string
+	IPFamily        string
 	SyselevenAuth   bool
 	AuditLogging    bool
 	PodNodeSelector bool
@@ -408,6 +412,10 @@ resource "metakube_cluster" "acctest_cluster" {
 		cni_plugin {
 			type = "{{ .CNIPlugin }}"
 		  }
+		{{ end }}
+
+		{{ if .IPFamily }}
+		ip_family = "{{ .IPFamily }}"
 		{{ end }}
 	}
 }

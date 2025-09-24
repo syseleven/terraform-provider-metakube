@@ -100,6 +100,11 @@ When set, type must be configured. Currently `canal` or `none`
 #### Arguments
 * `type` - (Required) Define the type of CNI plugin. Example: `canal`.
 
+### `ip_family`
+
+Currently, can be configured `IPv4` or `IPv4+IPv6`.
+> For a dual-stack cluster setup, the `cni_plugin` type must be set to `canal`.
+
 ### `openstack`
 
 #### Arguments
@@ -144,7 +149,7 @@ Openstack Application Credentials.
 * `role_arn` - (Optional) The IAM role that the control plane will use.
 * `openstack_billing_tenant` - (Required) Openstack Tenant/Project name for the account.
 
-### syseleven_auth
+### `syseleven_auth`
 
 Configure [SysEleven Login](https://docs.syseleven.de/metakube/en/tutorials/external-authentication) Realm to use.
 
