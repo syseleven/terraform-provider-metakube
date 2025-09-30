@@ -1,0 +1,22 @@
+#!/bin/sh
+
+logfile="$(dirname $0)/debug-log"
+
+if [[ "${DEBUG}" == "true" ]]; then
+    # dlv --log-dest=file always recreates/truncates the file, so we create a different one every time...
+    logfile="$(dirname $0)/debug-log.$(date +%s)"
+
+    dlv --listen=:2345 --log --log-dest="$logfile" --headless=true --api-version=2  exec "$(dirname $0)/../terraform-provider-metakube" -- "$@"
+    ec=$?
+
+    echo "args were: $*" >>"$logfile"
+    echo "$(date) env variables were:" >>"$logfile"
+    set >>"$logfile"
+else
+    "$(dirname $0)/../terraform-provider-metakube" "$@"
+    ec=$?
+fi
+
+echo "$(date) provider FINISHED" >>"$logfile"
+
+exit $ec
