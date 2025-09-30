@@ -29,6 +29,6 @@ website/node_modules
 *.iml
 vendor
 .env
-terraform-provider-metakube
+/terraform-provider-metakube
 
 website/vendor
