@@ -2,6 +2,7 @@ package metakube
 
 import (
 	"github.com/syseleven/go-metakube/models"
+	"k8s.io/utils/ptr"
 )
 
 // flatteners
@@ -25,6 +26,7 @@ func metakubeResourceClusterFlattenSpec(values clusterPreserveValues, in *models
 		att["enable_ssh_agent"] = *in.EnableUserSSHKeyAgent
 	}
 
+	att["iam_authentication"] = in.Sys11auth.IAMAuthentication
 	att["audit_logging"] = false
 	if in.AuditLogging != nil {
 		att["audit_logging"] = in.AuditLogging.Enabled
@@ -390,6 +392,13 @@ func metakubeResourceClusterExpandSpec(p []interface{}, dcName string, include f
 		obj.BillingTenant = obj.Cloud.Aws.OpenstackBillingTenant
 	}
 
+	obj.Sys11auth = &models.Sys11AuthSettings{}
+	if v, ok := in["iam_authentication"]; ok {
+		if vv, ok := v.(bool); ok {
+			obj.Sys11auth.IAMAuthentication = ptr.To(vv)
+		}
+	}
+
 	if v, ok := in["syseleven_auth"]; ok && include("syseleven_auth") {
 		if vv, ok := v.([]interface{}); ok {
 			obj.Sys11auth = expandClusterSys11Auth(vv)
@@ -480,11 +489,13 @@ func expandClusterSys11Auth(p []interface{}) *models.Sys11AuthSettings {
 	if p[0] == nil {
 		return nil
 	}
+	obj := &models.Sys11AuthSettings{}
 	in := p[0].(map[string]interface{})
 	if v := in["realm"].(string); v != "" {
-		return &models.Sys11AuthSettings{Realm: v}
+		obj.Realm = v
 	}
-	return nil
+
+	return obj
 }
 
 func expandAWSCloudSpec(p []interface{}, include func(string) bool) *models.AWSCloudSpec {

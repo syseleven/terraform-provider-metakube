@@ -70,6 +70,7 @@ The following arguments are supported:
 * `pod_security_policy` - (Optional) Pod security policies allow detailed authorization of pod creation and updates.
 * `pod_node_selector` - (Optional) Configure PodNodeSelector admission plugin at the apiserver
 * `syseleven_auth` - (Optional) Useful for authenticating against [SysEleven Login](https://docs.syseleven.de/metakube/en/tutorials/external-authentication).
+* `iam_authentication` - (Optional) Authenticate against Syseleven IAM.
 * `services_cidr` - (Optional) Internal IP range for ClusterIP Services.
 * `pods_cidr` - (Optional) Internal IP range for Pods.
 * `cni_plugin` - (Optional) CNI plugin used by the Cluster.
