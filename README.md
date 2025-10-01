@@ -27,13 +27,7 @@ If you encounter issues [file an issue][1]
 
 ### Debugging
 
-First create binary with debug information:
-
-```
-make build-debug
-```
-
-Then, if you haven't yet, create a ~/.terraformrc that overrides the `syseleven/metakube` provider reference so it uses the binary we just built.
+If you haven't yet, create a ~/.terraformrc that overrides the `syseleven/metakube` provider reference so it uses the binary we just built.
 This needs to be done only once.
 
 ```

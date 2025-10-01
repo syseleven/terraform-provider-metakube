@@ -5,8 +5,8 @@ logfile="$(dirname $0)/debug-log"
 if [[ "${DEBUG}" == "true" ]]; then
     # dlv --log-dest=file always recreates/truncates the file, so we create a different one every time...
     logfile="$(dirname $0)/debug-log.$(date +%s)"
-
-    dlv --listen=:2345 --log --log-dest="$logfile" --headless=true --api-version=2  exec "$(dirname $0)/../terraform-provider-metakube" -- "$@"
+    cd "$(dirname $0)/../"
+    dlv --listen=:2345 --log --log-dest="$logfile" --headless=true --api-version=2  debug -- "$@"
     ec=$?
 
     echo "args were: $*" >>"$logfile"
