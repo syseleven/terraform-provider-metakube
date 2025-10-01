@@ -2,6 +2,7 @@ package metakube
 
 import (
 	"github.com/syseleven/go-metakube/models"
+	"k8s.io/utils/ptr"
 )
 
 // flatteners
@@ -107,7 +108,8 @@ func flattenClusterSys11Auth(in *models.Sys11AuthSettings) []interface{} {
 	}
 
 	return []interface{}{map[string]interface{}{
-		"realm": in.Realm,
+		"realm":              in.Realm,
+		"iam_authentication": in.IAMAuthentication,
 	}}
 }
 
@@ -480,11 +482,17 @@ func expandClusterSys11Auth(p []interface{}) *models.Sys11AuthSettings {
 	if p[0] == nil {
 		return nil
 	}
+	obj := &models.Sys11AuthSettings{}
 	in := p[0].(map[string]interface{})
 	if v := in["realm"].(string); v != "" {
-		return &models.Sys11AuthSettings{Realm: v}
+		obj.Realm = v
 	}
-	return nil
+	if v, ok := in["iam_authentication"]; ok {
+		if vv, ok := v.(bool); ok {
+			obj.IAMAuthentication = ptr.To(vv)
+		}
+	}
+	return obj
 }
 
 func expandAWSCloudSpec(p []interface{}, include func(string) bool) *models.AWSCloudSpec {
