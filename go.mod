@@ -5,7 +5,7 @@ go 1.24.0
 toolchain go1.24.3
 
 replace (
-	github.com/hashicorp/terraform-plugin-sdk/v2 => github.com/syseleven/terraform-plugin-sdk/v2 v2.38.1-sys11-1-test-2
+	github.com/hashicorp/terraform-plugin-sdk/v2 => github.com/syseleven/terraform-plugin-sdk/v2 v2.38.1-sys11-1
 	k8s.io/api => k8s.io/api v0.0.0-20190918195907-bd6ac527cfd2
 	k8s.io/apimachinery => k8s.io/apimachinery v0.0.0-20190817020851-f2f3a405f61d
 	k8s.io/client-go => k8s.io/client-go v0.0.0-20190918200256-06eb1244587a
