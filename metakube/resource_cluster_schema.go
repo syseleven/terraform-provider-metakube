@@ -158,8 +158,23 @@ func metakubeResourceClusterSpecFields() map[string]*schema.Schema {
 						ValidateFunc: validation.StringInSlice([]string{"cilium", "canal", "none"}, false),
 						Description:  "Define the type of CNI plugin",
 					},
+					"cilium_cni_exclusive": {
+						Type:        schema.TypeBool,
+						Optional:    true,
+						Default:     true,
+						Description: "Cilium cni-exclusive flag. If set to true, Cilium will delete non-Cilium CNI config files on nodes.",
+					},
 				},
 			},
+			//// ValidateFunc and ValidateDiagFunc are not supported on lists or sets.
+			// ValidateFunc: func(v interface{}, k string) (warnings []string, errors []error) {
+			// 	if v, ok := v.(map[string]interface{}); ok {
+			// 		if v["type"] != "cilium" && v["cilium_cni_exclusive"] != nil {
+			// 			errors = append(errors, fmt.Errorf("cilium_cni_exclusive is required when type is cilium"))
+			// 		}
+			// 	}
+			// 	return warnings, errors
+			// },
 		},
 		"ip_family": {
 			Type:         schema.TypeString,
