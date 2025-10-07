@@ -148,9 +148,9 @@ func metakubeResourceNodeDeploymentCreate(ctx context.Context, d *schema.Resourc
 		if err != nil {
 			e := stringifyResponseError(err)
 			if strings.Contains(e, "failed calling webhook") || strings.Contains(e, "Cluster components are not ready yet") {
-				return retry.RetryableError(fmt.Errorf(e))
+				return retry.RetryableError(fmt.Errorf("%v", e))
 			}
-			return retry.NonRetryableError(fmt.Errorf(e))
+			return retry.NonRetryableError(fmt.Errorf("%v", e))
 		}
 		id = r.Payload.ID
 		return nil
