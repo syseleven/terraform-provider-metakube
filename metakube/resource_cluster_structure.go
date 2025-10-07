@@ -26,7 +26,11 @@ func metakubeResourceClusterFlattenSpec(values clusterPreserveValues, in *models
 		att["enable_ssh_agent"] = *in.EnableUserSSHKeyAgent
 	}
 
-	att["iam_authentication"] = in.Sys11auth.IAMAuthentication
+	if in.Sys11auth != nil {
+		if in.Sys11auth.IAMAuthentication != nil {
+			att["iam_authentication"] = in.Sys11auth.IAMAuthentication
+		}
+	}
 	att["audit_logging"] = false
 	if in.AuditLogging != nil {
 		att["audit_logging"] = in.AuditLogging.Enabled
@@ -392,9 +396,9 @@ func metakubeResourceClusterExpandSpec(p []interface{}, dcName string, include f
 		obj.BillingTenant = obj.Cloud.Aws.OpenstackBillingTenant
 	}
 
-	obj.Sys11auth = &models.Sys11AuthSettings{}
 	if v, ok := in["iam_authentication"]; ok {
 		if vv, ok := v.(bool); ok {
+			obj.Sys11auth = &models.Sys11AuthSettings{}
 			obj.Sys11auth.IAMAuthentication = ptr.To(vv)
 		}
 	}
