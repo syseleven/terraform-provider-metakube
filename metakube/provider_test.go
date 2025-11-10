@@ -106,6 +106,7 @@ func testAccPreCheckForAWS(t *testing.T) {
 	checkEnv(t, testEnvAWSNodeDC)
 	checkEnv(t, testEnvK8sOlderVersion)
 	checkEnv(t, testEnvProjectID)
+	checkEnv(t, testEnvAWSAMI)
 }
 
 func testAccPreCheck(t *testing.T) {
