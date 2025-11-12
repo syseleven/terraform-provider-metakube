@@ -58,6 +58,8 @@ func metakubeResourceNodeDeploymentSpecFields() map[string]*schema.Schema {
 			Required:    true,
 			Description: "Template specification",
 			Elem: &schema.Resource{
+				EnableLegacyTypeSystemApplyErrors: true,
+				EnableLegacyTypeSystemPlanErrors: true,
 				Schema: map[string]*schema.Schema{
 					"cloud": {
 						Type:        schema.TypeList,
@@ -95,6 +97,8 @@ func metakubeResourceNodeDeploymentSpecFields() map[string]*schema.Schema {
 						MaxItems:    1,
 						Description: "Operating system",
 						Elem: &schema.Resource{
+							EnableLegacyTypeSystemApplyErrors: true,
+							EnableLegacyTypeSystemPlanErrors: true,
 							Schema: map[string]*schema.Schema{
 								"ubuntu": {
 									Type:         schema.TypeList,
@@ -122,6 +126,8 @@ func metakubeResourceNodeDeploymentSpecFields() map[string]*schema.Schema {
 									ExactlyOneOf: []string{"spec.0.template.0.operating_system.0.ubuntu", "spec.0.template.0.operating_system.0.flatcar"},
 									Description:  "Flatcar operating system",
 									Elem: &schema.Resource{
+										EnableLegacyTypeSystemApplyErrors: true,
+										EnableLegacyTypeSystemPlanErrors: true,
 										Schema: map[string]*schema.Schema{
 											"disable_auto_update": {
 												Type:        schema.TypeBool,
@@ -142,6 +148,8 @@ func metakubeResourceNodeDeploymentSpecFields() map[string]*schema.Schema {
 						MaxItems:    1,
 						Description: "Cloud components versions",
 						Elem: &schema.Resource{
+							EnableLegacyTypeSystemApplyErrors: true,
+							EnableLegacyTypeSystemPlanErrors: true,
 							Schema: map[string]*schema.Schema{
 								"kubelet": {
 									Type:        schema.TypeString,
@@ -178,6 +186,8 @@ func metakubeResourceNodeDeploymentSpecFields() map[string]*schema.Schema {
 						Optional:    true,
 						Description: "List of taints to set on new nodes",
 						Elem: &schema.Resource{
+							EnableLegacyTypeSystemApplyErrors: true,
+							EnableLegacyTypeSystemPlanErrors: true,
 							Schema: map[string]*schema.Schema{
 								"effect": {
 									Type:         schema.TypeString,
@@ -379,6 +389,8 @@ func metakubeResourceNodeDeploymentAzureSchema() *schema.Schema {
 		MaxItems:    1,
 		Description: "Azure node deployment specification",
 		Elem: &schema.Resource{
+			EnableLegacyTypeSystemApplyErrors: true,
+			EnableLegacyTypeSystemPlanErrors: true,
 			Schema: map[string]*schema.Schema{
 				"image_id": {
 					Type:        schema.TypeString,
