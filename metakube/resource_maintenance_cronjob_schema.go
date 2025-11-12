@@ -17,6 +17,8 @@ func metakubeResourceMaintenanceCronJobSpecFields() map[string]*schema.Schema {
 			Required:    true,
 			Description: "MaintenanceJob template specification",
 			Elem: &schema.Resource{
+				EnableLegacyTypeSystemApplyErrors: true,
+				EnableLegacyTypeSystemPlanErrors: true,
 				Schema: metakubeMaintenanceJobTemplateSchema(),
 			},
 		},
@@ -32,6 +34,8 @@ func metakubeMaintenanceJobTemplateSchema() map[string]*schema.Schema {
 			MaxItems:    1,
 			Description: "Ubuntu operating system",
 			Elem: &schema.Resource{
+				EnableLegacyTypeSystemApplyErrors: true,
+				EnableLegacyTypeSystemPlanErrors: true,
 				Schema: map[string]*schema.Schema{
 					"options": {
 						Type:        schema.TypeMap,

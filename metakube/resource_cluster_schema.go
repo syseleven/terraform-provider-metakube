@@ -28,6 +28,8 @@ func metakubeResourceClusterSpecFields() map[string]*schema.Schema {
 			MaxItems:    1,
 			Description: "Flatcar nodes reboot window",
 			Elem: &schema.Resource{
+				EnableLegacyTypeSystemApplyErrors: true,
+				EnableLegacyTypeSystemPlanErrors: true,
 				Schema: map[string]*schema.Schema{
 					"start": {
 						Type:         schema.TypeString,
@@ -58,6 +60,8 @@ func metakubeResourceClusterSpecFields() map[string]*schema.Schema {
 			MaxItems:    1,
 			Description: "Cloud provider specification",
 			Elem: &schema.Resource{
+				EnableLegacyTypeSystemApplyErrors: true,
+				EnableLegacyTypeSystemPlanErrors: true,
 				Schema: map[string]*schema.Schema{
 					"aws": {
 						Type:        schema.TypeList,
@@ -98,6 +102,8 @@ func metakubeResourceClusterSpecFields() map[string]*schema.Schema {
 			MaxItems:    1,
 			Description: "Configuration of SysEleven Login over OpenID Connect to authenticate against this cluster",
 			Elem: &schema.Resource{
+				EnableLegacyTypeSystemApplyErrors: true,
+				EnableLegacyTypeSystemPlanErrors: true,
 				Schema: map[string]*schema.Schema{
 					"realm": {
 						Type:         schema.TypeString,
@@ -300,6 +306,8 @@ func metakubeResourceClusterOpenstackCloudSpecFields() map[string]*schema.Schema
 			Optional:      true,
 			ConflictsWith: []string{"spec.0.cloud.0.openstack.0.application_credentials"},
 			Elem: &schema.Resource{
+				EnableLegacyTypeSystemApplyErrors: true,
+				EnableLegacyTypeSystemPlanErrors: true,
 				Schema: metakubeResourceClusterOpenstackCloudSpecUserCredentialsFields(),
 			},
 		},
@@ -309,6 +317,8 @@ func metakubeResourceClusterOpenstackCloudSpecFields() map[string]*schema.Schema
 			Optional:      true,
 			ConflictsWith: []string{"spec.0.cloud.0.openstack.0.user_credentials"},
 			Elem: &schema.Resource{
+				EnableLegacyTypeSystemApplyErrors: true,
+				EnableLegacyTypeSystemPlanErrors: true,
 				Schema: metakubeResourceClusterOpenstackCloudSpecApplicationCredentialsFields(),
 			},
 		},
