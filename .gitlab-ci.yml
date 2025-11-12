@@ -3,6 +3,7 @@ image: golang:latest
 variables:
   # Please edit to your GitLab project
   REPO_NAME: github.com/syseleven/terraform-provider-metakube
+  TERRAFORM_VERSION: "1.13.5"
 
 # The problem is that to be able to use go get, one needs to put
 # the repository in the $GOPATH. For example if your domain
@@ -43,6 +44,11 @@ test:
   timeout: 3h
   script:
     - source test.env
+    - apt-get update && apt-get install -y unzip
+    - curl -fsSL https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip -o terraform.zip
+    - unzip terraform.zip
+    - chmod +x terraform
+    - export TF_ACC_TERRAFORM_PATH=$(pwd)/terraform
     - ./scripts/goimportscheck.sh
     - go vet $(go list ./... | grep -v /vendor/)
     - go test -race $(go list ./... | grep -v /vendor/)
