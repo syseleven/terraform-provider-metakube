@@ -75,6 +75,9 @@ func flattenCniPlugin(in *models.CNIPluginSettings) []interface{} {
 
 	m := make(map[string]interface{})
 	m["type"] = string(in.Type)
+	if in.Cilium != nil {
+		m["cilium_cni_exclusive"] = in.Cilium.CniExclusive
+	}
 
 	return []interface{}{m}
 }
@@ -434,6 +437,13 @@ func expandCniPlugin(p []interface{}) *models.CNIPluginSettings {
 	if v, ok := in["type"]; ok {
 		if vv, ok := v.(string); ok && vv != "" {
 			obj.Type = models.CNIPluginType(vv)
+		}
+	}
+	if v, ok := in["cilium_cni_exclusive"]; ok {
+		if vv, ok := v.(bool); ok && obj.Type == models.CNIPluginType("cilium") {
+			obj.Cilium = &models.CiliumCNISettings{
+				CniExclusive: vv,
+			}
 		}
 	}
 
