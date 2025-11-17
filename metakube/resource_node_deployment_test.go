@@ -351,6 +351,7 @@ func TestAccMetakubeNodeDeployment_AWS_Basic(t *testing.T) {
 	diskSize := os.Getenv(testEnvAWSDiskSize)
 	k8sVersion := os.Getenv(testEnvK8sVersionAWS)
 	osProject := os.Getenv(testEnvOpenstackProjectName)
+	ami := os.Getenv(testEnvAWSAMI)
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheckForAWS(t) },
@@ -358,7 +359,7 @@ func TestAccMetakubeNodeDeployment_AWS_Basic(t *testing.T) {
 		CheckDestroy: testAccCheckMetaKubeNodeDeploymentDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCheckMetaKubeNodeDeploymentAWSBasic(projectID, testName, osProject, accessKeyID, accessKeySecret, vpcID, nodeDC, instanceType, subnetID, availabilityZone, diskSize, k8sVersion, k8sVersion),
+				Config: testAccCheckMetaKubeNodeDeploymentAWSBasic(projectID, testName, osProject, accessKeyID, accessKeySecret, vpcID, nodeDC, instanceType, subnetID, availabilityZone, diskSize, k8sVersion, ami, k8sVersion),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeNodeDeploymentExists("metakube_node_deployment.acctest_nd", &nodedepl),
 					resource.TestCheckResourceAttr("metakube_node_deployment.acctest_nd", "spec.0.template.0.cloud.0.aws.0.instance_type", instanceType),
@@ -373,7 +374,7 @@ func TestAccMetakubeNodeDeployment_AWS_Basic(t *testing.T) {
 	})
 }
 
-func testAccCheckMetaKubeNodeDeploymentAWSBasic(projectID, n, billing, keyID, keySecret, vpcID, nodeDC, instanceType, subnetID, availabilityZone, diskSize, k8sVersion, kubeletVersion string) string {
+func testAccCheckMetaKubeNodeDeploymentAWSBasic(projectID, n, billing, keyID, keySecret, vpcID, nodeDC, instanceType, subnetID, availabilityZone, diskSize, k8sVersion, ami, kubeletVersion string) string {
 	return fmt.Sprintf(`
 	resource "metakube_cluster" "acctest_cluster" {
 		name = "%s"
@@ -406,6 +407,7 @@ func testAccCheckMetaKubeNodeDeploymentAWSBasic(projectID, n, billing, keyID, ke
 						subnet_id = "%s"
 						availability_zone = "%s"
 						assign_public_ip = true
+						ami = "%s"
 					}
 				}
 				operating_system {
@@ -418,7 +420,7 @@ func testAccCheckMetaKubeNodeDeploymentAWSBasic(projectID, n, billing, keyID, ke
 				}
 			}
 		}
-	}`, n, nodeDC, projectID, k8sVersion, billing, keyID, keySecret, vpcID, instanceType, diskSize, subnetID, availabilityZone, kubeletVersion)
+	}`, n, nodeDC, projectID, k8sVersion, billing, keyID, keySecret, vpcID, instanceType, diskSize, subnetID, availabilityZone, ami, kubeletVersion)
 }
 
 func testAccCheckMetaKubeNodeDeploymentExists(n string, rec *models.NodeDeployment) resource.TestCheckFunc {
@@ -463,7 +465,7 @@ func TestAccMetakubeNodeDeployment_ValidationAgainstCluster(t *testing.T) {
 	subnetID := os.Getenv(testEnvAWSSubnetID)
 	availabilityZone := os.Getenv(testEnvAWSAvailabilityZone)
 	diskSize := os.Getenv(testEnvAWSDiskSize)
-
+	ami := os.Getenv(testEnvAWSAMI)
 	unavailableVersion := "1.12.1"
 	bigVersion := "3.0.0"
 
@@ -475,10 +477,10 @@ func TestAccMetakubeNodeDeployment_ValidationAgainstCluster(t *testing.T) {
 		CheckDestroy: testAccCheckMetaKubeClusterDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCheckMetaKubeNodeDeploymentBasicValidation(testName, projectID, osProjectID, accessKeyID, accessKeySecret, vpcID, nodeDC, instanceType, subnetID, availabilityZone, diskSize, k8sVersion17, k8sVersion17),
+				Config: testAccCheckMetaKubeNodeDeploymentBasicValidation(testName, projectID, osProjectID, accessKeyID, accessKeySecret, vpcID, nodeDC, instanceType, subnetID, availabilityZone, ami, diskSize, k8sVersion17, k8sVersion17),
 			},
 			{
-				Config:      testAccCheckMetaKubeNodeDeploymentBasicValidation(testName, projectID, osProjectID, accessKeyID, accessKeySecret, vpcID, nodeDC, instanceType, subnetID, availabilityZone, diskSize, k8sVersion17, unavailableVersion),
+				Config:      testAccCheckMetaKubeNodeDeploymentBasicValidation(testName, projectID, osProjectID, accessKeyID, accessKeySecret, vpcID, nodeDC, instanceType, subnetID, availabilityZone, ami, diskSize, k8sVersion17, unavailableVersion),
 				ExpectError: regexp.MustCompile(fmt.Sprintf(`unknown version for node deployment %s, available versions`, unavailableVersion)),
 			},
 			{
@@ -486,14 +488,14 @@ func TestAccMetakubeNodeDeployment_ValidationAgainstCluster(t *testing.T) {
 				ExpectError: regexp.MustCompile(`provider for node deployment must \(.*\) match cluster provider \(.*\)`),
 			},
 			{
-				Config:      testAccCheckMetaKubeNodeDeploymentBasicValidation(testName, projectID, osProjectID, accessKeyID, accessKeySecret, vpcID, nodeDC, instanceType, subnetID, availabilityZone, diskSize, k8sVersion17, bigVersion),
+				Config:      testAccCheckMetaKubeNodeDeploymentBasicValidation(testName, projectID, osProjectID, accessKeyID, accessKeySecret, vpcID, nodeDC, instanceType, subnetID, availabilityZone, ami, diskSize, k8sVersion17, bigVersion),
 				ExpectError: regexp.MustCompile(`cannot be greater than cluster version`),
 			},
 		},
 	})
 }
 
-func testAccCheckMetaKubeNodeDeploymentBasicValidation(n, projectID, billing, keyID, keySecret, vpcID, nodeDC, instanceType, subnetID, availabilityZone, diskSize, k8sVersion, kubeletVersion string) string {
+func testAccCheckMetaKubeNodeDeploymentBasicValidation(n, projectID, billing, keyID, keySecret, vpcID, nodeDC, instanceType, subnetID, availabilityZone, ami, diskSize, k8sVersion, kubeletVersion string) string {
 	return fmt.Sprintf(`
 	resource "metakube_cluster" "acctest_cluster" {
 		name = "%s"
@@ -527,6 +529,7 @@ func testAccCheckMetaKubeNodeDeploymentBasicValidation(n, projectID, billing, ke
 						subnet_id = "%s"
 						availability_zone = "%s"
 						assign_public_ip = true
+						ami = "%s"
 					}
 				}
 				operating_system {
@@ -539,7 +542,7 @@ func testAccCheckMetaKubeNodeDeploymentBasicValidation(n, projectID, billing, ke
 				}
 			}
 		}
-	}`, n, nodeDC, projectID, k8sVersion, billing, keyID, keySecret, vpcID, n, instanceType, diskSize, subnetID, availabilityZone, kubeletVersion)
+	}`, n, nodeDC, projectID, k8sVersion, billing, keyID, keySecret, vpcID, n, instanceType, diskSize, subnetID, availabilityZone, ami, kubeletVersion)
 }
 
 func testAccCheckMetaKubeNodeDeploymentTypeValidation(n, projectID, billing, keyID, keySecret, vpcID, nodeDC, k8sVersion, kubeletVersion string) string {

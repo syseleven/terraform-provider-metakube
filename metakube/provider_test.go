@@ -52,6 +52,7 @@ const (
 	testEnvAWSSubnetID         = "METAKUBE_AWS_SUBNET_ID"
 	testEnvAWSAvailabilityZone = "METAKUBE_AWS_AVAILABILITY_ZONE"
 	testEnvAWSDiskSize         = "METAKUBE_AWS_DISK_SIZE"
+	testEnvAWSAMI              = "METAKUBE_AWS_AMI"
 )
 
 var (
@@ -105,6 +106,7 @@ func testAccPreCheckForAWS(t *testing.T) {
 	checkEnv(t, testEnvAWSNodeDC)
 	checkEnv(t, testEnvK8sOlderVersion)
 	checkEnv(t, testEnvProjectID)
+	checkEnv(t, testEnvAWSAMI)
 }
 
 func testAccPreCheck(t *testing.T) {
