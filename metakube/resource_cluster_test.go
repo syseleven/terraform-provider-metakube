@@ -70,6 +70,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 	data2.CNIPlugin = "canal"
 	data2.IPFamily = "IPv4"
 	data2.SyselevenAuth = true
+	data2.IAMAuthentication = true
 	data2.AuditLogging = true
 	data2.PodNodeSelector = true
 	if err := clusterOpenstackBasicTemplate.Execute(&config2, data2); err != nil {
@@ -152,6 +153,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.0.subnet_cidr", "192.168.2.0/24"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.syseleven_auth.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.syseleven_auth.0.realm", "syseleven"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.syseleven_auth.0.iam_authentication", "true"),
 					resource.TestCheckResourceAttrSet(resourceName, "kube_config"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.audit_logging", "true"),
 					resource.TestCheckResourceAttrSet(resourceName, "creation_timestamp"),
@@ -328,15 +330,16 @@ type clusterOpenstackBasicData struct {
 	OpenstackProjectID                    string
 	OpenstackRegion                       string
 
-	Name            string
-	DatacenterName  string
-	ProjectID       string
-	Version         string
-	CNIPlugin       string
-	IPFamily        string
-	SyselevenAuth   bool
-	AuditLogging    bool
-	PodNodeSelector bool
+	Name              string
+	DatacenterName    string
+	ProjectID         string
+	Version           string
+	CNIPlugin         string
+	IPFamily          string
+	SyselevenAuth     bool
+	AuditLogging      bool
+	PodNodeSelector   bool
+	IAMAuthentication bool
 }
 
 var clusterOpenstackBasicTemplate = mustParseTemplate("clusterOpenstackBasic", `
@@ -394,6 +397,7 @@ resource "metakube_cluster" "acctest_cluster" {
 		{{ if .SyselevenAuth }}
 		syseleven_auth {
 			realm = "syseleven"
+			iam_authentication = {{ .IAMAuthentication }}
 		}
 		{{ end }}
 
