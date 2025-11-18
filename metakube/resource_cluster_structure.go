@@ -26,11 +26,6 @@ func metakubeResourceClusterFlattenSpec(values clusterPreserveValues, in *models
 		att["enable_ssh_agent"] = *in.EnableUserSSHKeyAgent
 	}
 
-	if in.Sys11auth != nil {
-		if in.Sys11auth.IAMAuthentication != nil {
-			att["iam_authentication"] = in.Sys11auth.IAMAuthentication
-		}
-	}
 	att["audit_logging"] = false
 	if in.AuditLogging != nil {
 		att["audit_logging"] = in.AuditLogging.Enabled
@@ -108,13 +103,21 @@ func flattenClusterCloudSpec(values clusterPreserveValues, in *models.CloudSpec)
 }
 
 func flattenClusterSys11Auth(in *models.Sys11AuthSettings) []interface{} {
-	if in == nil || in.Realm == "" {
+	if in == nil || (in.Realm == "" && in.IAMAuthentication == nil) {
 		return nil
 	}
 
-	return []interface{}{map[string]interface{}{
-		"realm": in.Realm,
-	}}
+	att := make(map[string]interface{})
+
+	if in.Realm != "" {
+		att["realm"] = in.Realm
+	}
+
+	if in.IAMAuthentication != nil {
+		att["iam_authentication"] = *in.IAMAuthentication
+	}
+
+	return []interface{}{att}
 }
 
 func flattenAWSCloudSpec(in *models.AWSCloudSpec) []interface{} {
@@ -396,13 +399,6 @@ func metakubeResourceClusterExpandSpec(p []interface{}, dcName string, include f
 		obj.BillingTenant = obj.Cloud.Aws.OpenstackBillingTenant
 	}
 
-	if v, ok := in["iam_authentication"]; ok {
-		if vv, ok := v.(bool); ok {
-			obj.Sys11auth = &models.Sys11AuthSettings{}
-			obj.Sys11auth.IAMAuthentication = ptr.To(vv)
-		}
-	}
-
 	if v, ok := in["syseleven_auth"]; ok && include("syseleven_auth") {
 		if vv, ok := v.([]interface{}); ok {
 			obj.Sys11auth = expandClusterSys11Auth(vv)
@@ -495,8 +491,15 @@ func expandClusterSys11Auth(p []interface{}) *models.Sys11AuthSettings {
 	}
 	obj := &models.Sys11AuthSettings{}
 	in := p[0].(map[string]interface{})
-	if v := in["realm"].(string); v != "" {
-		obj.Realm = v
+
+	if v, ok := in["iam_authentication"].(bool); ok {
+		obj.IAMAuthentication = ptr.To(v)
+	}
+
+	if v, ok := in["realm"]; ok {
+		if vv, ok := v.(string); ok && vv != "" {
+			obj.Realm = vv
+		}
 	}
 
 	return obj
