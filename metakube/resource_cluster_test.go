@@ -76,6 +76,12 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 	if err := clusterOpenstackBasicTemplate.Execute(&config2, data2); err != nil {
 		t.Fatal(err)
 	}
+	var config3 strings.Builder
+	data3 := data2
+	data3.IAMAuthentication = false
+	if err := clusterOpenstackBasicTemplate.Execute(&config3, data3); err != nil {
+		t.Fatal(err)
+	}
 
 	t.Log("Generated randomname: ", data.Name)
 	resource.Test(t, resource.TestCase{
@@ -92,6 +98,11 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: config.String(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("metakube_cluster.acctest_cluster", plancheck.ResourceActionCreate),
+					},
+				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeClusterExists(&cluster),
 					testAccCheckMetaKubeClusterOpenstackAttributes(&cluster, data.Name, data.DatacenterName, data.Version, false),
@@ -161,13 +172,33 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 				),
 			},
 			{
+				Config: config3.String(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("metakube_cluster.acctest_cluster", plancheck.ResourceActionUpdate),
+					},
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testAccCheckMetaKubeClusterExists(&cluster),
+					testAccCheckMetaKubeClusterOpenstackAttributes(&cluster, data3.Name, data3.DatacenterName, data3.Version, true),
+					resource.TestCheckResourceAttr(resourceName, "name", data3.Name),
+					resource.TestCheckResourceAttr(resourceName, "spec.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.version", data3.Version),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.syseleven_auth.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.syseleven_auth.0.realm", "syseleven"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.syseleven_auth.0.iam_authentication", "false"),
+					resource.TestCheckResourceAttrSet(resourceName, "kube_config"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.audit_logging", "true"),
+				),
+			},
+			{
 				ResourceName:            resourceName,
 				ImportState:             true,
 				ImportStateVerify:       true,
 				ImportStateVerifyIgnore: []string{"spec.0.cloud.0.openstack.0.application_credentials", "kube_login_kube_config", "oidc_kube_config"},
 			},
 			{
-				Config:   config2.String(),
+				Config:   config3.String(),
 				PlanOnly: true,
 			},
 			// Test importing non-existent resource provides expected error.
