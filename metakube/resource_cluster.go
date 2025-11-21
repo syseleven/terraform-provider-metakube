@@ -846,7 +846,7 @@ func metakubeResourceClusterDelete(ctx context.Context, d *schema.ResourceData, 
 func getProject(meta *metakubeProviderMeta, id string) (*models.Project, error) {
 	ret, err := meta.client.Project.GetProject(project.NewGetProjectParams().WithProjectID(id), meta.auth)
 	if err != nil {
-		return nil, fmt.Errorf("%s", stringifyResponseError(err))
+		return nil, fmt.Errorf("%v", stringifyResponseError(err))
 	}
 	return ret.Payload, nil
 }

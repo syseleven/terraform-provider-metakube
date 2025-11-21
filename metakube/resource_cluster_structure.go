@@ -2,6 +2,7 @@ package metakube
 
 import (
 	"github.com/syseleven/go-metakube/models"
+	"k8s.io/utils/ptr"
 )
 
 // flatteners
@@ -102,13 +103,21 @@ func flattenClusterCloudSpec(values clusterPreserveValues, in *models.CloudSpec)
 }
 
 func flattenClusterSys11Auth(in *models.Sys11AuthSettings) []interface{} {
-	if in == nil || in.Realm == "" {
+	if in == nil || (in.Realm == "" && in.IAMAuthentication == nil) {
 		return nil
 	}
 
-	return []interface{}{map[string]interface{}{
-		"realm": in.Realm,
-	}}
+	att := make(map[string]interface{})
+
+	if in.Realm != "" {
+		att["realm"] = in.Realm
+	}
+
+	if in.IAMAuthentication != nil {
+		att["iam_authentication"] = *in.IAMAuthentication
+	}
+
+	return []interface{}{att}
 }
 
 func flattenAWSCloudSpec(in *models.AWSCloudSpec) []interface{} {
@@ -480,11 +489,20 @@ func expandClusterSys11Auth(p []interface{}) *models.Sys11AuthSettings {
 	if p[0] == nil {
 		return nil
 	}
+	obj := &models.Sys11AuthSettings{}
 	in := p[0].(map[string]interface{})
-	if v := in["realm"].(string); v != "" {
-		return &models.Sys11AuthSettings{Realm: v}
+
+	if v, ok := in["iam_authentication"].(bool); ok {
+		obj.IAMAuthentication = ptr.To(v)
 	}
-	return nil
+
+	if v, ok := in["realm"]; ok {
+		if vv, ok := v.(string); ok && vv != "" {
+			obj.Realm = vv
+		}
+	}
+
+	return obj
 }
 
 func expandAWSCloudSpec(p []interface{}, include func(string) bool) *models.AWSCloudSpec {

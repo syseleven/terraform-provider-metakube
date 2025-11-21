@@ -104,7 +104,7 @@ func main() {
 
 	failed, err := run(os.Stdout, rootDir)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, err.Error()+"\n")
+		fmt.Fprintf(os.Stderr, "%v", err.Error()+"\n")
 		os.Exit(1)
 	}
 	if failed {
