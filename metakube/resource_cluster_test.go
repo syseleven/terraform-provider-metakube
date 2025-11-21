@@ -70,6 +70,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 	data2.CNIPlugin = "canal"
 	data2.IPFamily = "IPv4"
 	data2.SyselevenAuth = true
+	data2.IAMAuthentication = true
 	data2.AuditLogging = true
 	data2.PodNodeSelector = true
 	if err := clusterOpenstackBasicTemplate.Execute(&config2, data2); err != nil {
@@ -91,6 +92,11 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: config.String(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("metakube_cluster.acctest_cluster", plancheck.ResourceActionCreate),
+					},
+				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeClusterExists(&cluster),
 					testAccCheckMetaKubeClusterOpenstackAttributes(&cluster, data.Name, data.DatacenterName, data.Version, false),
@@ -131,9 +137,13 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeClusterExists(&cluster),
 					testAccCheckMetaKubeClusterOpenstackAttributes(&cluster, data2.Name, data2.DatacenterName, data2.Version, true),
-					resource.TestCheckResourceAttr(resourceName, "name", data2.Name),
+					resource.TestCheckResourceAttr(resourceName, "dc_name", data.DatacenterName),
+					resource.TestCheckResourceAttr(resourceName, "name", data.Name),
+					resource.TestCheckResourceAttr(resourceName, "labels.%", "2"),
+					resource.TestCheckResourceAttr(resourceName, "labels.a", "b"),
+					resource.TestCheckResourceAttr(resourceName, "labels.c", "d"),
 					resource.TestCheckResourceAttr(resourceName, "spec.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.version", data2.Version),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.version", data.Version),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.update_window.0.start", "Tue 02:00"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.update_window.0.length", "2h"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.services_cidr", "10.240.16.0/18"),
@@ -141,22 +151,30 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.0.type", "canal"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.ip_family", "IPv4"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.pod_node_selector", "true"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.aws.#", "0"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.0.floating_ip_pool", "ext-net"),
 					resource.TestCheckResourceAttrSet(resourceName, "spec.0.cloud.0.openstack.0.security_group"),
 					resource.TestCheckResourceAttrSet(resourceName, "spec.0.cloud.0.openstack.0.network"),
 					resource.TestCheckResourceAttrSet(resourceName, "spec.0.cloud.0.openstack.0.subnet_id"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.0.subnet_cidr", "192.168.2.0/24"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.syseleven_auth.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.syseleven_auth.0.realm", "syseleven"),
 					resource.TestCheckResourceAttrSet(resourceName, "kube_config"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.audit_logging", "true"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.pod_node_selector", "true"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.syseleven_auth.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.syseleven_auth.0.realm", "syseleven"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.syseleven_auth.0.iam_authentication", "true"),
 					resource.TestCheckResourceAttrSet(resourceName, "creation_timestamp"),
 					resource.TestCheckResourceAttrSet(resourceName, "deletion_timestamp"),
 				),
+			},
+			{
+				Config: config2.String(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("metakube_cluster.acctest_cluster", plancheck.ResourceActionNoop),
+					},
+				},
 			},
 			{
 				ResourceName:            resourceName,
@@ -328,15 +346,16 @@ type clusterOpenstackBasicData struct {
 	OpenstackProjectID                    string
 	OpenstackRegion                       string
 
-	Name            string
-	DatacenterName  string
-	ProjectID       string
-	Version         string
-	CNIPlugin       string
-	IPFamily        string
-	SyselevenAuth   bool
-	AuditLogging    bool
-	PodNodeSelector bool
+	Name              string
+	DatacenterName    string
+	ProjectID         string
+	Version           string
+	CNIPlugin         string
+	IPFamily          string
+	SyselevenAuth     bool
+	AuditLogging      bool
+	PodNodeSelector   bool
+	IAMAuthentication bool
 }
 
 var clusterOpenstackBasicTemplate = mustParseTemplate("clusterOpenstackBasic", `
@@ -394,6 +413,7 @@ resource "metakube_cluster" "acctest_cluster" {
 		{{ if .SyselevenAuth }}
 		syseleven_auth {
 			realm = "syseleven"
+			iam_authentication = {{ .IAMAuthentication }}
 		}
 		{{ end }}
 

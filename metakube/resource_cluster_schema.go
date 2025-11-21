@@ -107,9 +107,20 @@ func metakubeResourceClusterSpecFields() map[string]*schema.Schema {
 				Schema: map[string]*schema.Schema{
 					"realm": {
 						Type:         schema.TypeString,
-						Required:     true,
+						Optional:     true,
 						ValidateFunc: validation.NoZeroValues,
 						Description:  "Realm name",
+					},
+					"iam_authentication": {
+						Type:     schema.TypeBool,
+						Optional: true,
+						Default:  false,
+						DiffSuppressFunc: func(k, oldValue, newValue string, d *schema.ResourceData) bool {
+							// if the value is set in the state and unset in the config, the update will not change it
+							// => suppress the diff
+							return oldValue != "" && newValue == ""
+						},
+						Description: "Enable Authentication against Syseleven IAM system",
 					},
 				},
 			},
