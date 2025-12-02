@@ -55,7 +55,6 @@ func (d *metakubeSSHKeyDataSource) Read(ctx context.Context, req datasource.Read
 		return
 	}
 
-
 	prj := data.ProjectID.ValueString()
 	prms := project.NewListSSHKeysParams().WithContext(ctx).WithProjectID(prj)
 	res, err := d.meta.Client.Project.ListSSHKeys(prms, d.meta.Auth)
