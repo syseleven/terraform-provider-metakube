@@ -31,7 +31,7 @@ reset:
 	terraform init
 
 test: goimportscheck
-	go test ./$(PKG_NAME)
+	go test ./$(PKG_NAME)/...
 
 testacc:
 # Require following environment variables to be set:
