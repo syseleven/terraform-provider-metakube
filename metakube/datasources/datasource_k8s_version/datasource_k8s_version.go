@@ -22,7 +22,7 @@ func NewK8sClusterVersionDataSource() datasource.DataSource {
 }
 
 type metakubeK8sClusterVersionDataSource struct {
-	meta common.MetaKubeProviderMeta
+	meta *common.MetaKubeProviderMeta
 }
 
 func (d *metakubeK8sClusterVersionDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -30,7 +30,24 @@ func (d *metakubeK8sClusterVersionDataSource) Metadata(ctx context.Context, req 
 }
 
 func (d *metakubeK8sClusterVersionDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
-	resp.Schema = DataSourceK8sVersionSchema(ctx)
+	resp.Schema = DataSourceK8sVersionSchema()
+}
+
+func (d *metakubeK8sClusterVersionDataSource) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+
+	meta, ok := req.ProviderData.(*common.MetaKubeProviderMeta)
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Unexpected Provider Data Type",
+			fmt.Sprintf("Expected *common.MetaKubeProviderMeta, got: %T", req.ProviderData),
+		)
+		return
+	}
+
+	d.meta = meta
 }
 
 func (d *metakubeK8sClusterVersionDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
