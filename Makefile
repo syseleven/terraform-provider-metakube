@@ -67,7 +67,7 @@ testacc:
 # METAKUBE_AWS_DISK_SIZE
 # METAKUBE_AWS_AMI
 	go clean -testcache
-	TF_ACC=1 go test ./$(PKG_NAME) -v -timeout 120m -parallel 10 $(TESTARGS)
+	TF_ACC=1 go test ./$(PKG_NAME)/... -v -timeout 120m -parallel 10 $(TESTARGS)
 
 sweep:
 	@echo "WARNING: This will destroy infrastructure. Use only in development accounts."
