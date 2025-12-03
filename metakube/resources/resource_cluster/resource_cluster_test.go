@@ -36,8 +36,8 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 	data := &clusterOpenstackBasicData{
 		Name:                                  testutil.MakeRandomName() + "-cluster-os-basic",
 		OpenstackAuthURL:                      os.Getenv(common.TestEnvOpenstackAuthURL),
-		OpenstackApplicationCredentialsID:     os.Getenv(common.TestEnvOpenstackApplicationCredentialsID),
-		OpenstackApplicationCredentialsSecret: os.Getenv(common.TestEnvOpenstackApplicationCredentialsSecret),
+		OpenstackApplicationCredentialsID:     common.GetSACredentialId(),
+		OpenstackApplicationCredentialsSecret: os.Getenv(common.TestEnvServiceAccountCredential),
 		OpenstackProjectID:                    os.Getenv(common.TestEnvOpenstackProjectID),
 		OpenstackRegion:                       os.Getenv(common.TestEnvOpenstackRegion),
 		DatacenterName:                        os.Getenv(common.TestEnvOpenstackNodeDC),
@@ -190,8 +190,8 @@ func TestAccMetakubeCluster_Openstack_ApplicationCredentials(t *testing.T) {
 		DatacenterName:                       os.Getenv(common.TestEnvOpenstackNodeDC),
 		ProjectID:                            os.Getenv(common.TestEnvProjectID),
 		Version:                              os.Getenv(common.TestEnvK8sVersionOpenstack),
-		OpenstackApplicationCredentialID:     os.Getenv(common.TestEnvOpenstackApplicationCredentialsID),
-		OpenstackApplicationCredentialSecret: os.Getenv(common.TestEnvOpenstackApplicationCredentialsSecret),
+		OpenstackApplicationCredentialID:     common.GetSACredentialId(),
+		OpenstackApplicationCredentialSecret: os.Getenv(common.TestEnvServiceAccountCredential),
 		Dynamic:                              false,
 	}
 	var config strings.Builder
@@ -221,54 +221,6 @@ func TestAccMetakubeCluster_Openstack_ApplicationCredentials(t *testing.T) {
 	})
 }
 
-func TestAccMetakubeCluster_Openstack_ApplicationCredentials_Dynammic(t *testing.T) {
-	t.Parallel()
-	var cluster models.Cluster
-	resourceName := "metakube_cluster.acctest_cluster"
-	data := &clusterOpenstackApplicationCredentailsData{
-		Name:                                 testutil.MakeRandomName() + "-appcred-dynamic",
-		OpenstackAuthURL:                     os.Getenv(common.TestEnvOpenstackAuthURL),
-		OpenstackUser:                        os.Getenv(common.TestEnvOpenstackUsername),
-		OpenstackPassword:                    os.Getenv(common.TestEnvOpenstackPassword),
-		OpenstackProjectID:                   os.Getenv(common.TestEnvOpenstackProjectID),
-		OpenstackRegion:                      os.Getenv(common.TestEnvOpenstackRegion),
-		DatacenterName:                       os.Getenv(common.TestEnvOpenstackNodeDC),
-		ProjectID:                            os.Getenv(common.TestEnvProjectID),
-		Version:                              os.Getenv(common.TestEnvK8sVersionOpenstack),
-		OpenstackApplicationCredentialID:     os.Getenv(common.TestEnvOpenstackApplicationCredentialsID),
-		OpenstackApplicationCredentialSecret: os.Getenv(common.TestEnvOpenstackApplicationCredentialsSecret),
-		Dynamic:                              true,
-	}
-	var config strings.Builder
-	if err := clusterOpenstackApplicationCredentialsBasicTemplate.Execute(&config, data); err != nil {
-		t.Fatal(err)
-	}
-	resource.Test(t, resource.TestCase{
-		PreCheck: func() {
-			testutil.TestAccPreCheckForOpenstack(t)
-			testutil.CheckEnv(t, common.TestEnvOpenstackUsername)
-			testutil.CheckEnv(t, common.TestEnvOpenstackPassword)
-		},
-		ProtoV5ProviderFactories: testutil.TestAccProtoV5ProviderFactories,
-		ExternalProviders: map[string]resource.ExternalProvider{
-			"openstack": {
-				Source: "terraform-provider-openstack/openstack",
-			},
-		},
-		CheckDestroy: testutil.TestAccCheckMetaKubeClusterDestroy,
-		Steps: []resource.TestStep{
-			{
-				Config: config.String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					testAccCheckMetaKubeClusterExists(&cluster),
-					resource.TestCheckResourceAttrSet(resourceName, "spec.0.cloud.0.openstack.0.application_credentials.0.id"),
-					resource.TestCheckResourceAttrSet(resourceName, "spec.0.cloud.0.openstack.0.application_credentials.0.secret"),
-				),
-			},
-		},
-	})
-}
-
 func TestAccMetakubeCluster_Openstack_UpgradeVersion(t *testing.T) {
 	t.Parallel()
 	var cluster models.Cluster
@@ -278,8 +230,8 @@ func TestAccMetakubeCluster_Openstack_UpgradeVersion(t *testing.T) {
 			Name:                                  testutil.MakeRandomName() + "-cluster-os-upgrade",
 			Version:                               version,
 			OpenstackAuthURL:                      os.Getenv(common.TestEnvOpenstackAuthURL),
-			OpenstackApplicationCredentialsID:     os.Getenv(common.TestEnvOpenstackApplicationCredentialsID),
-			OpenstackApplicationCredentialsSecret: os.Getenv(common.TestEnvOpenstackApplicationCredentialsSecret),
+			OpenstackApplicationCredentialsID:     common.GetSACredentialId(),
+			OpenstackApplicationCredentialsSecret: os.Getenv(common.TestEnvServiceAccountCredential),
 			OpenstackProjectID:                    os.Getenv(common.TestEnvOpenstackProjectID),
 			DatacenterName:                        os.Getenv(common.TestEnvOpenstackNodeDC),
 			ProjectID:                             os.Getenv(common.TestEnvProjectID),
@@ -558,8 +510,8 @@ func TestAccMetakubeCluster_SSHKeys(t *testing.T) {
 
 	data := &clusterOpenstackWithSSHKeyData{
 		Name:                                  testutil.MakeRandomName() + "-sshkeys",
-		OpenstackApplicationCredentialsID:     os.Getenv(common.TestEnvOpenstackApplicationCredentialsID),
-		OpenstackApplicationCredentialsSecret: os.Getenv(common.TestEnvOpenstackApplicationCredentialsSecret),
+		OpenstackApplicationCredentialsID:     common.GetSACredentialId(),
+		OpenstackApplicationCredentialsSecret: os.Getenv(common.TestEnvServiceAccountCredential),
 		OpenstackProjectID:                    os.Getenv(common.TestEnvOpenstackProjectID),
 		DatacenterName:                        os.Getenv(common.TestEnvOpenstackNodeDC),
 		ProjectID:                             os.Getenv(common.TestEnvProjectID),

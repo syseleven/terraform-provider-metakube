@@ -35,8 +35,8 @@ func TestAccMetakubeCluster_MaintenanceCronJob_Basic(t *testing.T) {
 		DatacenterName:                       os.Getenv(common.TestEnvOpenstackNodeDC),
 		ProjectID:                            os.Getenv(common.TestEnvProjectID),
 		Version:                              os.Getenv(common.TestEnvK8sVersionOpenstack),
-		OpenstackApplicationCredentialID:     os.Getenv(common.TestEnvOpenstackApplicationCredentialsID),
-		OpenstackApplicationCredentialSecret: os.Getenv(common.TestEnvOpenstackApplicationCredentialsSecret),
+		OpenstackApplicationCredentialID:     common.GetSACredentialId(),
+		OpenstackApplicationCredentialSecret: os.Getenv(common.TestEnvServiceAccountCredential),
 
 		MaintenanceCronJobName:     testutil.RandomName("test-maintenancecronjob", 5),
 		MaintenanceJobTemplateName: testutil.RandomName("test-maintenancecronjob-template", 5),

@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"net/http"
 	"os"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
@@ -68,13 +69,24 @@ func TestAccPreCheck(t *testing.T) {
 	CheckEnv(t, "METAKUBE_TOKEN")
 }
 
+func TestCredentialId(t *testing.T) {
+	id := common.GetSACredentialId()
+	matched, err := regexp.MatchString(`s11auth:\w`, id)
+	if err != nil {
+		t.Fatalf("error %v: credential ID could not be matched", err)
+	}
+	if !matched {
+		t.Fatalf("credential ID '%s' did not match service account format 's11auth:<projectId>'", id)
+	}
+}
+
 func TestAccPreCheckForOpenstack(t *testing.T) {
 	t.Helper()
 	TestAccPreCheck(t)
+	TestCredentialId(t)
 	CheckEnv(t, common.TestEnvK8sVersionOpenstack)
-	CheckEnv(t, common.TestEnvOpenstackApplicationCredentialsID)
-	CheckEnv(t, common.TestEnvOpenstackApplicationCredentialsSecret)
 	CheckEnv(t, common.TestEnvOpenstackProjectID)
+	CheckEnv(t, common.TestEnvServiceAccountCredential)
 	CheckEnv(t, common.TestEnvOpenstackProjectName)
 	CheckEnv(t, common.TestEnvOpenstackRegion)
 	CheckEnv(t, common.TestEnvOpenstackNodeDC)
@@ -105,7 +117,7 @@ func GetTestClient() (*common.MetaKubeProviderMeta, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create client: %v", err)
 	}
-	token := os.Getenv("METAKUBE_TOKEN")
+	token := common.TestEnvServiceAccountCredential
 	auth, authErr := common.NewAuth(token, "", "")
 	if authErr != nil {
 		return nil, fmt.Errorf("auth api: %v", authErr)

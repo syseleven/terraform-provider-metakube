@@ -1,29 +1,26 @@
 package common
 
+import "os"
+
 const (
 	TestNamePrefix = "tf-acc-test-"
-
-	TestEnvOtherUserEmail = "METAKUBE_ANOTHER_USER_EMAIL"
 
 	TestEnvK8sVersionOpenstack = "METAKUBE_K8S_VERSION_OS"
 	TestEnvK8sVersionAWS       = "METAKUBE_K8S_VERSION_AWS"
 	TestEnvK8sOlderVersion     = "METAKUBE_K8S_OLDER_VERSION"
 
-	TestEnvProjectID   = "METAKUBE_PROJECT_ID"
-	TestEnvProjectName = "METAKUBE_PROJECT_NAME"
+	TestEnvProjectID                = "METAKUBE_NCS_PROJECT_ID"
+	TestEnvProjectName              = "METAKUBE_NCS_PROJECT_NAME"
+	TestEnvServiceAccountCredential = "METAKUBE_SERVICE_ACCOUNT_CREDENTIAL"
 
-	TestEnvOpenstackNodeDC                       = "METAKUBE_OPENSTACK_NODE_DC"
-	TestEnvOpenstackApplicationCredentialsID     = "METAKUBE_OPENSTACK_APPLICATION_CREDENTIALS_ID"
-	TestEnvOpenstackApplicationCredentialsSecret = "METAKUBE_OPENSTACK_APPLICATION_CREDENTIALS_SECRET"
-	TestEnvOpenstackUsername                     = "METAKUBE_OPENSTACK_USERNAME"
-	TestEnvOpenstackAuthURL                      = "METAKUBE_OPENSTACK_AUTH_URL"
-	TestEnvOpenstackPassword                     = "METAKUBE_OPENSTACK_PASSWORD"
-	TestEnvOpenstackProjectID                    = "METAKUBE_OPENSTACK_PROJECT_ID"
-	TestEnvOpenstackProjectName                  = "METAKUBE_OPENSTACK_PROJECT_NAME"
-	TestEnvOpenstackRegion                       = "METAKUBE_OPENSTACK_REGION"
-	TestEnvOpenstackImage                        = "METAKUBE_OPENSTACK_IMAGE"
-	TestEnvOpenstackImage2                       = "METAKUBE_OPENSTACK_IMAGE2"
-	TestEnvOpenstackFlavor                       = "METAKUBE_OPENSTACK_FLAVOR"
+	TestEnvOpenstackAuthURL     = "METAKUBE_OPENSTACK_AUTH_URL"
+	TestEnvOpenstackProjectID   = "METAKUBE_OPENSTACK_PROJECT_ID"
+	TestEnvOpenstackProjectName = "METAKUBE_OPENSTACK_PROJECT_NAME"
+	TestEnvOpenstackNodeDC      = "METAKUBE_NCS_OPENSTACK_NODE_DC"
+	TestEnvOpenstackRegion      = "METAKUBE_NCS_OPENSTACK_REGION"
+	TestEnvOpenstackImage       = "METAKUBE_OPENSTACK_IMAGE"
+	TestEnvOpenstackImage2      = "METAKUBE_OPENSTACK_IMAGE2"
+	TestEnvOpenstackFlavor      = "METAKUBE_OPENSTACK_FLAVOR"
 
 	TestEnvAWSAccessKeyID      = "METAKUBE_AWS_ACCESS_KEY_ID"
 	TestAWSSecretAccessKey     = "METAKUBE_AWS_ACCESS_KEY_SECRET"
@@ -35,3 +32,8 @@ const (
 	TestEnvAWSDiskSize         = "METAKUBE_AWS_DISK_SIZE"
 	TestEnvAWSAMI              = "METAKUBE_AWS_AMI"
 )
+
+// GetSaCredentialId returns the credential ID for service accounts
+func GetSACredentialId() string {
+	return "s11auth:" + os.Getenv(TestEnvProjectID)
+}
