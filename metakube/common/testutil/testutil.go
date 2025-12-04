@@ -104,12 +104,15 @@ func GetTestClient() (*common.MetaKubeProviderMeta, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create client: %v", err)
 	}
-	token := common.TestEnvServiceAccountCredential
+
+	token := os.Getenv(common.TestEnvServiceAccountCredential)
 	auth, authErr := common.NewAuth(token, "", "")
 	if authErr != nil {
 		return nil, fmt.Errorf("auth api: %v", authErr)
 	}
+
 	log := zap.NewNop().Sugar()
+
 	return &common.MetaKubeProviderMeta{
 		Client: client,
 		Auth:   auth,
