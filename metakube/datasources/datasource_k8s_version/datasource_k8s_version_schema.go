@@ -1,12 +1,14 @@
 package datasource_k8s_version
 
 import (
-	"context"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func DataSourceK8sVersionSchema(ctx context.Context) schema.Schema {
+func DataSourceK8sVersionSchema() schema.Schema {
 	return schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"major": schema.StringAttribute{
@@ -16,6 +18,9 @@ func DataSourceK8sVersionSchema(ctx context.Context) schema.Schema {
 			"minor": schema.StringAttribute{
 				Optional:    true,
 				Description: "Kubernetes cluster minor version",
+				Validators: []validator.String{
+					stringvalidator.AlsoRequires(path.MatchRoot("major")),
+				},
 			},
 			"version": schema.StringAttribute{
 				Computed:    true,
