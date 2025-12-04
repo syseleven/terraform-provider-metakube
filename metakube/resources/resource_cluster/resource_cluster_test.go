@@ -50,7 +50,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 	}
 	var config2 strings.Builder
 	data2 := *data
-	data2.CNIPlugin = "canal"
+	data2.CNIPlugin = "cilium"
 	data2.IPFamily = "IPv4"
 	data2.SyselevenAuth = true
 	data2.IAMAuthentication = true
@@ -95,7 +95,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "spec.0.services_cidr", "10.240.16.0/18"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.pods_cidr", "172.25.0.0/18"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.0.type", "canal"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.0.type", "cilium"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.ip_family", "IPv4"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.aws.#", "0"),
@@ -192,7 +192,6 @@ func TestAccMetakubeCluster_Openstack_ApplicationCredentials(t *testing.T) {
 		Version:                              os.Getenv(common.TestEnvK8sVersionOpenstack),
 		OpenstackApplicationCredentialID:     common.GetSACredentialId(),
 		OpenstackApplicationCredentialSecret: os.Getenv(common.TestEnvServiceAccountCredential),
-		Dynamic:                              false,
 	}
 	var config strings.Builder
 	if err := clusterOpenstackApplicationCredentialsBasicTemplate.Execute(&config, data); err != nil {
@@ -403,7 +402,6 @@ type clusterOpenstackApplicationCredentailsData struct {
 	Version                              string
 	OpenstackApplicationCredentialID     string
 	OpenstackApplicationCredentialSecret string
-	Dynamic                              bool
 }
 
 var clusterOpenstackApplicationCredentialsBasicTemplate = testutil.MustParseTemplate("clusterOpenstackApplicationCredentials", `
