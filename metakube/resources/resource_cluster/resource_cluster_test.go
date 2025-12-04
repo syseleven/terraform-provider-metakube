@@ -413,20 +413,6 @@ terraform {
 	}
 }
 
-{{ if .Dynamic }}
-provider "openstack" {
-	auth_url = "{{ .OpenstackAuthURL }}"
-	user_name = "{{ .OpenstackUser }}"
-	password = "{{ .OpenstackPassword }}"
-	tenant_id = "{{ .OpenstackProjectID }}"
-	region = "{{ .OpenstackRegion }}"
-}
-
-resource "openstack_identity_application_credential_v3" "app_credential" {
-	name        = "{{ .Name }}"
-}
-{{ end }}
-
 resource "metakube_cluster" "acctest_cluster" {
 	name = "{{ .Name }}"
 	dc_name = "{{ .DatacenterName }}"
@@ -446,13 +432,8 @@ resource "metakube_cluster" "acctest_cluster" {
 		cloud {
 			openstack {
 				application_credentials {
-{{ if .Dynamic }}
-					id=openstack_identity_application_credential_v3.app_credential.id
-					secret=openstack_identity_application_credential_v3.app_credential.secret
-{{ else }}
 					id="{{ .OpenstackApplicationCredentialID }}"
 					secret="{{ .OpenstackApplicationCredentialSecret }}"
-{{ end }}
 				}
 			}
 		}
