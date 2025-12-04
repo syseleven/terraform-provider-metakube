@@ -28,7 +28,6 @@ env:
   - apt-get install jq curl -y
   - touch test.env
   - echo export METAKUBE_K8S_VERSION_OS=$(./scripts/get_versions.sh openstack|jq '.[] | select(.default == true) | .version') >> test.env
-  - echo export METAKUBE_K8S_VERSION_AWS=$(./scripts/get_versions.sh aws| jq 'map(select(.default == null)) | last | .version') >> test.env
   - echo export METAKUBE_K8S_OLDER_VERSION=$(./scripts/get_versions.sh openstack| jq 'map(select(.default == null)) | last | .version') >> test.env
   - echo export METAKUBE_OPENSTACK_IMAGE="24.04" >> test.env
   - echo export METAKUBE_OPENSTACK_IMAGE2="22.04" >> test.env

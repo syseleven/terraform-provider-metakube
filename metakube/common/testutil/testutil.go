@@ -98,19 +98,6 @@ func TestAccPreCheckForOpenstack(t *testing.T) {
 	CheckEnv(t, common.TestEnvProjectID)
 }
 
-func TestAccPreCheckForAWS(t *testing.T) {
-	t.Helper()
-	TestAccPreCheck(t)
-	CheckEnv(t, common.TestEnvAWSAccessKeyID)
-	CheckEnv(t, common.TestEnvK8sVersionAWS)
-	CheckEnv(t, common.TestAWSSecretAccessKey)
-	CheckEnv(t, common.TestEnvAWSVPCID)
-	CheckEnv(t, common.TestEnvAWSNodeDC)
-	CheckEnv(t, common.TestEnvK8sOlderVersion)
-	CheckEnv(t, common.TestEnvProjectID)
-	CheckEnv(t, common.TestEnvAWSAMI)
-}
-
 func GetTestClient() (*common.MetaKubeProviderMeta, error) {
 	host := os.Getenv("METAKUBE_HOST")
 	client, err := common.NewClient(host)
