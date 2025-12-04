@@ -114,53 +114,12 @@ func testAccCheckMetaKubeMaintenanceCronJobBasicConfig(t *testing.T, params *tes
 	resource "metakube_maintenance_cron_job" "acctest" {
 		cluster_id = metakube_cluster.acctest.id
 		name = "{{ .MaintenanceCronJobName }}"
+		project_id = "{{ .ProjectID }}"
 
 		spec {
 			schedule		= "{{ .Schedule }}"
 			maintenance_job_template {
 				rollback 	= false
-				type		= "{{ .MaintenanceJobType }}"
-			}
-		}
-	}
-`).Execute(&result, params)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return result.String()
-}
-
-func testAccCheckMetaKubeMaintenanceCronJobBasicSecondConfig(t *testing.T, params *testAccCheckMetaKubeMaintenanceCronJobBasicParams) string {
-	t.Helper()
-
-	var result strings.Builder
-	err := testutil.MustParseTemplate("metakube maintenance cron job test template", `
-	resource "metakube_cluster" "acctest" {
-		name = "{{ .ClusterName }}"
-		dc_name = "{{ .DatacenterName }}"
-		project_id = "{{ .ProjectID }}"
-	
-		spec {
-			version = "{{ .Version }}"
-			cloud {
-				openstack {
-					application_credentials {
-						id = "{{ .OpenstackApplicationCredentialID }}"
-						secret ="{{ .OpenstackApplicationCredentialSecret }}"
-					}
-				}
-			}
-		}
-	}
-
-	resource "metakube_maintenance_cron_job" "acctest" {
-		cluster_id = metakube_cluster.acctest.id
-		name = "{{ .MaintenanceCronJobName }}"
-
-		spec {
-			schedule		= "{{ .Schedule }}"
-			maintenance_job_template {
-				rollback 	= true
 				type		= "{{ .MaintenanceJobType }}"
 			}
 		}
