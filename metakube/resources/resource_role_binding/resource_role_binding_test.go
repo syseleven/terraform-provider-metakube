@@ -32,8 +32,8 @@ func TestAccMetakubeRoleBinding(t *testing.T) {
 		DatacenterName:                       os.Getenv(common.TestEnvOpenstackNodeDC),
 		ProjectID:                            os.Getenv(common.TestEnvProjectID),
 		Version:                              os.Getenv(common.TestEnvK8sVersionOpenstack),
-		OpenstackApplicationCredentialID:     os.Getenv(common.TestEnvOpenstackApplicationCredentialsID),
-		OpenstackApplicationCredentialSecret: os.Getenv(common.TestEnvOpenstackApplicationCredentialsSecret),
+		OpenstackApplicationCredentialID:     common.GetSACredentialId(),
+		OpenstackApplicationCredentialSecret: os.Getenv(common.TestEnvServiceAccountCredential),
 
 		Namespace:        "kube-system",
 		RoleName:         "namespace-viewer",
