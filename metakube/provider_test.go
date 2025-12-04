@@ -91,7 +91,7 @@ func testSweepSSHKeys(region string) error {
 	return nil
 }
 
-func SharedConfigForRegion(region string) (*common.MetaKubeProviderMeta, error) {
+func SharedConfigForRegion(_ string) (*common.MetaKubeProviderMeta, error) {
 	host := os.Getenv("METAKUBE_HOST")
 	client, err := common.NewClient(host)
 	if err != nil {
@@ -99,9 +99,6 @@ func SharedConfigForRegion(region string) (*common.MetaKubeProviderMeta, error) 
 	}
 
 	token := os.Getenv("METAKUBE_TOKEN")
-	if regionStringIsNCS(region) {
-		token = os.Getenv(common.TestEnvServiceAccountCredential)
-	}
 	auth, errr := common.NewAuth(token, "", "")
 	if errr != nil {
 		return nil, fmt.Errorf("auth api %v", common.ToFrameworkDiagnostics(errr))
@@ -112,13 +109,4 @@ func SharedConfigForRegion(region string) (*common.MetaKubeProviderMeta, error) 
 		Auth:   auth,
 		Log:    log,
 	}, nil
-}
-
-func regionStringIsNCS(region string) bool {
-	for _, prefix := range []string{"aws", "dbl", "cbk", "fes", "ybk", "zbk"} {
-		if strings.Contains(region, prefix) {
-			return false
-		}
-	}
-	return true
 }
