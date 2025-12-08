@@ -37,7 +37,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 		OpenstackAuthURL:                      os.Getenv(common.TestEnvOpenstackAuthURL),
 		OpenstackApplicationCredentialsID:     common.GetSACredentialId(),
 		OpenstackApplicationCredentialsSecret: os.Getenv(common.TestEnvServiceAccountCredential),
-		OpenstackProjectID:                    os.Getenv(common.TestEnvOpenstackProjectID),
+		OpenstackProjectID:                    os.Getenv(common.TestEnvProjectID),
 		OpenstackRegion:                       os.Getenv(common.TestEnvOpenstackRegion),
 		DatacenterName:                        os.Getenv(common.TestEnvOpenstackNodeDC),
 		ProjectID:                             os.Getenv(common.TestEnvProjectID),

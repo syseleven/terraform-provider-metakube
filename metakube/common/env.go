@@ -12,7 +12,6 @@ const (
 	TestEnvServiceAccountCredential = "METAKUBE_SERVICE_ACCOUNT_CREDENTIAL"
 
 	TestEnvOpenstackAuthURL     = "METAKUBE_OPENSTACK_AUTH_URL"
-	TestEnvOpenstackProjectID   = "METAKUBE_OPENSTACK_PROJECT_ID"
 	TestEnvOpenstackProjectName = "METAKUBE_OPENSTACK_PROJECT_NAME"
 	TestEnvOpenstackNodeDC      = "METAKUBE_NCS_OPENSTACK_NODE_DC"
 	TestEnvOpenstackRegion      = "METAKUBE_NCS_OPENSTACK_REGION"

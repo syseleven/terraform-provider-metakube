@@ -85,7 +85,6 @@ func TestAccPreCheckForOpenstack(t *testing.T) {
 	TestAccPreCheck(t)
 	TestCredentialId(t)
 	CheckEnv(t, common.TestEnvK8sVersionOpenstack)
-	CheckEnv(t, common.TestEnvOpenstackProjectID)
 	CheckEnv(t, common.TestEnvServiceAccountCredential)
 	CheckEnv(t, common.TestEnvOpenstackProjectName)
 	CheckEnv(t, common.TestEnvOpenstackRegion)
