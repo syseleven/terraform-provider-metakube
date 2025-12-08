@@ -220,6 +220,7 @@ var nodeDeploymentBasicTemplate = testutil.MustParseTemplate("nodeDeploymentBasi
 
 	resource "metakube_node_deployment" "acctest_nd" {
 		cluster_id = metakube_cluster.acctest_cluster.id
+		project_id = "{{ .ProjectID }}"
 		name = "{{ .Name }}"
 		timeouts {
 			create = "40m"
