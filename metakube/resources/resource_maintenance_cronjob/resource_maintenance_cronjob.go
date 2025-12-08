@@ -36,6 +36,7 @@ func MetakubeResourceMaintenanceCronJob() *schema.Resource {
 			"project_id": {
 				Type:        schema.TypeString,
 				Computed:    true,
+				Optional:    true,
 				Description: "Reference project identifier",
 			},
 
