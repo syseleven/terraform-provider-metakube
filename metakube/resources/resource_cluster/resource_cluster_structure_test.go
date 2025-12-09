@@ -118,7 +118,6 @@ func TestFlattenCniPlugin(t *testing.T) {
 				},
 			},
 		},
-
 		{
 			&models.CNIPluginSettings{
 				Type: models.CNIPluginType("canal"),

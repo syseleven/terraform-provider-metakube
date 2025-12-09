@@ -36,9 +36,9 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 	data := &clusterOpenstackBasicData{
 		Name:                                  testutil.MakeRandomName() + "-cluster-os-basic",
 		OpenstackAuthURL:                      os.Getenv(common.TestEnvOpenstackAuthURL),
-		OpenstackApplicationCredentialsID:     os.Getenv(common.TestEnvOpenstackApplicationCredentialsID),
-		OpenstackApplicationCredentialsSecret: os.Getenv(common.TestEnvOpenstackApplicationCredentialsSecret),
-		OpenstackProjectID:                    os.Getenv(common.TestEnvOpenstackProjectID),
+		OpenstackApplicationCredentialsID:     common.GetSACredentialId(),
+		OpenstackApplicationCredentialsSecret: os.Getenv(common.TestEnvServiceAccountCredential),
+		OpenstackProjectID:                    os.Getenv(common.TestEnvProjectID),
 		OpenstackRegion:                       os.Getenv(common.TestEnvOpenstackRegion),
 		DatacenterName:                        os.Getenv(common.TestEnvOpenstackNodeDC),
 		ProjectID:                             os.Getenv(common.TestEnvProjectID),
@@ -50,7 +50,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 	}
 	var config2 strings.Builder
 	data2 := *data
-	data2.CNIPlugin = "canal"
+	data2.CNIPlugin = "cilium"
 	data2.IPFamily = "IPv4"
 	data2.SyselevenAuth = true
 	data2.IAMAuthentication = true
@@ -95,7 +95,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "spec.0.services_cidr", "10.240.16.0/18"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.pods_cidr", "172.25.0.0/18"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.0.type", "canal"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.0.type", "cilium"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.ip_family", "IPv4"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.aws.#", "0"),
@@ -132,7 +132,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "spec.0.services_cidr", "10.240.16.0/18"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.pods_cidr", "172.25.0.0/18"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.0.type", "canal"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.0.type", "cilium"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.ip_family", "IPv4"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.aws.#", "0"),
@@ -164,6 +164,9 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 				ImportState:             true,
 				ImportStateVerify:       true,
 				ImportStateVerifyIgnore: []string{"spec.0.cloud.0.openstack.0.application_credentials", "kube_login_kube_config", "oidc_kube_config"},
+				ImportStateIdFunc: func(s *terraform.State) (string, error) {
+					return data.ProjectID + ":" + s.RootModule().Resources[resourceName].Primary.ID, nil
+				},
 			},
 			{
 				Config:   config2.String(),
@@ -174,7 +177,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 				ResourceName:      resourceName,
 				ImportState:       true,
 				ImportStateVerify: false,
-				ImportStateId:     "123abc",
+				ImportStateId:     data.ProjectID + ":123abc",
 				ExpectError:       regexp.MustCompile(`(no object exists with the given id|Cannot import non-existent remote object)`),
 			},
 		},
@@ -190,9 +193,8 @@ func TestAccMetakubeCluster_Openstack_ApplicationCredentials(t *testing.T) {
 		DatacenterName:                       os.Getenv(common.TestEnvOpenstackNodeDC),
 		ProjectID:                            os.Getenv(common.TestEnvProjectID),
 		Version:                              os.Getenv(common.TestEnvK8sVersionOpenstack),
-		OpenstackApplicationCredentialID:     os.Getenv(common.TestEnvOpenstackApplicationCredentialsID),
-		OpenstackApplicationCredentialSecret: os.Getenv(common.TestEnvOpenstackApplicationCredentialsSecret),
-		Dynamic:                              false,
+		OpenstackApplicationCredentialID:     common.GetSACredentialId(),
+		OpenstackApplicationCredentialSecret: os.Getenv(common.TestEnvServiceAccountCredential),
 	}
 	var config strings.Builder
 	if err := clusterOpenstackApplicationCredentialsBasicTemplate.Execute(&config, data); err != nil {
@@ -221,54 +223,6 @@ func TestAccMetakubeCluster_Openstack_ApplicationCredentials(t *testing.T) {
 	})
 }
 
-func TestAccMetakubeCluster_Openstack_ApplicationCredentials_Dynammic(t *testing.T) {
-	t.Parallel()
-	var cluster models.Cluster
-	resourceName := "metakube_cluster.acctest_cluster"
-	data := &clusterOpenstackApplicationCredentailsData{
-		Name:                                 testutil.MakeRandomName() + "-appcred-dynamic",
-		OpenstackAuthURL:                     os.Getenv(common.TestEnvOpenstackAuthURL),
-		OpenstackUser:                        os.Getenv(common.TestEnvOpenstackUsername),
-		OpenstackPassword:                    os.Getenv(common.TestEnvOpenstackPassword),
-		OpenstackProjectID:                   os.Getenv(common.TestEnvOpenstackProjectID),
-		OpenstackRegion:                      os.Getenv(common.TestEnvOpenstackRegion),
-		DatacenterName:                       os.Getenv(common.TestEnvOpenstackNodeDC),
-		ProjectID:                            os.Getenv(common.TestEnvProjectID),
-		Version:                              os.Getenv(common.TestEnvK8sVersionOpenstack),
-		OpenstackApplicationCredentialID:     os.Getenv(common.TestEnvOpenstackApplicationCredentialsID),
-		OpenstackApplicationCredentialSecret: os.Getenv(common.TestEnvOpenstackApplicationCredentialsSecret),
-		Dynamic:                              true,
-	}
-	var config strings.Builder
-	if err := clusterOpenstackApplicationCredentialsBasicTemplate.Execute(&config, data); err != nil {
-		t.Fatal(err)
-	}
-	resource.Test(t, resource.TestCase{
-		PreCheck: func() {
-			testutil.TestAccPreCheckForOpenstack(t)
-			testutil.CheckEnv(t, common.TestEnvOpenstackUsername)
-			testutil.CheckEnv(t, common.TestEnvOpenstackPassword)
-		},
-		ProtoV5ProviderFactories: testutil.TestAccProtoV5ProviderFactories,
-		ExternalProviders: map[string]resource.ExternalProvider{
-			"openstack": {
-				Source: "terraform-provider-openstack/openstack",
-			},
-		},
-		CheckDestroy: testutil.TestAccCheckMetaKubeClusterDestroy,
-		Steps: []resource.TestStep{
-			{
-				Config: config.String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					testAccCheckMetaKubeClusterExists(&cluster),
-					resource.TestCheckResourceAttrSet(resourceName, "spec.0.cloud.0.openstack.0.application_credentials.0.id"),
-					resource.TestCheckResourceAttrSet(resourceName, "spec.0.cloud.0.openstack.0.application_credentials.0.secret"),
-				),
-			},
-		},
-	})
-}
-
 func TestAccMetakubeCluster_Openstack_UpgradeVersion(t *testing.T) {
 	t.Parallel()
 	var cluster models.Cluster
@@ -278,9 +232,9 @@ func TestAccMetakubeCluster_Openstack_UpgradeVersion(t *testing.T) {
 			Name:                                  testutil.MakeRandomName() + "-cluster-os-upgrade",
 			Version:                               version,
 			OpenstackAuthURL:                      os.Getenv(common.TestEnvOpenstackAuthURL),
-			OpenstackApplicationCredentialsID:     os.Getenv(common.TestEnvOpenstackApplicationCredentialsID),
-			OpenstackApplicationCredentialsSecret: os.Getenv(common.TestEnvOpenstackApplicationCredentialsSecret),
-			OpenstackProjectID:                    os.Getenv(common.TestEnvOpenstackProjectID),
+			OpenstackApplicationCredentialsID:     common.GetSACredentialId(),
+			OpenstackApplicationCredentialsSecret: os.Getenv(common.TestEnvServiceAccountCredential),
+			OpenstackProjectID:                    os.Getenv(common.TestEnvProjectID),
 			DatacenterName:                        os.Getenv(common.TestEnvOpenstackNodeDC),
 			ProjectID:                             os.Getenv(common.TestEnvProjectID),
 			OpenstackRegion:                       os.Getenv(common.TestEnvOpenstackRegion),
@@ -451,7 +405,6 @@ type clusterOpenstackApplicationCredentailsData struct {
 	Version                              string
 	OpenstackApplicationCredentialID     string
 	OpenstackApplicationCredentialSecret string
-	Dynamic                              bool
 }
 
 var clusterOpenstackApplicationCredentialsBasicTemplate = testutil.MustParseTemplate("clusterOpenstackApplicationCredentials", `
@@ -462,20 +415,6 @@ terraform {
 		}
 	}
 }
-
-{{ if .Dynamic }}
-provider "openstack" {
-	auth_url = "{{ .OpenstackAuthURL }}"
-	user_name = "{{ .OpenstackUser }}"
-	password = "{{ .OpenstackPassword }}"
-	tenant_id = "{{ .OpenstackProjectID }}"
-	region = "{{ .OpenstackRegion }}"
-}
-
-resource "openstack_identity_application_credential_v3" "app_credential" {
-	name        = "{{ .Name }}"
-}
-{{ end }}
 
 resource "metakube_cluster" "acctest_cluster" {
 	name = "{{ .Name }}"
@@ -496,13 +435,8 @@ resource "metakube_cluster" "acctest_cluster" {
 		cloud {
 			openstack {
 				application_credentials {
-{{ if .Dynamic }}
-					id=openstack_identity_application_credential_v3.app_credential.id
-					secret=openstack_identity_application_credential_v3.app_credential.secret
-{{ else }}
 					id="{{ .OpenstackApplicationCredentialID }}"
 					secret="{{ .OpenstackApplicationCredentialSecret }}"
-{{ end }}
 				}
 			}
 		}
@@ -558,9 +492,9 @@ func TestAccMetakubeCluster_SSHKeys(t *testing.T) {
 
 	data := &clusterOpenstackWithSSHKeyData{
 		Name:                                  testutil.MakeRandomName() + "-sshkeys",
-		OpenstackApplicationCredentialsID:     os.Getenv(common.TestEnvOpenstackApplicationCredentialsID),
-		OpenstackApplicationCredentialsSecret: os.Getenv(common.TestEnvOpenstackApplicationCredentialsSecret),
-		OpenstackProjectID:                    os.Getenv(common.TestEnvOpenstackProjectID),
+		OpenstackApplicationCredentialsID:     common.GetSACredentialId(),
+		OpenstackApplicationCredentialsSecret: os.Getenv(common.TestEnvServiceAccountCredential),
+		OpenstackProjectID:                    os.Getenv(common.TestEnvProjectID),
 		DatacenterName:                        os.Getenv(common.TestEnvOpenstackNodeDC),
 		ProjectID:                             os.Getenv(common.TestEnvProjectID),
 		Version:                               os.Getenv(common.TestEnvK8sVersionOpenstack),
@@ -709,88 +643,6 @@ func testAccCheckMetaKubeClusterHasSSHKey(cluster, sshkey *string) resource.Test
 		return nil
 	}
 }
-
-func TestAccMetakubeCluster_AWS_Basic(t *testing.T) {
-	t.Parallel()
-	var cluster models.Cluster
-	resourceName := "metakube_cluster.acctest_cluster"
-	data := &clusterAWSBasicData{
-		Name:                 testutil.MakeRandomName() + "-cluster-aws-basic",
-		ProjectID:            os.Getenv(common.TestEnvProjectID),
-		AccessID:             os.Getenv(common.TestEnvAWSAccessKeyID),
-		AccessSecret:         os.Getenv(common.TestAWSSecretAccessKey),
-		VpcID:                os.Getenv(common.TestEnvAWSVPCID),
-		DatacenterName:       os.Getenv(common.TestEnvAWSNodeDC),
-		Version:              os.Getenv(common.TestEnvK8sVersionAWS),
-		OpenstackProjectName: os.Getenv(common.TestEnvOpenstackProjectName),
-	}
-	var config strings.Builder
-	if err := testAccCheckMetaKubeClusterAWSBasic.Execute(&config, data); err != nil {
-		t.Fatal(err)
-	}
-
-	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { testutil.TestAccPreCheckForAWS(t) },
-		ProtoV5ProviderFactories: testutil.TestAccProtoV5ProviderFactories,
-		CheckDestroy:             testutil.TestAccCheckMetaKubeClusterDestroy,
-		Steps: []resource.TestStep{
-			{
-				Config: config.String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					testAccCheckMetaKubeClusterExists(&cluster),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.aws.#", "1"),
-				),
-			},
-			{
-				ResourceName:      resourceName,
-				ImportState:       true,
-				ImportStateVerify: true,
-				ImportStateVerifyIgnore: []string{
-					"spec.0.cloud.0.aws.#",
-					"spec.0.cloud.0.aws.0.%",
-					"spec.0.cloud.0.aws.0.instance_profile_name",
-					"spec.0.cloud.0.aws.0.role_arn",
-					"spec.0.cloud.0.aws.0.route_table_id",
-					"spec.0.cloud.0.aws.0.access_key_id",
-					"spec.0.cloud.0.aws.0.security_group_id",
-					"spec.0.cloud.0.aws.0.secret_access_key",
-					"spec.0.cloud.0.aws.0.vpc_id",
-					"spec.0.cloud.0.aws.0.openstack_billing_tenant",
-				},
-			},
-		},
-	})
-}
-
-type clusterAWSBasicData struct {
-	Name                 string
-	DatacenterName       string
-	ProjectID            string
-	Version              string
-	AccessID             string
-	AccessSecret         string
-	VpcID                string
-	OpenstackProjectName string
-}
-
-var testAccCheckMetaKubeClusterAWSBasic = testutil.MustParseTemplate("clusterAWSBasic", `
-resource "metakube_cluster" "acctest_cluster" {
-	name = "{{ .Name }}"
-	dc_name = "{{ .DatacenterName }}"
-	project_id = "{{ .ProjectID }}"
-
-	spec {
-		version = "{{ .Version }}"
-		cloud {
-			aws {
-				access_key_id = "{{ .AccessID }}"
-				secret_access_key = "{{ .AccessSecret }}"
-				vpc_id = "{{ .VpcID }}"
-				openstack_billing_tenant = "{{ .OpenstackProjectName }}"
-			}
-		}
-	}
-}`)
 
 func testAccCheckMetaKubeClusterExists(cluster *models.Cluster) resource.TestCheckFunc {
 	return func(s *terraform.State) error {

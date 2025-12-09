@@ -32,8 +32,8 @@ func TestAccMetakubeClusterRoleBinding(t *testing.T) {
 		DatacenterName:                       os.Getenv(common.TestEnvOpenstackNodeDC),
 		ProjectID:                            os.Getenv(common.TestEnvProjectID),
 		Version:                              os.Getenv(common.TestEnvK8sVersionOpenstack),
-		OpenstackApplicationCredentialID:     os.Getenv(common.TestEnvOpenstackApplicationCredentialsID),
-		OpenstackApplicationCredentialSecret: os.Getenv(common.TestEnvOpenstackApplicationCredentialsSecret),
+		OpenstackApplicationCredentialID:     common.GetSACredentialId(),
+		OpenstackApplicationCredentialSecret: os.Getenv(common.TestEnvServiceAccountCredential),
 
 		ClusterRoleName:  "view",
 		UserSubjectName:  "foo.bar@mycompany.xyz",
@@ -42,11 +42,9 @@ func TestAccMetakubeClusterRoleBinding(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
 			testutil.CheckEnv(t, "METAKUBE_HOST")
-			testutil.CheckEnv(t, "METAKUBE_TOKEN")
+			testutil.CheckEnv(t, common.TestEnvServiceAccountCredential)
 			testutil.CheckEnv(t, common.TestEnvK8sVersionOpenstack)
 			testutil.CheckEnv(t, common.TestEnvOpenstackNodeDC)
-			testutil.CheckEnv(t, common.TestEnvOpenstackApplicationCredentialsID)
-			testutil.CheckEnv(t, common.TestEnvOpenstackApplicationCredentialsSecret)
 			testutil.CheckEnv(t, common.TestEnvK8sVersionOpenstack)
 			testutil.CheckEnv(t, common.TestEnvProjectID)
 		},

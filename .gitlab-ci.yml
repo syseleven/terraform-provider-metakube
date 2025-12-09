@@ -3,7 +3,7 @@ image: golang:latest
 variables:
   # Please edit to your GitLab project
   REPO_NAME: github.com/syseleven/terraform-provider-metakube
-  TERRAFORM_VERSION: "1.13.5"
+  TERRAFORM_VERSION: "1.14.0"
 
 # The problem is that to be able to use go get, one needs to put
 # the repository in the $GOPATH. For example if your domain
@@ -28,11 +28,10 @@ env:
   - apt-get install jq curl -y
   - touch test.env
   - echo export METAKUBE_K8S_VERSION_OS=$(./scripts/get_versions.sh openstack|jq '.[] | select(.default == true) | .version') >> test.env
-  - echo export METAKUBE_K8S_VERSION_AWS=$(./scripts/get_versions.sh aws| jq 'map(select(.default == null)) | last | .version') >> test.env
   - echo export METAKUBE_K8S_OLDER_VERSION=$(./scripts/get_versions.sh openstack| jq 'map(select(.default == null)) | last | .version') >> test.env
-  - echo export METAKUBE_OPENSTACK_IMAGE="22.04" >> test.env
-  - echo export METAKUBE_OPENSTACK_IMAGE2="20.04" >> test.env
-  - echo export METAKUBE_OPENSTACK_FLAVOR=m1.small >> test.env
+  - echo export METAKUBE_OPENSTACK_IMAGE="24.04" >> test.env
+  - echo export METAKUBE_OPENSTACK_IMAGE2="22.04" >> test.env
+  - echo export METAKUBE_OPENSTACK_FLAVOR=m2.small >> test.env
   artifacts:
     paths:
     - test.env

@@ -1,9 +1,6 @@
-This is fork of https://github.com/kubermatic/terraform-provider-kubermatic which was joined effort of Kubermatic and SysEleven. We will maintain the fork due to differences and changes we have in our envirenment.
-
 # Terraform Provider for MetaKube
 
 - Documentation: https://registry.terraform.io/providers/syseleven/metakube/latest/docs
-<!-- TODO - Mailing list: [Google Groups](https://groups.google.com/forum/#!forum/syseleven-dev) -->
 - Check the [examples](./examples) for quick start.
 
 ## Overview
@@ -24,6 +21,12 @@ If you encounter issues [file an issue][1]
 ### Pull requests
 
 * We welcome pull requests. Feel free to dig through the [issues][1] and jump in.
+
+### Acceptance tests
+
+Acceptance tests are executed automatically in a mirroring repository on gitlab.
+
+To run tests locally, copy `env-template.sh` to `.env` and set the values accordingly.
 
 ### Debugging
 
