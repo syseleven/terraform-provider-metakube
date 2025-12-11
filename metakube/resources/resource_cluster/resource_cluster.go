@@ -273,7 +273,7 @@ func (r *clusterResource) Delete(ctx context.Context, req resource.DeleteRequest
 	projectID := state.ProjectID.ValueString()
 	clusterID := state.ID.ValueString()
 
-	deleteTimeout, diags := state.Timeouts.Delete(ctx, 20*time.Minute)
+	deleteTimeout, diags := state.Timeouts.Delete(ctx, 40*time.Minute)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -286,6 +286,7 @@ func (r *clusterResource) Delete(ctx context.Context, req resource.DeleteRequest
 	defer timeoutTimer.Stop()
 
 	deleteSent := false
+	deleteStartTime := time.Now()
 
 	for {
 		shouldWait := false
@@ -352,8 +353,8 @@ func (r *clusterResource) Delete(ctx context.Context, req resource.DeleteRequest
 					return
 				}
 			} else {
-				r.meta.Log.Debugf("cluster '%s' deletion in progress, deletionTimestamp: %s",
-					clusterID, result.Payload.DeletionTimestamp.String())
+				r.meta.Log.Debugf("cluster '%s' deletion in progress, deletionTimestamp: %s, elapsed: %s",
+					clusterID, result.Payload.DeletionTimestamp.String(), time.Since(deleteStartTime).Round(time.Second))
 			}
 		}
 
@@ -367,7 +368,8 @@ func (r *clusterResource) Delete(ctx context.Context, req resource.DeleteRequest
 		case <-timeoutTimer.C:
 			resp.Diagnostics.AddError(
 				"Timeout deleting cluster",
-				fmt.Sprintf("Timeout waiting for cluster '%s' to be deleted", clusterID),
+				fmt.Sprintf("Timeout waiting for cluster '%s' to be deleted after %s. You can configure a longer timeout using the 'timeouts' block in your Terraform configuration.",
+					clusterID, time.Since(deleteStartTime).Round(time.Second)),
 			)
 			return
 		case <-ticker.C:
