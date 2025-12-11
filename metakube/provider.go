@@ -81,7 +81,6 @@ func Provider() *pluginSchema.Provider {
 		},
 
 		ResourcesMap: map[string]*pluginSchema.Resource{
-			"metakube_cluster":              resource_cluster.MetakubeResourceCluster(),
 			"metakube_cluster_role_binding": resource_cluster_role_binding.MetakubeResourceClusterRoleBinding(),
 			"metakube_role_binding":         resource_role_binding.MetakubeResourceRoleBinding(),
 			"metakube_node_deployment":      resource_node_deployment.MetakubeResourceNodeDeployment(),
@@ -380,7 +379,7 @@ func (p *metakubeProvider) Metadata(ctx context.Context, req provider.MetadataRe
 
 func (p *metakubeProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		// metakubeResourceCluster,
+		resource_cluster.NewClusterResource,
 		// metakubeResourceClusterRoleBinding,
 		// metakubeResourceRoleBinding,
 		// metakubeResourceNodeDeployment,
