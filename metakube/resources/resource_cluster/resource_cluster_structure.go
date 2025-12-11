@@ -229,13 +229,13 @@ func flattenUpdateWindow(ctx context.Context, specModel *ClusterSpecModel, in *m
 func flattenCniPlugin(ctx context.Context, specModel *ClusterSpecModel, in *models.CNIPluginSettings) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	cniType := "canal"
-	if in != nil && in.Type != "" && in.Type != "none" {
-		cniType = string(in.Type)
+	if in == nil || in.Type == "" || in.Type == "none" {
+		specModel.CNIPlugin = types.ObjectNull(cniPluginAttrTypes())
+		return diags
 	}
 
 	cniModel := CNIPluginModel{
-		Type: types.StringValue(cniType),
+		Type: types.StringValue(string(in.Type)),
 	}
 
 	objVal, d := types.ObjectValueFrom(ctx, cniPluginAttrTypes(), cniModel)
@@ -658,7 +658,7 @@ func metakubeResourceClusterExpandSpec(ctx context.Context, model *ClusterModel,
 		}
 	}
 
-	if !spec.CNIPlugin.IsUnknown() {
+	if !spec.CNIPlugin.IsUnknown() && include("cni_plugin") {
 		obj.CniPlugin = expandCniPlugin(ctx, spec.CNIPlugin)
 	}
 
@@ -716,26 +716,22 @@ func expandAuditLogging(enabled bool) *models.AuditLoggingSettings {
 }
 
 func expandCniPlugin(ctx context.Context, obj types.Object) *models.CNIPluginSettings {
-	defaultCNI := &models.CNIPluginSettings{
-		Type: models.CNIPluginType("canal"),
-	}
-
 	if obj.IsNull() || obj.IsUnknown() {
-		return defaultCNI
+		return nil
 	}
 
 	var plugin CNIPluginModel
 	if diags := obj.As(ctx, &plugin, basetypes.ObjectAsOptions{}); diags.HasError() {
-		return defaultCNI
+		return nil
 	}
 
 	if plugin.Type.IsNull() || plugin.Type.IsUnknown() {
-		return defaultCNI
+		return nil
 	}
 
 	v := plugin.Type.ValueString()
 	if v == "" {
-		return defaultCNI
+		return nil
 	}
 
 	return &models.CNIPluginSettings{

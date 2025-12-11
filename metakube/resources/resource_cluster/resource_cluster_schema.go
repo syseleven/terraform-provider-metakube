@@ -15,7 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
@@ -113,6 +113,27 @@ func (m boolDiffSuppressPlanModifier) PlanModifyBool(ctx context.Context, req pl
 
 func BoolDiffSuppress() planmodifier.Bool {
 	return boolDiffSuppressPlanModifier{}
+}
+
+type cniPluginPlanModifier struct{}
+
+func (m cniPluginPlanModifier) Description(ctx context.Context) string {
+	return "Preserves CNI plugin value from state (CNI type cannot be changed after cluster creation)"
+}
+
+func (m cniPluginPlanModifier) MarkdownDescription(ctx context.Context) string {
+	return m.Description(ctx)
+}
+
+func (m cniPluginPlanModifier) PlanModifyObject(ctx context.Context, req planmodifier.ObjectRequest, resp *planmodifier.ObjectResponse) {
+	if req.StateValue.IsNull() || req.StateValue.IsUnknown() {
+		return
+	}
+	resp.PlanValue = req.StateValue
+}
+
+func CNIPluginDiffSuppress() planmodifier.Object {
+	return cniPluginPlanModifier{}
 }
 
 func ClusterResourceSchema(ctx context.Context) schema.Schema {
@@ -265,17 +286,16 @@ func metakubeResourceClusterSpecAttributes() map[string]schema.Attribute {
 				"type": schema.StringAttribute{
 					Optional:    true,
 					Computed:    true,
-					Default:     stringdefault.StaticString("canal"),
 					Description: "Define the type of CNI plugin",
 					Validators: []validator.String{
 						stringvalidator.OneOf("cilium", "canal", "none"),
 					},
 				},
 			},
-			Default: objectdefault.StaticValue(types.ObjectValueMust(
-				map[string]attr.Type{"type": types.StringType},
-				map[string]attr.Value{"type": types.StringValue("canal")},
-			)),
+			PlanModifiers: []planmodifier.Object{
+				objectplanmodifier.UseStateForUnknown(),
+				CNIPluginDiffSuppress(),
+			},
 		},
 	}
 }

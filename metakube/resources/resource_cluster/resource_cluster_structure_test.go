@@ -134,6 +134,7 @@ func TestFlattenCniPlugin(t *testing.T) {
 		name         string
 		Input        *models.CNIPluginSettings
 		ExpectedType string
+		ExpectNull   bool
 	}{
 		{
 			name:         "API returns cilium",
@@ -146,19 +147,19 @@ func TestFlattenCniPlugin(t *testing.T) {
 			ExpectedType: "canal",
 		},
 		{
-			name:         "API returns empty type - defaults to canal",
-			Input:        &models.CNIPluginSettings{},
-			ExpectedType: "canal",
+			name:       "API returns empty type - should be null",
+			Input:      &models.CNIPluginSettings{},
+			ExpectNull: true,
 		},
 		{
-			name:         "API returns nil - defaults to canal",
-			Input:        nil,
-			ExpectedType: "canal",
+			name:       "API returns nil - should be null",
+			Input:      nil,
+			ExpectNull: true,
 		},
 		{
-			name:         "API returns none - defaults to canal",
-			Input:        &models.CNIPluginSettings{Type: models.CNIPluginType("none")},
-			ExpectedType: "canal",
+			name:       "API returns none - should be null",
+			Input:      &models.CNIPluginSettings{Type: models.CNIPluginType("none")},
+			ExpectNull: true,
 		},
 	}
 
@@ -170,7 +171,13 @@ func TestFlattenCniPlugin(t *testing.T) {
 				t.Fatalf("Unexpected error: %v", diags)
 			}
 
-			// CNI should always exist
+			if tc.ExpectNull {
+				if !specModel.CNIPlugin.IsNull() {
+					t.Fatalf("Expected CNI plugin to be null")
+				}
+				return
+			}
+
 			if specModel.CNIPlugin.IsNull() {
 				t.Fatalf("Expected CNI plugin to not be null")
 			}
@@ -659,7 +666,7 @@ func TestExpandCniPlugin(t *testing.T) {
 			},
 		},
 		{
-			name: "empty type - defaults to canal",
+			name: "empty type - should be nil",
 			setupObject: func() types.Object {
 				cniModel := CNIPluginModel{
 					Type: types.StringNull(),
@@ -667,18 +674,14 @@ func TestExpandCniPlugin(t *testing.T) {
 				objVal, _ := types.ObjectValueFrom(ctx, cniPluginAttrTypes(), cniModel)
 				return objVal
 			},
-			ExpectedOutput: &models.CNIPluginSettings{
-				Type: "canal",
-			},
+			ExpectedOutput: nil,
 		},
 		{
-			name: "null object - defaults to canal",
+			name: "null object - should be nil",
 			setupObject: func() types.Object {
 				return types.ObjectNull(cniPluginAttrTypes())
 			},
-			ExpectedOutput: &models.CNIPluginSettings{
-				Type: "canal",
-			},
+			ExpectedOutput: nil,
 		},
 	}
 
@@ -1648,7 +1651,7 @@ func TestFlattenSpecIntoModelPreservesCloudCredentials(t *testing.T) {
 }
 
 // TestFlattenSpecIntoModelPopulatesCNIPluginFromAPI tests that CNI plugin
-// is always populated from the API response (defaulting to canal when API returns nil/empty/none).
+// is populated from the API response when API returns a valid value, or null when API returns nil/empty/none.
 func TestFlattenSpecIntoModelPopulatesCNIPluginFromAPI(t *testing.T) {
 	ctx := context.Background()
 
@@ -1657,6 +1660,7 @@ func TestFlattenSpecIntoModelPopulatesCNIPluginFromAPI(t *testing.T) {
 		setupModel  func() *ClusterModel
 		apiSpec     *models.ClusterSpec
 		expectedCNI string
+		expectNull  bool
 	}{
 		{
 			name: "Config has no CNI block, API returns cilium - state should have cilium",
@@ -1707,7 +1711,7 @@ func TestFlattenSpecIntoModelPopulatesCNIPluginFromAPI(t *testing.T) {
 			expectedCNI: "canal",
 		},
 		{
-			name: "Config has CNI block with cilium, API returns nil - state should default to canal",
+			name: "Config has CNI block with cilium, API returns nil - state should be null",
 			setupModel: func() *ClusterModel {
 				specModel := ClusterSpecModel{
 					Version:       types.StringValue("1.20.0"),
@@ -1726,7 +1730,7 @@ func TestFlattenSpecIntoModelPopulatesCNIPluginFromAPI(t *testing.T) {
 					Openstack:      &models.OpenstackCloudSpec{},
 				},
 			},
-			expectedCNI: "canal", // When API returns nil, we default to canal
+			expectNull: true,
 		},
 		{
 			name: "Config has CNI block with cilium, API returns cilium - state should have cilium",
@@ -1770,7 +1774,13 @@ func TestFlattenSpecIntoModelPopulatesCNIPluginFromAPI(t *testing.T) {
 				t.Fatal("Expected spec list to have elements")
 			}
 
-			// CNI plugin should always exist
+			if tc.expectNull {
+				if !specs[0].CNIPlugin.IsNull() {
+					t.Fatal("Expected CNI plugin to be null")
+				}
+				return
+			}
+
 			if specs[0].CNIPlugin.IsNull() {
 				t.Fatal("Expected CNI plugin to be set, got null")
 			}
