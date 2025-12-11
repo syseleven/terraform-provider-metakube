@@ -1,396 +1,693 @@
 package resource_cluster
 
 import (
+	"context"
+
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/syseleven/go-metakube/models"
 	"k8s.io/utils/ptr"
 )
 
+// clusterPreserveValues holds values that need to be preserved during flatten operations
+// because the API doesn't return sensitive data or to maintain consistency with planned state
+type clusterPreserveValues struct {
+	aws       *models.AWSCloudSpec
+	openstack *clusterOpenstackPreservedValues
+	azure     *models.AzureCloudSpec
+}
+
+type clusterOpenstackPreservedValues struct {
+	openstackProjectID                    types.String
+	openstackProjectName                  types.String
+	openstackUsername                     types.String
+	openstackPassword                     types.String
+	openstackApplicationCredentialsID     types.String
+	openstackApplicationCredentialsSecret types.String
+	openstackServerGroupID                types.String
+}
+
 // flatteners
 
-func metakubeResourceClusterFlattenSpec(values clusterPreserveValues, in *models.ClusterSpec) []interface{} {
+func metakubeResourceClusterFlattenSpec(ctx context.Context, model *ClusterModel, in *models.ClusterSpec) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	tflog.Info(ctx, "flattenSpec: starting", map[string]interface{}{
+		"input_is_nil":    in == nil,
+		"model_spec_null": model.Spec.IsNull(),
+	})
+
 	if in == nil {
-		return []interface{}{}
+		tflog.Info(ctx, "flattenSpec: input is nil, setting spec to null")
+		model.Spec = types.ListNull(types.ObjectType{AttrTypes: clusterSpecAttrTypes()})
+		return diags
 	}
 
-	att := make(map[string]interface{})
+	preservedValues := getPreservedValuesFromModel(ctx, model)
+
+	tflog.Info(ctx, "flattenSpec: got preserved values", map[string]interface{}{
+		"hasAWS":       preservedValues.aws != nil,
+		"hasOpenstack": preservedValues.openstack != nil,
+		"hasAzure":     preservedValues.azure != nil,
+	})
+
+	specModel := ClusterSpecModel{}
 
 	if in.Version != "" {
-		att["version"] = string(in.Version)
+		specModel.Version = types.StringValue(string(in.Version))
+	} else {
+		specModel.Version = types.StringNull()
 	}
 
-	if in.UpdateWindow != nil && (in.UpdateWindow.Start != "" || in.UpdateWindow.Length != "") {
-		att["update_window"] = flattenUpdateWindow(in.UpdateWindow)
-	}
+	diags.Append(flattenUpdateWindow(ctx, &specModel, in.UpdateWindow)...)
 
 	if in.EnableUserSSHKeyAgent != nil {
-		att["enable_ssh_agent"] = *in.EnableUserSSHKeyAgent
+		specModel.EnableSSHAgent = types.BoolValue(*in.EnableUserSSHKeyAgent)
+	} else {
+		specModel.EnableSSHAgent = types.BoolNull()
 	}
 
-	att["audit_logging"] = false
 	if in.AuditLogging != nil {
-		att["audit_logging"] = in.AuditLogging.Enabled
+		specModel.AuditLogging = types.BoolValue(in.AuditLogging.Enabled)
+	} else {
+		specModel.AuditLogging = types.BoolValue(false)
 	}
 
-	att["pod_security_policy"] = in.UsePodSecurityPolicyAdmissionPlugin
-
-	att["pod_node_selector"] = in.UsePodNodeSelectorAdmissionPlugin
+	specModel.PodSecurityPolicy = types.BoolValue(in.UsePodSecurityPolicyAdmissionPlugin)
+	specModel.PodNodeSelector = types.BoolValue(in.UsePodNodeSelectorAdmissionPlugin)
 
 	if network := in.ClusterNetwork; network != nil {
-		if v := network.Pods; len(v.CIDRBlocks) > 0 && v.CIDRBlocks[0] != "" {
-			att["pods_cidr"] = v.CIDRBlocks[0]
+		if v := network.Pods; v != nil && len(v.CIDRBlocks) > 0 && v.CIDRBlocks[0] != "" {
+			specModel.PodsCIDR = types.StringValue(v.CIDRBlocks[0])
+		} else {
+			specModel.PodsCIDR = types.StringNull()
 		}
-		if v := network.Services; len(v.CIDRBlocks) > 0 && v.CIDRBlocks[0] != "" {
-			att["services_cidr"] = v.CIDRBlocks[0]
+		if v := network.Services; v != nil && len(v.CIDRBlocks) > 0 && v.CIDRBlocks[0] != "" {
+			specModel.ServicesCIDR = types.StringValue(v.CIDRBlocks[0])
+		} else {
+			specModel.ServicesCIDR = types.StringNull()
 		}
 		if network.IPFamily != "" {
-			att["ip_family"] = string(network.IPFamily)
+			specModel.IPFamily = types.StringValue(string(network.IPFamily))
+		} else {
+			specModel.IPFamily = types.StringNull()
 		}
+	} else {
+		specModel.PodsCIDR = types.StringNull()
+		specModel.ServicesCIDR = types.StringNull()
+		specModel.IPFamily = types.StringNull()
 	}
 
-	if in.CniPlugin != nil && in.CniPlugin.Type != "" {
-		att["cni_plugin"] = flattenCniPlugin(in.CniPlugin)
-	}
+	diags.Append(flattenCniPlugin(ctx, &specModel, in.CniPlugin)...)
 
 	if in.Cloud != nil {
-		att["cloud"] = flattenClusterCloudSpec(values, in.Cloud)
+		diags.Append(flattenClusterCloudSpec(ctx, &specModel, preservedValues, in.Cloud)...)
+	} else {
+		specModel.Cloud = types.ListNull(types.ObjectType{AttrTypes: clusterCloudSpecAttrTypes()})
 	}
 
 	if in.Sys11auth != nil {
-		att["syseleven_auth"] = flattenClusterSys11Auth(in.Sys11auth)
+		diags.Append(flattenClusterSys11Auth(ctx, &specModel, in.Sys11auth)...)
+	} else {
+		specModel.SyselevenAuth = types.ListNull(types.ObjectType{AttrTypes: syselevenAuthAttrTypes()})
 	}
 
-	return []interface{}{att}
+	specObjVal, d := types.ObjectValueFrom(ctx, clusterSpecAttrTypes(), specModel)
+	diags.Append(d...)
+	if diags.HasError() {
+		return diags
+	}
+
+	specList, d := types.ListValue(types.ObjectType{AttrTypes: clusterSpecAttrTypes()}, []attr.Value{specObjVal})
+	diags.Append(d...)
+	model.Spec = specList
+
+	return diags
 }
 
-func flattenUpdateWindow(in *models.UpdateWindow) []interface{} {
-	m := make(map[string]interface{})
-	m["start"] = in.Start
-	m["length"] = in.Length
-	return []interface{}{m}
+func getPreservedValuesFromModel(ctx context.Context, model *ClusterModel) clusterPreserveValues {
+	values := clusterPreserveValues{}
+
+	if model.Spec.IsNull() || model.Spec.IsUnknown() {
+		return values
+	}
+
+	var specs []ClusterSpecModel
+	if diags := model.Spec.ElementsAs(ctx, &specs, false); diags.HasError() || len(specs) == 0 {
+		return values
+	}
+
+	if specs[0].Cloud.IsNull() || specs[0].Cloud.IsUnknown() {
+		return values
+	}
+
+	var clouds []ClusterCloudSpecModel
+	if diags := specs[0].Cloud.ElementsAs(ctx, &clouds, false); diags.HasError() || len(clouds) == 0 {
+		return values
+	}
+
+	if !clouds[0].AWS.IsNull() && !clouds[0].AWS.IsUnknown() {
+		var awsSpecs []AWSCloudSpecModel
+		if diags := clouds[0].AWS.ElementsAs(ctx, &awsSpecs, false); !diags.HasError() && len(awsSpecs) > 0 {
+			values.aws = &models.AWSCloudSpec{
+				AccessKeyID:            awsSpecs[0].AccessKeyID.ValueString(),
+				SecretAccessKey:        awsSpecs[0].SecretAccessKey.ValueString(),
+				VPCID:                  awsSpecs[0].VPCID.ValueString(),
+				SecurityGroupID:        awsSpecs[0].SecurityGroupID.ValueString(),
+				RouteTableID:           awsSpecs[0].RouteTableID.ValueString(),
+				InstanceProfileName:    awsSpecs[0].InstanceProfileName.ValueString(),
+				ControlPlaneRoleARN:    awsSpecs[0].RoleARN.ValueString(),
+				OpenstackBillingTenant: awsSpecs[0].OpenstackBillingTenant.ValueString(),
+			}
+		}
+	}
+
+	if !clouds[0].Openstack.IsNull() && !clouds[0].Openstack.IsUnknown() {
+		var osSpecs []OpenstackCloudSpecModel
+		if diags := clouds[0].Openstack.ElementsAs(ctx, &osSpecs, false); !diags.HasError() && len(osSpecs) > 0 {
+			values.openstack = &clusterOpenstackPreservedValues{
+				openstackServerGroupID: osSpecs[0].ServerGroupID,
+			}
+
+			if !osSpecs[0].UserCredentials.IsNull() && !osSpecs[0].UserCredentials.IsUnknown() {
+				var userCreds []OpenstackUserCredentialsModel
+				if diags := osSpecs[0].UserCredentials.ElementsAs(ctx, &userCreds, false); !diags.HasError() && len(userCreds) > 0 {
+					values.openstack.openstackProjectID = userCreds[0].ProjectID
+					values.openstack.openstackProjectName = userCreds[0].ProjectName
+					values.openstack.openstackUsername = userCreds[0].Username
+					values.openstack.openstackPassword = userCreds[0].Password
+				}
+			}
+
+			if !osSpecs[0].ApplicationCredentials.IsNull() && !osSpecs[0].ApplicationCredentials.IsUnknown() {
+				var appCreds []OpenstackApplicationCredentialsModel
+				if diags := osSpecs[0].ApplicationCredentials.ElementsAs(ctx, &appCreds, false); !diags.HasError() && len(appCreds) > 0 {
+					values.openstack.openstackApplicationCredentialsID = appCreds[0].ID
+					values.openstack.openstackApplicationCredentialsSecret = appCreds[0].Secret
+				}
+			}
+		}
+	}
+
+	if !clouds[0].Azure.IsNull() && !clouds[0].Azure.IsUnknown() {
+		var azureSpecs []AzureCloudSpecModel
+		if diags := clouds[0].Azure.ElementsAs(ctx, &azureSpecs, false); !diags.HasError() && len(azureSpecs) > 0 {
+			values.azure = &models.AzureCloudSpec{
+				AvailabilitySet:        azureSpecs[0].AvailabilitySet.ValueString(),
+				ClientID:               azureSpecs[0].ClientID.ValueString(),
+				ClientSecret:           azureSpecs[0].ClientSecret.ValueString(),
+				SubscriptionID:         azureSpecs[0].SubscriptionID.ValueString(),
+				TenantID:               azureSpecs[0].TenantID.ValueString(),
+				ResourceGroup:          azureSpecs[0].ResourceGroup.ValueString(),
+				RouteTableName:         azureSpecs[0].RouteTable.ValueString(),
+				SecurityGroup:          azureSpecs[0].SecurityGroup.ValueString(),
+				SubnetName:             azureSpecs[0].Subnet.ValueString(),
+				VNetName:               azureSpecs[0].VNet.ValueString(),
+				OpenstackBillingTenant: azureSpecs[0].OpenstackBillingTenant.ValueString(),
+			}
+		}
+	}
+
+	return values
 }
 
-func flattenCniPlugin(in *models.CNIPluginSettings) []interface{} {
+func flattenUpdateWindow(ctx context.Context, specModel *ClusterSpecModel, in *models.UpdateWindow) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	if in == nil || (in.Start == "" && in.Length == "") {
+		specModel.UpdateWindow = types.ListNull(types.ObjectType{AttrTypes: updateWindowAttrTypes()})
+		return diags
+	}
+
+	uwModel := UpdateWindowModel{
+		Start:  types.StringValue(in.Start),
+		Length: types.StringValue(in.Length),
+	}
+
+	objVal, d := types.ObjectValueFrom(ctx, updateWindowAttrTypes(), uwModel)
+	diags.Append(d...)
+	if diags.HasError() {
+		return diags
+	}
+
+	listVal, d := types.ListValue(types.ObjectType{AttrTypes: updateWindowAttrTypes()}, []attr.Value{objVal})
+	diags.Append(d...)
+	specModel.UpdateWindow = listVal
+
+	return diags
+}
+
+func flattenCniPlugin(ctx context.Context, specModel *ClusterSpecModel, in *models.CNIPluginSettings) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	cniType := "canal"
+	if in != nil && in.Type != "" && in.Type != "none" {
+		cniType = string(in.Type)
+	}
+
+	cniModel := CNIPluginModel{
+		Type: types.StringValue(cniType),
+	}
+
+	objVal, d := types.ObjectValueFrom(ctx, cniPluginAttrTypes(), cniModel)
+	diags.Append(d...)
+	specModel.CNIPlugin = objVal
+
+	return diags
+}
+
+func flattenClusterCloudSpec(ctx context.Context, specModel *ClusterSpecModel, values clusterPreserveValues, in *models.CloudSpec) diag.Diagnostics {
+	var diags diag.Diagnostics
+
 	if in == nil {
-		return []interface{}{}
+		specModel.Cloud = types.ListNull(types.ObjectType{AttrTypes: clusterCloudSpecAttrTypes()})
+		return diags
 	}
 
-	m := make(map[string]interface{})
-	m["type"] = string(in.Type)
-
-	return []interface{}{m}
-}
-
-func flattenClusterCloudSpec(values clusterPreserveValues, in *models.CloudSpec) []interface{} {
-	if in == nil {
-		return []interface{}{}
+	cloudModel := ClusterCloudSpecModel{
+		AWS:       types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}),
+		Openstack: types.ListNull(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}),
+		Azure:     types.ListNull(types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()}),
 	}
-
-	att := make(map[string]interface{})
 
 	if in.Aws != nil {
-		att["aws"] = flattenAWSCloudSpec(values.aws)
+		awsSpec := in.Aws
+		if values.aws != nil {
+			awsSpec = values.aws
+		}
+		diags.Append(flattenAWSCloudSpec(ctx, &cloudModel, awsSpec)...)
 	}
 
 	if in.Openstack != nil {
-		att["openstack"] = flattenOpenstackSpec(values.openstack, in.Openstack)
+		diags.Append(flattenOpenstackSpec(ctx, &cloudModel, values.openstack, in.Openstack)...)
 	}
 
 	if in.Azure != nil {
-		att["azure"] = flattenAzureSpec(values.azure)
+		azureSpec := in.Azure
+		if values.azure != nil {
+			azureSpec = values.azure
+		}
+		diags.Append(flattenAzureSpec(ctx, &cloudModel, azureSpec)...)
 	}
 
-	return []interface{}{att}
+	objVal, d := types.ObjectValueFrom(ctx, clusterCloudSpecAttrTypes(), cloudModel)
+	diags.Append(d...)
+	if diags.HasError() {
+		return diags
+	}
+
+	listVal, d := types.ListValue(types.ObjectType{AttrTypes: clusterCloudSpecAttrTypes()}, []attr.Value{objVal})
+	diags.Append(d...)
+	specModel.Cloud = listVal
+
+	return diags
 }
 
-func flattenClusterSys11Auth(in *models.Sys11AuthSettings) []interface{} {
+func flattenClusterSys11Auth(ctx context.Context, specModel *ClusterSpecModel, in *models.Sys11AuthSettings) diag.Diagnostics {
+	var diags diag.Diagnostics
+
 	if in == nil || (in.Realm == "" && in.IAMAuthentication == nil) {
-		return nil
+		specModel.SyselevenAuth = types.ListNull(types.ObjectType{AttrTypes: syselevenAuthAttrTypes()})
+		return diags
 	}
 
-	att := make(map[string]interface{})
+	authModel := SyselevenAuthModel{}
 
 	if in.Realm != "" {
-		att["realm"] = in.Realm
+		authModel.Realm = types.StringValue(in.Realm)
+	} else {
+		authModel.Realm = types.StringNull()
 	}
 
 	if in.IAMAuthentication != nil {
-		att["iam_authentication"] = *in.IAMAuthentication
+		authModel.IAMAuthentication = types.BoolValue(*in.IAMAuthentication)
+	} else {
+		authModel.IAMAuthentication = types.BoolNull()
 	}
 
-	return []interface{}{att}
+	objVal, d := types.ObjectValueFrom(ctx, syselevenAuthAttrTypes(), authModel)
+	diags.Append(d...)
+	if diags.HasError() {
+		return diags
+	}
+
+	listVal, d := types.ListValue(types.ObjectType{AttrTypes: syselevenAuthAttrTypes()}, []attr.Value{objVal})
+	diags.Append(d...)
+	specModel.SyselevenAuth = listVal
+
+	return diags
 }
 
-func flattenAWSCloudSpec(in *models.AWSCloudSpec) []interface{} {
+func flattenAWSCloudSpec(ctx context.Context, cloudModel *ClusterCloudSpecModel, in *models.AWSCloudSpec) diag.Diagnostics {
+	var diags diag.Diagnostics
+
 	if in == nil {
-		return []interface{}{}
+		cloudModel.AWS = types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()})
+		return diags
 	}
 
-	att := make(map[string]interface{})
+	awsModel := AWSCloudSpecModel{}
 
 	if in.AccessKeyID != "" {
-		att["access_key_id"] = in.AccessKeyID
+		awsModel.AccessKeyID = types.StringValue(in.AccessKeyID)
+	} else {
+		awsModel.AccessKeyID = types.StringNull()
 	}
 
 	if in.SecretAccessKey != "" {
-		att["secret_access_key"] = in.SecretAccessKey
+		awsModel.SecretAccessKey = types.StringValue(in.SecretAccessKey)
+	} else {
+		awsModel.SecretAccessKey = types.StringNull()
 	}
 
 	if in.VPCID != "" {
-		att["vpc_id"] = in.VPCID
+		awsModel.VPCID = types.StringValue(in.VPCID)
+	} else {
+		awsModel.VPCID = types.StringNull()
 	}
 
 	if in.SecurityGroupID != "" {
-		att["security_group_id"] = in.SecurityGroupID
+		awsModel.SecurityGroupID = types.StringValue(in.SecurityGroupID)
+	} else {
+		awsModel.SecurityGroupID = types.StringNull()
 	}
 
 	if in.InstanceProfileName != "" {
-		att["instance_profile_name"] = in.InstanceProfileName
+		awsModel.InstanceProfileName = types.StringValue(in.InstanceProfileName)
+	} else {
+		awsModel.InstanceProfileName = types.StringNull()
 	}
 
 	if in.ControlPlaneRoleARN != "" {
-		att["role_arn"] = in.ControlPlaneRoleARN
+		awsModel.RoleARN = types.StringValue(in.ControlPlaneRoleARN)
+	} else {
+		awsModel.RoleARN = types.StringNull()
 	}
 
 	if in.OpenstackBillingTenant != "" {
-		att["openstack_billing_tenant"] = in.OpenstackBillingTenant
+		awsModel.OpenstackBillingTenant = types.StringValue(in.OpenstackBillingTenant)
+	} else {
+		awsModel.OpenstackBillingTenant = types.StringNull()
 	}
 
 	if in.RouteTableID != "" {
-		att["route_table_id"] = in.RouteTableID
+		awsModel.RouteTableID = types.StringValue(in.RouteTableID)
+	} else {
+		awsModel.RouteTableID = types.StringNull()
 	}
 
-	return []interface{}{att}
+	objVal, d := types.ObjectValueFrom(ctx, awsCloudSpecAttrTypes(), awsModel)
+	diags.Append(d...)
+	if diags.HasError() {
+		return diags
+	}
+
+	listVal, d := types.ListValue(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}, []attr.Value{objVal})
+	diags.Append(d...)
+	cloudModel.AWS = listVal
+
+	return diags
 }
 
-func flattenOpenstackSpec(values *clusterOpenstackPreservedValues, in *models.OpenstackCloudSpec) []interface{} {
+func flattenOpenstackSpec(ctx context.Context, cloudModel *ClusterCloudSpecModel, values *clusterOpenstackPreservedValues, in *models.OpenstackCloudSpec) diag.Diagnostics {
+	var diags diag.Diagnostics
+
 	if in == nil {
-		return []interface{}{}
+		cloudModel.Openstack = types.ListNull(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()})
+		return diags
 	}
 
-	att := make(map[string]interface{})
+	osModel := OpenstackCloudSpecModel{
+		UserCredentials:        types.ListNull(types.ObjectType{AttrTypes: openstackUserCredentialsAttrTypes()}),
+		ApplicationCredentials: types.ListNull(types.ObjectType{AttrTypes: openstackApplicationCredentialsAttrTypes()}),
+	}
 
 	if in.FloatingIPPool != "" {
-		att["floating_ip_pool"] = in.FloatingIPPool
+		osModel.FloatingIPPool = types.StringValue(in.FloatingIPPool)
+	} else {
+		osModel.FloatingIPPool = types.StringNull()
 	}
 
 	if in.SecurityGroups != "" {
-		att["security_group"] = in.SecurityGroups
+		osModel.SecurityGroup = types.StringValue(in.SecurityGroups)
+	} else {
+		osModel.SecurityGroup = types.StringNull()
 	}
 
 	if in.Network != "" {
-		att["network"] = in.Network
+		osModel.Network = types.StringValue(in.Network)
+	} else {
+		osModel.Network = types.StringNull()
 	}
 
 	if in.SubnetID != "" {
-		att["subnet_id"] = in.SubnetID
+		osModel.SubnetID = types.StringValue(in.SubnetID)
+	} else {
+		osModel.SubnetID = types.StringNull()
 	}
 
 	if in.SubnetCIDR != "" {
-		att["subnet_cidr"] = in.SubnetCIDR
+		osModel.SubnetCIDR = types.StringValue(in.SubnetCIDR)
+	} else {
+		osModel.SubnetCIDR = types.StringNull()
 	}
 
 	if in.ServerGroupID != "" {
-		att["server_group_id"] = in.ServerGroupID
+		osModel.ServerGroupID = types.StringValue(in.ServerGroupID)
+	} else if values != nil && !values.openstackServerGroupID.IsNull() && values.openstackServerGroupID.ValueString() != "" {
+		osModel.ServerGroupID = values.openstackServerGroupID
+	} else {
+		osModel.ServerGroupID = types.StringNull()
 	}
 
+	// Preserve user credentials from state (API doesn't return them)
 	if values != nil {
-		if _, ok := att["server_group_id"]; !ok && values.openstackServerGroupID != nil {
-			att["server_group_id"] = values.openstackServerGroupID
-		}
-		if values.openstackProjectID != nil || values.openstackProjectName != nil || values.openstackUsername != nil || values.openstackPassword != nil {
-			m := make(map[string]interface{})
-			if values.openstackProjectID != nil {
-				if v := values.openstackProjectID.(string); v != "" {
-					m["project_id"] = values.openstackProjectID
-				}
+		hasUserCreds := (!values.openstackProjectID.IsNull() && values.openstackProjectID.ValueString() != "") ||
+			(!values.openstackProjectName.IsNull() && values.openstackProjectName.ValueString() != "") ||
+			(!values.openstackUsername.IsNull() && values.openstackUsername.ValueString() != "") ||
+			(!values.openstackPassword.IsNull() && values.openstackPassword.ValueString() != "")
+
+		if hasUserCreds {
+			userCredsModel := OpenstackUserCredentialsModel{
+				ProjectID:   values.openstackProjectID,
+				ProjectName: values.openstackProjectName,
+				Username:    values.openstackUsername,
+				Password:    values.openstackPassword,
 			}
-			if values.openstackProjectName != nil {
-				if v := values.openstackProjectName.(string); v != "" {
-					m["project_name"] = values.openstackProjectName
-				}
-			}
-			if values.openstackUsername != nil {
-				if v := values.openstackUsername.(string); v != "" {
-					m["username"] = values.openstackUsername
-				}
-			}
-			if values.openstackPassword != nil {
-				if v := values.openstackPassword.(string); v != "" {
-					m["password"] = values.openstackPassword
-				}
-			}
-			if len(m) > 0 {
-				att["user_credentials"] = []interface{}{m}
+
+			objVal, d := types.ObjectValueFrom(ctx, openstackUserCredentialsAttrTypes(), userCredsModel)
+			diags.Append(d...)
+			if !diags.HasError() {
+				listVal, d := types.ListValue(types.ObjectType{AttrTypes: openstackUserCredentialsAttrTypes()}, []attr.Value{objVal})
+				diags.Append(d...)
+				osModel.UserCredentials = listVal
 			}
 		}
-		if values.openstackApplicationCredentialsID != nil || values.openstackApplicationCredentialsSecret != nil {
-			m := make(map[string]interface{})
-			if values.openstackApplicationCredentialsID != nil {
-				id := values.openstackApplicationCredentialsID.(string)
-				if id != "" {
-					m["id"] = values.openstackApplicationCredentialsID
-				}
+
+		hasAppCreds := (!values.openstackApplicationCredentialsID.IsNull() && values.openstackApplicationCredentialsID.ValueString() != "") ||
+			(!values.openstackApplicationCredentialsSecret.IsNull() && values.openstackApplicationCredentialsSecret.ValueString() != "")
+
+		if hasAppCreds {
+			appCredsModel := OpenstackApplicationCredentialsModel{
+				ID:     values.openstackApplicationCredentialsID,
+				Secret: values.openstackApplicationCredentialsSecret,
 			}
-			if values.openstackApplicationCredentialsSecret != nil {
-				secret := values.openstackApplicationCredentialsSecret.(string)
-				if secret != "" {
-					m["secret"] = values.openstackApplicationCredentialsSecret
-				}
-			}
-			if len(m) > 0 {
-				att["application_credentials"] = []interface{}{m}
+
+			objVal, d := types.ObjectValueFrom(ctx, openstackApplicationCredentialsAttrTypes(), appCredsModel)
+			diags.Append(d...)
+			if !diags.HasError() {
+				listVal, d := types.ListValue(types.ObjectType{AttrTypes: openstackApplicationCredentialsAttrTypes()}, []attr.Value{objVal})
+				diags.Append(d...)
+				osModel.ApplicationCredentials = listVal
 			}
 		}
 	}
 
-	return []interface{}{att}
+	objVal, d := types.ObjectValueFrom(ctx, openstackCloudSpecAttrTypes(), osModel)
+	diags.Append(d...)
+	if diags.HasError() {
+		return diags
+	}
+
+	listVal, d := types.ListValue(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}, []attr.Value{objVal})
+	diags.Append(d...)
+	cloudModel.Openstack = listVal
+
+	return diags
 }
 
-func flattenAzureSpec(in *models.AzureCloudSpec) []interface{} {
+func flattenAzureSpec(ctx context.Context, cloudModel *ClusterCloudSpecModel, in *models.AzureCloudSpec) diag.Diagnostics {
+	var diags diag.Diagnostics
+
 	if in == nil {
-		return []interface{}{}
+		cloudModel.Azure = types.ListNull(types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()})
+		return diags
 	}
 
-	// API returns empty spec for Azure clusters, so we just preserve values used for creation
-
-	att := make(map[string]interface{})
+	azureModel := AzureCloudSpecModel{}
 
 	if in.AvailabilitySet != "" {
-		att["availability_set"] = in.AvailabilitySet
+		azureModel.AvailabilitySet = types.StringValue(in.AvailabilitySet)
+	} else {
+		azureModel.AvailabilitySet = types.StringNull()
 	}
 
 	if in.ClientID != "" {
-		att["client_id"] = in.ClientID
+		azureModel.ClientID = types.StringValue(in.ClientID)
+	} else {
+		azureModel.ClientID = types.StringNull()
 	}
 
 	if in.ClientSecret != "" {
-		att["client_secret"] = in.ClientSecret
+		azureModel.ClientSecret = types.StringValue(in.ClientSecret)
+	} else {
+		azureModel.ClientSecret = types.StringNull()
 	}
 
 	if in.SubscriptionID != "" {
-		att["subscription_id"] = in.SubscriptionID
+		azureModel.SubscriptionID = types.StringValue(in.SubscriptionID)
+	} else {
+		azureModel.SubscriptionID = types.StringNull()
 	}
 
 	if in.TenantID != "" {
-		att["tenant_id"] = in.TenantID
+		azureModel.TenantID = types.StringValue(in.TenantID)
+	} else {
+		azureModel.TenantID = types.StringNull()
 	}
 
 	if in.ResourceGroup != "" {
-		att["resource_group"] = in.ResourceGroup
+		azureModel.ResourceGroup = types.StringValue(in.ResourceGroup)
+	} else {
+		azureModel.ResourceGroup = types.StringNull()
 	}
 
 	if in.RouteTableName != "" {
-		att["route_table"] = in.RouteTableName
+		azureModel.RouteTable = types.StringValue(in.RouteTableName)
+	} else {
+		azureModel.RouteTable = types.StringNull()
 	}
 
 	if in.OpenstackBillingTenant != "" {
-		att["openstack_billing_tenant"] = in.OpenstackBillingTenant
+		azureModel.OpenstackBillingTenant = types.StringValue(in.OpenstackBillingTenant)
+	} else {
+		azureModel.OpenstackBillingTenant = types.StringNull()
 	}
 
 	if in.SecurityGroup != "" {
-		att["security_group"] = in.SecurityGroup
+		azureModel.SecurityGroup = types.StringValue(in.SecurityGroup)
+	} else {
+		azureModel.SecurityGroup = types.StringNull()
 	}
 
 	if in.SubnetName != "" {
-		att["subnet"] = in.SubnetName
+		azureModel.Subnet = types.StringValue(in.SubnetName)
+	} else {
+		azureModel.Subnet = types.StringNull()
 	}
 
 	if in.VNetName != "" {
-		att["vnet"] = in.VNetName
+		azureModel.VNet = types.StringValue(in.VNetName)
+	} else {
+		azureModel.VNet = types.StringNull()
 	}
 
-	return []interface{}{att}
+	objVal, d := types.ObjectValueFrom(ctx, azureCloudSpecAttrTypes(), azureModel)
+	diags.Append(d...)
+	if diags.HasError() {
+		return diags
+	}
+
+	listVal, d := types.ListValue(types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()}, []attr.Value{objVal})
+	diags.Append(d...)
+	cloudModel.Azure = listVal
+
+	return diags
 }
 
 // expanders
 
-func metakubeResourceClusterExpandSpec(p []interface{}, dcName string, include func(string) bool) *models.ClusterSpec {
-	if len(p) < 1 {
+func metakubeResourceClusterExpandSpec(ctx context.Context, model *ClusterModel, dcName string, include func(string) bool) *models.ClusterSpec {
+	if model.Spec.IsNull() || model.Spec.IsUnknown() {
 		return nil
 	}
+
+	var specs []ClusterSpecModel
+	if diags := model.Spec.ElementsAs(ctx, &specs, false); diags.HasError() || len(specs) == 0 {
+		return nil
+	}
+
+	spec := specs[0]
 	obj := &models.ClusterSpec{}
-	if p[0] == nil {
-		return obj
-	}
-	in := p[0].(map[string]interface{})
 
-	if v, ok := in["version"]; ok {
-		if vv, ok := v.(string); ok && include("version") {
-			obj.Version = models.Semver(vv)
-		}
+	if !spec.Version.IsNull() && !spec.Version.IsUnknown() && include("version") {
+		obj.Version = models.Semver(spec.Version.ValueString())
 	}
 
-	if v, ok := in["update_window"]; ok {
-		if vv, ok := v.([]interface{}); ok && include("update_window") {
-			obj.UpdateWindow = expandUpdateWindow(vv)
-		}
+	if !spec.UpdateWindow.IsNull() && !spec.UpdateWindow.IsUnknown() && include("update_window") {
+		obj.UpdateWindow = expandUpdateWindow(ctx, spec.UpdateWindow)
 	}
 
-	if v, ok := in["enable_ssh_agent"]; ok && include("enable_ssh_agent") {
-		if vv, ok := v.(bool); ok {
-			obj.EnableUserSSHKeyAgent = &vv
-		}
+	if !spec.EnableSSHAgent.IsNull() && !spec.EnableSSHAgent.IsUnknown() && include("enable_ssh_agent") {
+		v := spec.EnableSSHAgent.ValueBool()
+		obj.EnableUserSSHKeyAgent = &v
 	}
 
-	if v, ok := in["audit_logging"]; ok && include("audit_logging") {
-		if vv, ok := v.(bool); ok {
-			obj.AuditLogging = expandAuditLogging(vv)
-		}
+	if !spec.AuditLogging.IsNull() && !spec.AuditLogging.IsUnknown() && include("audit_logging") {
+		obj.AuditLogging = expandAuditLogging(spec.AuditLogging.ValueBool())
 	}
 
-	if v, ok := in["pod_security_policy"]; ok && include("pod_security_policy") {
-		if vv, ok := v.(bool); ok {
-			obj.UsePodSecurityPolicyAdmissionPlugin = vv
-		}
+	if !spec.PodSecurityPolicy.IsNull() && !spec.PodSecurityPolicy.IsUnknown() && include("pod_security_policy") {
+		obj.UsePodSecurityPolicyAdmissionPlugin = spec.PodSecurityPolicy.ValueBool()
 	}
 
-	if v, ok := in["pod_node_selector"]; ok && include("pod_node_selector") {
-		if vv, ok := v.(bool); ok {
-			obj.UsePodNodeSelectorAdmissionPlugin = vv
-		}
+	if !spec.PodNodeSelector.IsNull() && !spec.PodNodeSelector.IsUnknown() && include("pod_node_selector") {
+		obj.UsePodNodeSelectorAdmissionPlugin = spec.PodNodeSelector.ValueBool()
 	}
 
-	if v, ok := in["services_cidr"]; ok && include("services_cidr") {
-		if vv, ok := v.(string); ok && vv != "" {
+	if !spec.ServicesCIDR.IsNull() && !spec.ServicesCIDR.IsUnknown() && include("services_cidr") {
+		v := spec.ServicesCIDR.ValueString()
+		if v != "" {
 			if obj.ClusterNetwork == nil {
 				obj.ClusterNetwork = &models.ClusterNetworkingConfig{}
 			}
 			obj.ClusterNetwork.Services = &models.NetworkRanges{
-				CIDRBlocks: []string{vv},
+				CIDRBlocks: []string{v},
 			}
 		}
 	}
 
-	if v, ok := in["pods_cidr"]; ok && include("pods_cidr") {
-		if vv, ok := v.(string); ok && vv != "" {
+	if !spec.PodsCIDR.IsNull() && !spec.PodsCIDR.IsUnknown() && include("pods_cidr") {
+		v := spec.PodsCIDR.ValueString()
+		if v != "" {
 			if obj.ClusterNetwork == nil {
 				obj.ClusterNetwork = &models.ClusterNetworkingConfig{}
 			}
 			obj.ClusterNetwork.Pods = &models.NetworkRanges{
-				CIDRBlocks: []string{vv},
+				CIDRBlocks: []string{v},
 			}
 		}
 	}
 
-	if v, ok := in["cni_plugin"]; ok {
-		if vv, ok := v.([]interface{}); ok {
-			obj.CniPlugin = expandCniPlugin(vv)
-		}
+	if !spec.CNIPlugin.IsUnknown() {
+		obj.CniPlugin = expandCniPlugin(ctx, spec.CNIPlugin)
 	}
 
-	if v, ok := in["ip_family"]; ok && include("ip_family") {
-		if vv, ok := v.(string); ok && vv != "" {
+	if !spec.IPFamily.IsNull() && !spec.IPFamily.IsUnknown() && include("ip_family") {
+		v := spec.IPFamily.ValueString()
+		if v != "" {
 			if obj.ClusterNetwork == nil {
 				obj.ClusterNetwork = &models.ClusterNetworkingConfig{}
 			}
-			obj.ClusterNetwork.IPFamily = models.IPFamily(vv)
+			obj.ClusterNetwork.IPFamily = models.IPFamily(v)
 		}
 	}
 
-	if v, ok := in["cloud"]; ok && include("cloud") {
-		if vv, ok := v.([]interface{}); ok {
-			obj.Cloud = expandClusterCloudSpec(vv, dcName, func(k string) bool { return include("cloud.0." + k) })
-		}
+	if !spec.Cloud.IsNull() && !spec.Cloud.IsUnknown() && include("cloud") {
+		obj.Cloud = expandClusterCloudSpec(ctx, spec.Cloud, dcName, func(k string) bool { return include("cloud.0." + k) })
 	}
 
 	// FIXME once we have proper server side validation for spec.BillingTenant we can remove this
@@ -399,27 +696,29 @@ func metakubeResourceClusterExpandSpec(p []interface{}, dcName string, include f
 		obj.BillingTenant = obj.Cloud.Aws.OpenstackBillingTenant
 	}
 
-	if v, ok := in["syseleven_auth"]; ok && include("syseleven_auth") {
-		if vv, ok := v.([]interface{}); ok {
-			obj.Sys11auth = expandClusterSys11Auth(vv)
-		}
+	if !spec.SyselevenAuth.IsNull() && !spec.SyselevenAuth.IsUnknown() && include("syseleven_auth") {
+		obj.Sys11auth = expandClusterSys11Auth(ctx, spec.SyselevenAuth)
 	}
 
 	return obj
 }
 
-func expandUpdateWindow(p []interface{}) *models.UpdateWindow {
-	if len(p) < 1 {
+func expandUpdateWindow(ctx context.Context, list types.List) *models.UpdateWindow {
+	if list.IsNull() || list.IsUnknown() {
 		return nil
 	}
 
-	m := p[0].(map[string]interface{})
-	ret := new(models.UpdateWindow)
-	if v, ok := m["start"]; ok {
-		ret.Start = v.(string)
+	var windows []UpdateWindowModel
+	if diags := list.ElementsAs(ctx, &windows, false); diags.HasError() || len(windows) == 0 {
+		return nil
 	}
-	if v, ok := m["length"]; ok {
-		ret.Length = v.(string)
+
+	ret := &models.UpdateWindow{}
+	if !windows[0].Start.IsNull() && !windows[0].Start.IsUnknown() {
+		ret.Start = windows[0].Start.ValueString()
+	}
+	if !windows[0].Length.IsNull() && !windows[0].Length.IsUnknown() {
+		ret.Length = windows[0].Length.ValueString()
 	}
 	return ret
 }
@@ -430,232 +729,261 @@ func expandAuditLogging(enabled bool) *models.AuditLoggingSettings {
 	}
 }
 
-func expandCniPlugin(p []interface{}) *models.CNIPluginSettings {
-	if len(p) < 1 {
+func expandCniPlugin(ctx context.Context, obj types.Object) *models.CNIPluginSettings {
+	defaultCNI := &models.CNIPluginSettings{
+		Type: models.CNIPluginType("canal"),
+	}
+
+	if obj.IsNull() || obj.IsUnknown() {
+		return defaultCNI
+	}
+
+	var plugin CNIPluginModel
+	if diags := obj.As(ctx, &plugin, basetypes.ObjectAsOptions{}); diags.HasError() {
+		return defaultCNI
+	}
+
+	if plugin.Type.IsNull() || plugin.Type.IsUnknown() {
+		return defaultCNI
+	}
+
+	v := plugin.Type.ValueString()
+	if v == "" {
+		return defaultCNI
+	}
+
+	return &models.CNIPluginSettings{
+		Type: models.CNIPluginType(v),
+	}
+}
+
+func expandClusterCloudSpec(ctx context.Context, list types.List, dcName string, include func(string) bool) *models.CloudSpec {
+	if list.IsNull() || list.IsUnknown() {
 		return nil
 	}
-	obj := &models.CNIPluginSettings{}
-	if p[0] == nil {
-		return obj
-	}
-	in := p[0].(map[string]interface{})
 
-	if v, ok := in["type"]; ok {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.Type = models.CNIPluginType(vv)
-		}
+	var clouds []ClusterCloudSpecModel
+	if diags := list.ElementsAs(ctx, &clouds, false); diags.HasError() || len(clouds) == 0 {
+		return nil
+	}
+
+	obj := &models.CloudSpec{
+		DatacenterName: dcName,
+	}
+
+	if !clouds[0].AWS.IsNull() && !clouds[0].AWS.IsUnknown() && include("aws") {
+		obj.Aws = expandAWSCloudSpec(ctx, clouds[0].AWS, func(k string) bool { return include("aws.0." + k) })
+	}
+
+	if !clouds[0].Openstack.IsNull() && !clouds[0].Openstack.IsUnknown() && include("openstack") {
+		obj.Openstack = expandOpenstackCloudSpec(ctx, clouds[0].Openstack, func(k string) bool { return include("openstack.0." + k) })
+	}
+
+	if !clouds[0].Azure.IsNull() && !clouds[0].Azure.IsUnknown() && include("azure") {
+		obj.Azure = expandAzureCloudSpec(ctx, clouds[0].Azure, func(k string) bool { return include("azure.0." + k) })
 	}
 
 	return obj
 }
 
-func expandClusterCloudSpec(p []interface{}, dcName string, include func(string) bool) *models.CloudSpec {
-	if len(p) < 1 {
+func expandClusterSys11Auth(ctx context.Context, list types.List) *models.Sys11AuthSettings {
+	if list.IsNull() || list.IsUnknown() {
 		return nil
 	}
-	obj := &models.CloudSpec{}
-	if p[0] == nil {
-		return obj
-	}
-	in := p[0].(map[string]interface{})
 
-	obj.DatacenterName = dcName
-
-	if v, ok := in["aws"]; ok && include("aws") {
-		if vv, ok := v.([]interface{}); ok {
-			obj.Aws = expandAWSCloudSpec(vv, func(k string) bool { return include("aws.0." + k) })
-		}
-	}
-
-	if v, ok := in["openstack"]; ok && include("openstack") {
-		if vv, ok := v.([]interface{}); ok {
-			obj.Openstack = expandOpenstackCloudSpec(vv, func(k string) bool { return include("openstack.0." + k) })
-		}
-	}
-
-	if v, ok := in["azure"]; ok && include("azure") {
-		if vv, ok := v.([]interface{}); ok {
-			obj.Azure = expandAzureCloudSpec(vv, func(k string) bool { return include("azure.0." + k) })
-		}
-	}
-
-	return obj
-}
-
-func expandClusterSys11Auth(p []interface{}) *models.Sys11AuthSettings {
-	if len(p) < 1 {
+	var auths []SyselevenAuthModel
+	if diags := list.ElementsAs(ctx, &auths, false); diags.HasError() || len(auths) == 0 {
 		return nil
 	}
-	if p[0] == nil {
-		return nil
-	}
+
 	obj := &models.Sys11AuthSettings{}
-	in := p[0].(map[string]interface{})
 
-	if v, ok := in["iam_authentication"].(bool); ok {
-		obj.IAMAuthentication = ptr.To(v)
+	if !auths[0].IAMAuthentication.IsNull() && !auths[0].IAMAuthentication.IsUnknown() {
+		obj.IAMAuthentication = ptr.To(auths[0].IAMAuthentication.ValueBool())
 	}
 
-	if v, ok := in["realm"]; ok {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.Realm = vv
+	if !auths[0].Realm.IsNull() && !auths[0].Realm.IsUnknown() {
+		v := auths[0].Realm.ValueString()
+		if v != "" {
+			obj.Realm = v
 		}
 	}
 
 	return obj
 }
 
-func expandAWSCloudSpec(p []interface{}, include func(string) bool) *models.AWSCloudSpec {
-	if len(p) < 1 {
+func expandAWSCloudSpec(ctx context.Context, list types.List, include func(string) bool) *models.AWSCloudSpec {
+	if list.IsNull() || list.IsUnknown() {
 		return nil
 	}
+
+	var awsSpecs []AWSCloudSpecModel
+	if diags := list.ElementsAs(ctx, &awsSpecs, false); diags.HasError() || len(awsSpecs) == 0 {
+		return nil
+	}
+
 	obj := &models.AWSCloudSpec{}
-	if p[0] == nil {
-		return obj
-	}
-	in := p[0].(map[string]interface{})
+	aws := awsSpecs[0]
 
-	if v, ok := in["access_key_id"]; ok && include("access_key_id") {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.AccessKeyID = vv
+	if !aws.AccessKeyID.IsNull() && !aws.AccessKeyID.IsUnknown() && include("access_key_id") {
+		v := aws.AccessKeyID.ValueString()
+		if v != "" {
+			obj.AccessKeyID = v
 		}
 	}
 
-	if v, ok := in["secret_access_key"]; ok && include("secret_access_key") {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.SecretAccessKey = vv
+	if !aws.SecretAccessKey.IsNull() && !aws.SecretAccessKey.IsUnknown() && include("secret_access_key") {
+		v := aws.SecretAccessKey.ValueString()
+		if v != "" {
+			obj.SecretAccessKey = v
 		}
 	}
 
-	if v, ok := in["vpc_id"]; ok && include("vpc_id") {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.VPCID = vv
+	if !aws.VPCID.IsNull() && !aws.VPCID.IsUnknown() && include("vpc_id") {
+		v := aws.VPCID.ValueString()
+		if v != "" {
+			obj.VPCID = v
 		}
 	}
 
-	if v, ok := in["security_group_id"]; ok && include("security_group_id") {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.SecurityGroupID = vv
+	if !aws.SecurityGroupID.IsNull() && !aws.SecurityGroupID.IsUnknown() && include("security_group_id") {
+		v := aws.SecurityGroupID.ValueString()
+		if v != "" {
+			obj.SecurityGroupID = v
 		}
 	}
 
-	if v, ok := in["instance_profile_name"]; ok && include("instance_profile_name") {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.InstanceProfileName = vv
+	if !aws.InstanceProfileName.IsNull() && !aws.InstanceProfileName.IsUnknown() && include("instance_profile_name") {
+		v := aws.InstanceProfileName.ValueString()
+		if v != "" {
+			obj.InstanceProfileName = v
 		}
 	}
 
-	if v, ok := in["role_arn"]; ok && include("role_arn") {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.ControlPlaneRoleARN = vv
+	if !aws.RoleARN.IsNull() && !aws.RoleARN.IsUnknown() && include("role_arn") {
+		v := aws.RoleARN.ValueString()
+		if v != "" {
+			obj.ControlPlaneRoleARN = v
 		}
 	}
 
-	if v, ok := in["openstack_billing_tenant"]; ok && include("openstack_billing_tenant") {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.OpenstackBillingTenant = vv
+	if !aws.OpenstackBillingTenant.IsNull() && !aws.OpenstackBillingTenant.IsUnknown() && include("openstack_billing_tenant") {
+		v := aws.OpenstackBillingTenant.ValueString()
+		if v != "" {
+			obj.OpenstackBillingTenant = v
 		}
 	}
 
-	if v, ok := in["route_table_id"]; ok && include("route_table_id") {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.RouteTableID = vv
+	if !aws.RouteTableID.IsNull() && !aws.RouteTableID.IsUnknown() && include("route_table_id") {
+		v := aws.RouteTableID.ValueString()
+		if v != "" {
+			obj.RouteTableID = v
 		}
 	}
 
 	return obj
 }
 
-func expandOpenstackCloudSpec(p []interface{}, include func(string) bool) *models.OpenstackCloudSpec {
-	if len(p) < 1 {
+func expandOpenstackCloudSpec(ctx context.Context, list types.List, include func(string) bool) *models.OpenstackCloudSpec {
+	if list.IsNull() || list.IsUnknown() {
+		return nil
+	}
+
+	var osSpecs []OpenstackCloudSpecModel
+	if diags := list.ElementsAs(ctx, &osSpecs, false); diags.HasError() || len(osSpecs) == 0 {
 		return nil
 	}
 
 	obj := &models.OpenstackCloudSpec{}
-	if p[0] == nil {
-		return obj
-	}
-	in := p[0].(map[string]interface{})
+	os := osSpecs[0]
 
-	if v, ok := in["floating_ip_pool"]; ok && include("floating_ip_pool") {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.FloatingIPPool = vv
+	if !os.FloatingIPPool.IsNull() && !os.FloatingIPPool.IsUnknown() && include("floating_ip_pool") {
+		v := os.FloatingIPPool.ValueString()
+		if v != "" {
+			obj.FloatingIPPool = v
 		}
 	}
 
-	if v, ok := in["security_group"]; ok && include("security_group") {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.SecurityGroups = vv
+	if !os.SecurityGroup.IsNull() && !os.SecurityGroup.IsUnknown() && include("security_group") {
+		v := os.SecurityGroup.ValueString()
+		if v != "" {
+			obj.SecurityGroups = v
 		}
 	}
 
-	if v, ok := in["network"]; ok && include("network") {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.Network = vv
+	if !os.Network.IsNull() && !os.Network.IsUnknown() && include("network") {
+		v := os.Network.ValueString()
+		if v != "" {
+			obj.Network = v
 		}
 	}
 
-	if v, ok := in["subnet_id"]; ok && include("subnet_id") {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.SubnetID = vv
+	if !os.SubnetID.IsNull() && !os.SubnetID.IsUnknown() && include("subnet_id") {
+		v := os.SubnetID.ValueString()
+		if v != "" {
+			obj.SubnetID = v
 		}
 	}
 
-	if v, ok := in["subnet_cidr"]; ok && include("subnet_cidr") {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.SubnetCIDR = vv
+	if !os.SubnetCIDR.IsNull() && !os.SubnetCIDR.IsUnknown() && include("subnet_cidr") {
+		v := os.SubnetCIDR.ValueString()
+		if v != "" {
+			obj.SubnetCIDR = v
 		}
 	}
 
-	if v, ok := in["server_group_id"]; ok && include("server_group_id") {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.ServerGroupID = vv
+	if !os.ServerGroupID.IsNull() && !os.ServerGroupID.IsUnknown() && include("server_group_id") {
+		v := os.ServerGroupID.ValueString()
+		if v != "" {
+			obj.ServerGroupID = v
 		}
 	}
 
-	if v, ok := in["application_credentials"]; ok {
-		if vv, ok := v.([]interface{}); ok && len(vv) > 0 && vv[0] != nil {
-			if m, ok := vv[0].(map[string]interface{}); ok {
-				if v, ok := m["id"]; ok && include("application_credentials.0.id") {
-					if vv, ok := v.(string); ok && vv != "" {
-						obj.ApplicationCredentialID = vv
-					}
+	if !os.ApplicationCredentials.IsNull() && !os.ApplicationCredentials.IsUnknown() {
+		var appCreds []OpenstackApplicationCredentialsModel
+		if diags := os.ApplicationCredentials.ElementsAs(ctx, &appCreds, false); !diags.HasError() && len(appCreds) > 0 {
+			if !appCreds[0].ID.IsNull() && !appCreds[0].ID.IsUnknown() && include("application_credentials.0.id") {
+				v := appCreds[0].ID.ValueString()
+				if v != "" {
+					obj.ApplicationCredentialID = v
 				}
+			}
 
-				if v, ok := m["secret"]; ok && include("application_credentials.0.secret") {
-					if vv, ok := v.(string); ok && vv != "" {
-						obj.ApplicationCredentialSecret = vv
-					}
+			if !appCreds[0].Secret.IsNull() && !appCreds[0].Secret.IsUnknown() && include("application_credentials.0.secret") {
+				v := appCreds[0].Secret.ValueString()
+				if v != "" {
+					obj.ApplicationCredentialSecret = v
 				}
 			}
 		}
 	}
 
-	if v, ok := in["user_credentials"]; ok {
-		if vv, ok := v.([]interface{}); ok && len(vv) > 0 && vv[0] != nil {
-			if m, ok := vv[0].(map[string]interface{}); ok {
-				if v, ok := m["username"]; ok {
-					if vv, ok := v.(string); ok && vv != "" {
-						obj.Username = vv
-					}
+	if !os.UserCredentials.IsNull() && !os.UserCredentials.IsUnknown() {
+		var userCreds []OpenstackUserCredentialsModel
+		if diags := os.UserCredentials.ElementsAs(ctx, &userCreds, false); !diags.HasError() && len(userCreds) > 0 {
+			if !userCreds[0].Username.IsNull() && !userCreds[0].Username.IsUnknown() {
+				v := userCreds[0].Username.ValueString()
+				if v != "" {
+					obj.Username = v
 				}
-				if v, ok := m["password"]; ok {
-					if vv, ok := v.(string); ok && vv != "" {
-						obj.Password = vv
-					}
+			}
+			if !userCreds[0].Password.IsNull() && !userCreds[0].Password.IsUnknown() {
+				v := userCreds[0].Password.ValueString()
+				if v != "" {
+					obj.Password = v
 				}
-				if v, ok := m["project_id"]; ok {
-					if vv, ok := v.(string); ok && vv != "" {
-						obj.ProjectID = vv
-					}
+			}
+			if !userCreds[0].ProjectID.IsNull() && !userCreds[0].ProjectID.IsUnknown() {
+				v := userCreds[0].ProjectID.ValueString()
+				if v != "" {
+					obj.ProjectID = v
 				}
-
-				if v, ok := m["project_name"]; ok {
-					if vv, ok := v.(string); ok && vv != "" {
-						obj.Project = vv
-					}
+			}
+			if !userCreds[0].ProjectName.IsNull() && !userCreds[0].ProjectName.IsUnknown() {
+				v := userCreds[0].ProjectName.ValueString()
+				if v != "" {
+					obj.Project = v
 				}
-
 			}
 		}
 	}
@@ -666,82 +994,93 @@ func expandOpenstackCloudSpec(p []interface{}, include func(string) bool) *model
 	return obj
 }
 
-func expandAzureCloudSpec(p []interface{}, include func(string) bool) *models.AzureCloudSpec {
-	if len(p) < 1 {
+func expandAzureCloudSpec(ctx context.Context, list types.List, include func(string) bool) *models.AzureCloudSpec {
+	if list.IsNull() || list.IsUnknown() {
+		return nil
+	}
+
+	var azureSpecs []AzureCloudSpecModel
+	if diags := list.ElementsAs(ctx, &azureSpecs, false); diags.HasError() || len(azureSpecs) == 0 {
 		return nil
 	}
 
 	obj := &models.AzureCloudSpec{}
+	azure := azureSpecs[0]
 
-	if p[0] == nil {
-		return obj
-	}
-
-	in := p[0].(map[string]interface{})
-
-	if v, ok := in["availability_set"]; ok && include("availability_set") {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.AvailabilitySet = vv
+	if !azure.AvailabilitySet.IsNull() && !azure.AvailabilitySet.IsUnknown() && include("availability_set") {
+		v := azure.AvailabilitySet.ValueString()
+		if v != "" {
+			obj.AvailabilitySet = v
 		}
 	}
 
-	if v, ok := in["client_id"]; ok && include("client_id") {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.ClientID = vv
+	if !azure.ClientID.IsNull() && !azure.ClientID.IsUnknown() && include("client_id") {
+		v := azure.ClientID.ValueString()
+		if v != "" {
+			obj.ClientID = v
 		}
 	}
 
-	if v, ok := in["client_secret"]; ok && include("client_secret") {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.ClientSecret = vv
+	if !azure.ClientSecret.IsNull() && !azure.ClientSecret.IsUnknown() && include("client_secret") {
+		v := azure.ClientSecret.ValueString()
+		if v != "" {
+			obj.ClientSecret = v
 		}
 	}
 
-	if v, ok := in["subscription_id"]; ok && include("subscription_id") {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.SubscriptionID = vv
+	if !azure.SubscriptionID.IsNull() && !azure.SubscriptionID.IsUnknown() && include("subscription_id") {
+		v := azure.SubscriptionID.ValueString()
+		if v != "" {
+			obj.SubscriptionID = v
 		}
 	}
 
-	if v, ok := in["tenant_id"]; ok && include("tenant_id") {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.TenantID = vv
+	if !azure.TenantID.IsNull() && !azure.TenantID.IsUnknown() && include("tenant_id") {
+		v := azure.TenantID.ValueString()
+		if v != "" {
+			obj.TenantID = v
 		}
 	}
 
-	if v, ok := in["resource_group"]; ok && include("resource_group") {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.ResourceGroup = vv
+	if !azure.ResourceGroup.IsNull() && !azure.ResourceGroup.IsUnknown() && include("resource_group") {
+		v := azure.ResourceGroup.ValueString()
+		if v != "" {
+			obj.ResourceGroup = v
 		}
 	}
 
-	if v, ok := in["route_table"]; ok && include("route_table") {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.RouteTableName = vv
+	if !azure.RouteTable.IsNull() && !azure.RouteTable.IsUnknown() && include("route_table") {
+		v := azure.RouteTable.ValueString()
+		if v != "" {
+			obj.RouteTableName = v
 		}
 	}
 
-	if v, ok := in["openstack_billing_tenant"]; ok && include("openstack_billing_tenant") {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.OpenstackBillingTenant = vv
+	if !azure.OpenstackBillingTenant.IsNull() && !azure.OpenstackBillingTenant.IsUnknown() && include("openstack_billing_tenant") {
+		v := azure.OpenstackBillingTenant.ValueString()
+		if v != "" {
+			obj.OpenstackBillingTenant = v
 		}
 	}
 
-	if v, ok := in["security_group"]; ok && include("security_group") {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.SecurityGroup = vv
+	if !azure.SecurityGroup.IsNull() && !azure.SecurityGroup.IsUnknown() && include("security_group") {
+		v := azure.SecurityGroup.ValueString()
+		if v != "" {
+			obj.SecurityGroup = v
 		}
 	}
 
-	if v, ok := in["subnet"]; ok && include("subnet") {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.SubnetName = vv
+	if !azure.Subnet.IsNull() && !azure.Subnet.IsUnknown() && include("subnet") {
+		v := azure.Subnet.ValueString()
+		if v != "" {
+			obj.SubnetName = v
 		}
 	}
 
-	if v, ok := in["vnet"]; ok && include("vnet") {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.VNetName = vv
+	if !azure.VNet.IsNull() && !azure.VNet.IsUnknown() && include("vnet") {
+		v := azure.VNet.ValueString()
+		if v != "" {
+			obj.VNetName = v
 		}
 	}
 
