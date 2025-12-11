@@ -14,7 +14,8 @@ import (
 )
 
 var (
-	_ datasource.DataSource = &metakubeK8sClusterVersionDataSource{}
+	_ datasource.DataSource              = &metakubeK8sClusterVersionDataSource{}
+	_ datasource.DataSourceWithConfigure = &metakubeK8sClusterVersionDataSource{}
 )
 
 func NewK8sClusterVersionDataSource() datasource.DataSource {
@@ -22,7 +23,24 @@ func NewK8sClusterVersionDataSource() datasource.DataSource {
 }
 
 type metakubeK8sClusterVersionDataSource struct {
-	meta common.MetaKubeProviderMeta
+	meta *common.MetaKubeProviderMeta
+}
+
+func (d *metakubeK8sClusterVersionDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+
+	meta, ok := req.ProviderData.(*common.MetaKubeProviderMeta)
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Unexpected Data Source Configure Type",
+			fmt.Sprintf("Expected *common.MetaKubeProviderMeta, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+		)
+		return
+	}
+
+	d.meta = meta
 }
 
 func (d *metakubeK8sClusterVersionDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -36,7 +54,6 @@ func (d *metakubeK8sClusterVersionDataSource) Schema(ctx context.Context, req da
 func (d *metakubeK8sClusterVersionDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	var data metakubeK8sVersionDataSourceModel
 
-	// Read Terraform prior state data into the model
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 
 	if resp.Diagnostics.HasError() {
@@ -44,10 +61,10 @@ func (d *metakubeK8sClusterVersionDataSource) Read(ctx context.Context, req data
 	}
 
 	var partialVersionSpec string
-	if !data.Major.IsNull() || !data.Major.IsUnknown() {
+	if !data.Major.IsNull() && !data.Major.IsUnknown() {
 		partialVersionSpec = data.Major.ValueString()
 	}
-	if !data.Minor.IsNull() || !data.Minor.IsUnknown() {
+	if !data.Minor.IsNull() && !data.Minor.IsUnknown() {
 		partialVersionSpec += "." + data.Minor.ValueString()
 	}
 
@@ -78,7 +95,7 @@ func (d *metakubeK8sClusterVersionDataSource) Read(ctx context.Context, req data
 	}
 
 	if len(available) == 0 {
-		resp.Diagnostics.AddError("found following versions but did not match specification: %s", strings.Join(all, " "))
+		resp.Diagnostics.AddError("No Matching Version", fmt.Sprintf("Found following versions but did not match specification: %s", strings.Join(all, " ")))
 		return
 	}
 
@@ -91,6 +108,5 @@ func (d *metakubeK8sClusterVersionDataSource) Read(ctx context.Context, req data
 
 	data.Version = types.StringValue(latest)
 
-	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
