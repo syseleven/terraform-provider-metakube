@@ -7,7 +7,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/syseleven/go-metakube/models"
 	"k8s.io/utils/ptr"
 )
@@ -35,25 +34,12 @@ type clusterOpenstackPreservedValues struct {
 func metakubeResourceClusterFlattenSpec(ctx context.Context, model *ClusterModel, in *models.ClusterSpec) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	tflog.Info(ctx, "flattenSpec: starting", map[string]interface{}{
-		"input_is_nil":    in == nil,
-		"model_spec_null": model.Spec.IsNull(),
-	})
-
 	if in == nil {
-		tflog.Info(ctx, "flattenSpec: input is nil, setting spec to null")
 		model.Spec = types.ListNull(types.ObjectType{AttrTypes: clusterSpecAttrTypes()})
 		return diags
 	}
 
 	preservedValues := getPreservedValuesFromModel(ctx, model)
-
-	tflog.Info(ctx, "flattenSpec: got preserved values", map[string]interface{}{
-		"hasAWS":       preservedValues.aws != nil,
-		"hasOpenstack": preservedValues.openstack != nil,
-		"hasAzure":     preservedValues.azure != nil,
-	})
-
 	specModel := ClusterSpecModel{}
 
 	if in.Version != "" {

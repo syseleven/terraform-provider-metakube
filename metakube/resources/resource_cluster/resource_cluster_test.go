@@ -8,23 +8,16 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/syseleven/go-metakube/client/project"
 	"github.com/syseleven/go-metakube/models"
-	"github.com/syseleven/terraform-provider-metakube/metakube"
 	"github.com/syseleven/terraform-provider-metakube/metakube/common"
-	"github.com/syseleven/terraform-provider-metakube/metakube/common/provider_testutil"
 	"github.com/syseleven/terraform-provider-metakube/metakube/common/testutil"
 )
 
 func TestMain(m *testing.M) {
-	provider_testutil.TestAccProvider = metakube.Provider()
-	provider_testutil.TestAccProviders = map[string]*schema.Provider{
-		"metakube": provider_testutil.TestAccProvider,
-	}
 	resource.TestMain(m)
 }
 
@@ -65,7 +58,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 		PreCheck: func() {
 			testutil.TestAccPreCheckForOpenstack(t)
 		},
-		ProtoV5ProviderFactories: testutil.TestAccProtoV5ProviderFactories,
+		ProtoV6ProviderFactories: testutil.TestAccProtoV6ProviderFactories,
 		ExternalProviders: map[string]resource.ExternalProvider{
 			"openstack": {
 				Source: "terraform-provider-openstack/openstack",
@@ -94,8 +87,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "spec.0.update_window.0.length", "2h"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.services_cidr", "10.240.16.0/18"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.pods_cidr", "172.25.0.0/18"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.0.type", "cilium"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.type", "canal"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.ip_family", "IPv4"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.aws.#", "0"),
@@ -131,8 +123,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "spec.0.update_window.0.length", "2h"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.services_cidr", "10.240.16.0/18"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.pods_cidr", "172.25.0.0/18"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.0.type", "cilium"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.type", "canal"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.ip_family", "IPv4"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.aws.#", "0"),
@@ -203,7 +194,7 @@ func TestAccMetakubeCluster_Openstack_ApplicationCredentials(t *testing.T) {
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testutil.TestAccPreCheckForOpenstack(t) },
-		ProtoV5ProviderFactories: testutil.TestAccProtoV5ProviderFactories,
+		ProtoV6ProviderFactories: testutil.TestAccProtoV6ProviderFactories,
 		ExternalProviders: map[string]resource.ExternalProvider{
 			"openstack": {
 				Source: "terraform-provider-openstack/openstack",
@@ -250,7 +241,7 @@ func TestAccMetakubeCluster_Openstack_UpgradeVersion(t *testing.T) {
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testutil.TestAccPreCheckForOpenstack(t) },
-		ProtoV5ProviderFactories: testutil.TestAccProtoV5ProviderFactories,
+		ProtoV6ProviderFactories: testutil.TestAccProtoV6ProviderFactories,
 		ExternalProviders: map[string]resource.ExternalProvider{
 			"openstack": {
 				Source: "terraform-provider-openstack/openstack",
@@ -366,9 +357,9 @@ resource "metakube_cluster" "acctest_cluster" {
 		pods_cidr = "172.25.0.0/18"
 		
 		{{ if .CNIPlugin }}
-		cni_plugin {
+		cni_plugin = {
 			type = "{{ .CNIPlugin }}"
-		  }
+		}
 		{{ end }}
 
 		{{ if .IPFamily }}
@@ -511,9 +502,9 @@ func TestAccMetakubeCluster_SSHKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 	resource.Test(t, resource.TestCase{
-		PreCheck:     func() { testutil.TestAccPreCheckForOpenstack(t) },
-		Providers:    provider_testutil.TestAccProviders,
-		CheckDestroy: testutil.TestAccCheckMetaKubeClusterDestroy,
+		PreCheck:                 func() { testutil.TestAccPreCheckForOpenstack(t) },
+		ProtoV6ProviderFactories: testutil.TestAccProtoV6ProviderFactories,
+		CheckDestroy:             testutil.TestAccCheckMetaKubeClusterDestroy,
 		Steps: []resource.TestStep{
 			{
 				Config: config1.String(),

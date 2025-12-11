@@ -4,165 +4,91 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
-	"github.com/hashicorp/go-cty/cty"
-	"github.com/hashicorp/go-version"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/customdiff"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/syseleven/go-metakube/client/datacenter"
 	"github.com/syseleven/go-metakube/client/project"
 	"github.com/syseleven/go-metakube/models"
 	"github.com/syseleven/terraform-provider-metakube/metakube/common"
 )
 
-func MetakubeResourceCluster() *schema.Resource {
-	return &schema.Resource{
-		CreateContext: metakubeResourceClusterCreate,
-		ReadContext:   metakubeResourceClusterRead,
-		UpdateContext: metakubeResourceClusterUpdate,
-		DeleteContext: metakubeResourceClusterDelete,
+var (
+	_ resource.Resource                = &clusterResource{}
+	_ resource.ResourceWithConfigure   = &clusterResource{}
+	_ resource.ResourceWithImportState = &clusterResource{}
+)
 
-		Timeouts: &schema.ResourceTimeout{
-			Create: schema.DefaultTimeout(20 * time.Minute),
-			Update: schema.DefaultTimeout(20 * time.Minute),
-			Delete: schema.DefaultTimeout(20 * time.Minute),
-		},
-
-		Importer: &schema.ResourceImporter{
-			StateContext: common.ImportResourceWithOptionalProject("cluster_id"),
-		},
-
-		Schema: map[string]*schema.Schema{
-			"project_id": {
-				Type:        schema.TypeString,
-				Required:    true,
-				ForceNew:    true,
-				Description: "Reference project identifier",
-			},
-			"dc_name": {
-				Type:        schema.TypeString,
-				Required:    true,
-				ForceNew:    true,
-				Description: "Data center name",
-			},
-			"name": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "Cluster name",
-			},
-			"labels": {
-				Type:        schema.TypeMap,
-				Optional:    true,
-				Description: "Labels added to cluster",
-				Elem: &schema.Schema{
-					Type: schema.TypeString,
-				},
-				DiffSuppressFunc: func(k, _, _ string, _ *schema.ResourceData) bool {
-					return common.MetakubeResourceSystemLabelOrTag(k)
-				},
-				ValidateFunc: func(v interface{}, k string) (strings []string, errors []error) {
-					l := v.(map[string]interface{})
-					for key := range l {
-						if common.MetakubeResourceSystemLabelOrTag(key) {
-							errors = append(errors, fmt.Errorf("'%s' contains reserved string and can't be used", key))
-						}
-					}
-					return
-				},
-			},
-			"sshkeys": {
-				Type:        schema.TypeSet,
-				Optional:    true,
-				Description: "SSH keys attached to nodes",
-				Elem: &schema.Schema{
-					Type:         schema.TypeString,
-					ValidateFunc: validation.NoZeroValues,
-				},
-			},
-			"spec": {
-				Type:        schema.TypeList,
-				Required:    true,
-				MaxItems:    1,
-				Description: "Cluster specification",
-				Elem: &schema.Resource{
-					Schema: metakubeResourceClusterSpecFields(),
-				},
-			},
-			"creation_timestamp": {
-				Type:        schema.TypeString,
-				Computed:    true,
-				Description: "Creation timestamp",
-			},
-			"deletion_timestamp": {
-				Type:        schema.TypeString,
-				Computed:    true,
-				Description: "Deletion timestamp",
-			},
-			"kube_config": {
-				Type:      schema.TypeString,
-				Sensitive: true,
-				Computed:  true,
-			},
-			"oidc_kube_config": {
-				Type:      schema.TypeString,
-				Sensitive: true,
-				Computed:  true,
-			},
-			"kube_login_kube_config": {
-				Type:     schema.TypeString,
-				Computed: true,
-			},
-		},
-		CustomizeDiff: customdiff.All(customdiff.ForceNewIfChange(
-			"spec.0.version",
-			metakubeResourceClusterIsVersionDowngraded)),
-	}
+func NewClusterResource() resource.Resource {
+	return &clusterResource{}
 }
 
-func metakubeResourceClusterIsVersionDowngraded(_ context.Context, old, new, meta interface{}) bool {
-	// "version" can only be upgraded to newer versions, so we must create a new resource
-	// if it is decreased.
-	newVer, err := version.NewVersion(new.(string))
-	if err != nil {
-		return false
-	}
-
-	oldVer, err := version.NewVersion(old.(string))
-	if err != nil {
-		return false
-	}
-
-	return newVer.LessThan(oldVer)
+type clusterResource struct {
+	meta *common.MetaKubeProviderMeta
 }
 
-func metakubeResourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interface{}) (diagnostics diag.Diagnostics) {
-	meta := m.(*common.MetaKubeProviderMeta)
-	retDiags := metakubeResourceClusterValidateClusterFields(ctx, d, meta)
-	spec := d.Get("spec").([]interface{})
-	dcname := d.Get("dc_name").(string)
-	clusterSpec := metakubeResourceClusterExpandSpec(spec, dcname, func(_ string) bool { return true })
-	clusterLabels := metakubeResourceClusterLabels(d)
+func (r *clusterResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_cluster"
+}
+
+func (r *clusterResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = ClusterResourceSchema(ctx)
+}
+
+func (r *clusterResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+
+	meta, ok := req.ProviderData.(*common.MetaKubeProviderMeta)
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Unexpected Resource Configure Type",
+			fmt.Sprintf("Expected *common.MetaKubeProviderMeta, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+		)
+		return
+	}
+
+	r.meta = meta
+}
+
+func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan ClusterModel
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(metakubeResourceClusterValidateClusterFields(ctx, &plan, r.meta, false)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	dcname := plan.DCName.ValueString()
+	clusterSpec := metakubeResourceClusterExpandSpec(ctx, &plan, dcname, func(_ string) bool { return true })
+	clusterLabels := expandLabelsFromModel(ctx, plan.Labels)
+
 	createClusterSpec := &models.CreateClusterSpec{
 		Cluster: &models.Cluster{
-			Name:   d.Get("name").(string),
+			Name:   plan.Name.ValueString(),
 			Spec:   clusterSpec,
 			Labels: clusterLabels,
 		},
 	}
+
 	if n := clusterSpec.ClusterNetwork; n != nil {
 		if v := clusterSpec.ClusterNetwork.Pods; v != nil {
 			if len(v.CIDRBlocks) == 1 {
 				createClusterSpec.PodsCIDR = v.CIDRBlocks[0]
 			}
 			if len(v.CIDRBlocks) > 1 {
-				retDiags = append(retDiags, diag.Diagnostic{
-					Severity: diag.Warning,
-					Summary:  "API returned multiple pods CIDRs",
-				})
+				resp.Diagnostics.AddWarning("Multiple pods CIDRs", "API returned multiple pods CIDRs")
 			}
 		}
 		if v := clusterSpec.ClusterNetwork.Services; v != nil {
@@ -170,83 +96,492 @@ func metakubeResourceClusterCreate(ctx context.Context, d *schema.ResourceData, 
 				createClusterSpec.ServicesCIDR = v.CIDRBlocks[0]
 			}
 			if len(v.CIDRBlocks) > 1 {
-				retDiags = append(retDiags, diag.Diagnostic{
-					Severity: diag.Warning,
-					Summary:  "API returned multiple services CIDRs",
-				})
+				resp.Diagnostics.AddWarning("Multiple services CIDRs", "API returned multiple services CIDRs")
 			}
 		}
 	}
 
-	sshkeys := metakubeResourceClusterSSHKeys(d)
-	if len(sshkeys) > 0 && !d.Get("spec.0.enable_ssh_agent").(bool) {
-		return append(retDiags, diag.Diagnostic{
-			Severity:      diag.Error,
-			AttributePath: cty.GetAttrPath("spec").IndexInt(0).GetAttr("enable_ssh_agent"),
-			Summary:       "SSH Agent must be enabled in order to automatically manage ssh keys",
-		})
-	}
-
-	if len(retDiags) > 0 {
-		return retDiags
-	}
-
-	projectID := d.Get("project_id").(string)
-	p := project.NewCreateClusterV2Params().WithProjectID(projectID).WithBody(createClusterSpec)
-	r, err := meta.Client.Project.CreateClusterV2(p, meta.Auth)
-	if err != nil {
-		return diag.Errorf("unable to create cluster for project '%s': %s", projectID, common.StringifyResponseError(err))
-	}
-	d.SetId(r.Payload.ID)
-
-	if err := assignSSHKeysToCluster(projectID, r.Payload.ID, sshkeys, meta); err != nil {
-		return diag.FromErr(err)
-	}
-
-	if err := common.MetakubeResourceClusterWaitForReady(ctx, meta, d.Timeout(schema.TimeoutCreate), projectID, d.Id(), ""); err != nil {
-		// In case of timeout, we still want to return the cluster resource
-		retDiags = append(retDiags, metakubeResourceClusterRead(ctx, d, m)...)
-		retDiags = append(retDiags, diag.Diagnostic{
-			Severity: diag.Error,
-			Summary:  fmt.Sprintf("Cluster '%s' is not ready: %v", r.Payload.ID, err),
-		})
-		return retDiags
-	}
-
-	return metakubeResourceClusterRead(ctx, d, m)
-}
-
-func metakubeResourceClusterLabels(d *schema.ResourceData) map[string]string {
-	labels := make(map[string]string)
-	if m, ok := d.Get("labels").(map[string]interface{}); ok {
-		for k, v := range m {
-			labels[k] = v.(string)
+	sshkeys := expandSSHKeysFromModel(ctx, plan.SSHKeys)
+	if len(sshkeys) > 0 {
+		sshAgentEnabled := getSSHAgentEnabled(ctx, &plan)
+		if !sshAgentEnabled {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("spec").AtListIndex(0).AtName("enable_ssh_agent"),
+				"SSH Agent must be enabled",
+				"SSH Agent must be enabled in order to automatically manage ssh keys",
+			)
+			return
 		}
 	}
-	return labels
-}
 
-func metakubeResourceClusterSSHKeys(d *schema.ResourceData) []string {
-	var ret []string
-	for _, v := range d.Get("sshkeys").(*schema.Set).List() {
-		ret = append(ret, v.(string))
+	if resp.Diagnostics.HasError() {
+		return
 	}
-	return ret
+
+	projectID := plan.ProjectID.ValueString()
+	p := project.NewCreateClusterV2Params().WithProjectID(projectID).WithBody(createClusterSpec)
+	result, err := r.meta.Client.Project.CreateClusterV2(p, r.meta.Auth)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to create cluster",
+			fmt.Sprintf("Unable to create cluster for project '%s': %s", projectID, common.StringifyResponseError(err)),
+		)
+		return
+	}
+
+	plan.ID = types.StringValue(result.Payload.ID)
+
+	if err := r.assignSSHKeysToCluster(projectID, result.Payload.ID, sshkeys); err != nil {
+		resp.Diagnostics.AddError("Failed to assign SSH keys", err.Error())
+		return
+	}
+
+	createTimeout, diags := plan.Timeouts.Create(ctx, 20*time.Minute)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if err := common.MetakubeResourceClusterWaitForReady(ctx, r.meta, createTimeout, projectID, plan.ID.ValueString(), ""); err != nil {
+		resp.Diagnostics.Append(r.readClusterIntoModel(ctx, &plan)...)
+		resp.Diagnostics.AddError(
+			"Cluster not ready",
+			fmt.Sprintf("Cluster '%s' is not ready: %v", result.Payload.ID, err),
+		)
+		resp.State.Set(ctx, &plan)
+		return
+	}
+
+	resp.Diagnostics.Append(r.readClusterIntoModel(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	diags = resp.State.Set(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
 }
 
-func metakubeResourceClusterFindDatacenterByName(ctx context.Context, k *common.MetaKubeProviderMeta, d *schema.ResourceData) (*models.Datacenter, diag.Diagnostics) {
-	name := d.Get("dc_name").(string)
-	p := datacenter.NewListDatacentersV2Params().WithContext(ctx)
-	r, err := k.Client.Datacenter.ListDatacentersV2(p, k.Auth)
+func (r *clusterResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state ClusterModel
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(r.readClusterIntoModel(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if state.ID.IsNull() || state.ID.ValueString() == "" {
+		resp.State.RemoveResource(ctx)
+		return
+	}
+
+	diags = resp.State.Set(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+}
+
+func (r *clusterResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan, state ClusterModel
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	diags = req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	projectID := plan.ProjectID.ValueString()
+
+	cluster, ok, err := common.MetakubeGetCluster(ctx, projectID, state.ID.ValueString(), r.meta)
 	if err != nil {
-		return nil, diag.Errorf("Can't list datacenters: %s", common.StringifyResponseError(err))
+		resp.Diagnostics.AddError("Failed to get cluster", err.Error())
+		return
+	}
+	if !ok {
+		resp.State.RemoveResource(ctx)
+		return
+	}
+
+	planVersion := getVersionFromModel(ctx, &plan)
+	stateVersion := getVersionFromModel(ctx, &state)
+	if planVersion != stateVersion {
+		r.meta.Log.Debugf("validating version change")
+		resp.Diagnostics.Append(metakubeResourceClusterValidateVersionUpgrade(ctx, projectID, planVersion, cluster, r.meta)...)
+	}
+
+	resp.Diagnostics.Append(metakubeResourceClusterValidateClusterFields(ctx, &plan, r.meta, true)...)
+	resp.Diagnostics.Append(r.validateDatacenter(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	nameChanged := !plan.Name.Equal(state.Name)
+	labelsChanged := !plan.Labels.Equal(state.Labels)
+	specChanged := !plan.Spec.Equal(state.Spec)
+
+	if nameChanged || labelsChanged || specChanged {
+		if err := r.sendPatchRequest(ctx, &plan, &state); err != nil {
+			resp.Diagnostics.AddError("Failed to patch cluster", err.Error())
+			return
+		}
+	}
+
+	if !plan.SSHKeys.Equal(state.SSHKeys) {
+		if err := r.updateClusterSSHKeys(ctx, &plan, &state); err != nil {
+			resp.Diagnostics.AddError("Failed to update SSH keys", err.Error())
+			return
+		}
+	}
+
+	configuredVersion := getVersionFromModel(ctx, &plan)
+	updateTimeout, diags := plan.Timeouts.Update(ctx, 20*time.Minute)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if err := common.MetakubeResourceClusterWaitForReady(ctx, r.meta, updateTimeout, projectID, state.ID.ValueString(), configuredVersion); err != nil {
+		resp.Diagnostics.AddError(
+			"Cluster not ready",
+			fmt.Sprintf("Cluster '%s' is not ready: %v", state.ID.ValueString(), err),
+		)
+		return
+	}
+
+	plan.ID = state.ID
+
+	resp.Diagnostics.Append(r.readClusterIntoModel(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	diags = resp.State.Set(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+}
+
+func (r *clusterResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state ClusterModel
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	projectID := state.ProjectID.ValueString()
+	clusterID := state.ID.ValueString()
+
+	deleteTimeout, diags := state.Timeouts.Delete(ctx, 20*time.Minute)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	timeoutTimer := time.NewTimer(deleteTimeout)
+	defer timeoutTimer.Stop()
+
+	deleteSent := false
+
+	for {
+		shouldWait := false
+
+		if !deleteSent {
+			deleteParams := project.NewDeleteClusterV2Params()
+			deleteParams.SetContext(ctx)
+			deleteParams.SetProjectID(projectID)
+			deleteParams.SetClusterID(clusterID)
+
+			_, err := r.meta.Client.Project.DeleteClusterV2(deleteParams, r.meta.Auth)
+			if err != nil {
+				if e, ok := err.(*project.DeleteClusterV2Default); ok {
+					if e.Code() == http.StatusConflict {
+						shouldWait = true
+					} else if e.Code() == http.StatusNotFound {
+						return
+					} else {
+						resp.Diagnostics.AddError(
+							"Unable to delete cluster",
+							fmt.Sprintf("Unable to delete cluster '%s': %s", clusterID, common.StringifyResponseError(err)),
+						)
+						return
+					}
+				} else if _, ok := err.(*project.DeleteClusterV2Forbidden); ok {
+					return
+				} else {
+					resp.Diagnostics.AddError(
+						"Unable to delete cluster",
+						fmt.Sprintf("Unable to delete cluster '%s': %s", clusterID, common.StringifyResponseError(err)),
+					)
+					return
+				}
+			} else {
+				deleteSent = true
+			}
+		}
+
+		if deleteSent && !shouldWait {
+			getParams := project.NewGetClusterV2Params()
+			getParams.SetContext(ctx)
+			getParams.SetProjectID(projectID)
+			getParams.SetClusterID(clusterID)
+
+			result, err := r.meta.Client.Project.GetClusterV2(getParams, r.meta.Auth)
+			if err != nil {
+				if e, ok := err.(*project.GetClusterV2Default); ok {
+					if e.Code() == http.StatusNotFound {
+						r.meta.Log.Debugf("cluster '%s' has been destroyed, returned http code: %d", clusterID, e.Code())
+						return
+					}
+					if e.Code() == http.StatusInternalServerError {
+						shouldWait = true
+					}
+				}
+				if _, ok := err.(*project.GetClusterV2Forbidden); ok {
+					shouldWait = true
+				}
+				if !shouldWait {
+					resp.Diagnostics.AddError(
+						"Unable to get cluster",
+						fmt.Sprintf("Unable to get cluster '%s': %v", clusterID, err),
+					)
+					return
+				}
+			} else {
+				r.meta.Log.Debugf("cluster '%s' deletion in progress, deletionTimestamp: %s",
+					clusterID, result.Payload.DeletionTimestamp.String())
+			}
+		}
+
+		select {
+		case <-ctx.Done():
+			resp.Diagnostics.AddError(
+				"Operation cancelled",
+				fmt.Sprintf("Deletion of cluster '%s' was cancelled: %v", clusterID, ctx.Err()),
+			)
+			return
+		case <-timeoutTimer.C:
+			resp.Diagnostics.AddError(
+				"Timeout deleting cluster",
+				fmt.Sprintf("Timeout waiting for cluster '%s' to be deleted", clusterID),
+			)
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func (r *clusterResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	parts := strings.Split(req.ID, ":")
+
+	switch len(parts) {
+	case 1:
+		clusterID := parts[0]
+		projectID, err := common.MetakubeResourceClusterFindProjectID(ctx, clusterID, r.meta)
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to find project", err.Error())
+			return
+		}
+		if projectID == "" {
+			resp.Diagnostics.AddError("Project not found", fmt.Sprintf("Could not find project for cluster '%s'", clusterID))
+			return
+		}
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), clusterID)...)
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("project_id"), projectID)...)
+	case 2:
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("project_id"), parts[0])...)
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[1])...)
+	default:
+		resp.Diagnostics.AddError(
+			"Invalid import ID",
+			"Please provide resource identifier in format 'project_id:cluster_id' or 'cluster_id'",
+		)
+	}
+}
+
+func (r *clusterResource) readClusterIntoModel(ctx context.Context, model *ClusterModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	projectID := model.ProjectID.ValueString()
+	if projectID == "" {
+		var err error
+		projectID, err = common.MetakubeResourceClusterFindProjectID(ctx, model.ID.ValueString(), r.meta)
+		if err != nil {
+			diags.AddError("Failed to find project", err.Error())
+			return diags
+		}
+		if projectID == "" {
+			model.ID = types.StringNull()
+			return diags
+		}
+		r.meta.Log.Debugf("found cluster in project '%s'", projectID)
+	}
+
+	p := project.NewGetClusterV2Params().WithContext(ctx).WithProjectID(projectID).WithClusterID(model.ID.ValueString())
+	result, err := r.meta.Client.Project.GetClusterV2(p, r.meta.Auth)
+	if isNotFoundError(err) {
+		r.meta.Log.Infof("removing cluster '%s', could not find the resource", model.ID.ValueString())
+		model.ID = types.StringNull()
+		return diags
+	}
+	if err != nil {
+		r.meta.Log.Debugf("get cluster: %v", err)
+		diags.AddError(
+			"Unable to get cluster",
+			fmt.Sprintf("Unable to get cluster '%s/%s': %s", projectID, model.ID.ValueString(), common.StringifyResponseError(err)),
+		)
+		return diags
+	}
+
+	model.ProjectID = types.StringValue(projectID)
+	model.DCName = types.StringValue(result.Payload.Spec.Cloud.DatacenterName)
+	model.Name = types.StringValue(result.Payload.Name)
+
+	if len(result.Payload.Labels) > 0 {
+		labels := make(map[string]attr.Value)
+		for k, v := range result.Payload.Labels {
+			if !common.MetakubeResourceSystemLabelOrTag(k) {
+				labels[k] = types.StringValue(v)
+			}
+		}
+		labelsValue, d := types.MapValue(types.StringType, labels)
+		diags.Append(d...)
+		model.Labels = labelsValue
+	} else {
+		model.Labels = types.MapValueMust(types.StringType, map[string]attr.Value{})
+	}
+
+	diags.Append(metakubeResourceClusterFlattenSpec(ctx, model, result.Payload.Spec)...)
+
+	model.CreationTimestamp = types.StringValue(result.Payload.CreationTimestamp.String())
+	model.DeletionTimestamp = types.StringValue(result.Payload.DeletionTimestamp.String())
+
+	keys, err := r.metakubeClusterGetAssignedSSHKeys(ctx, projectID, model.ID.ValueString())
+	if err != nil {
+		diags.AddError("Failed to get SSH keys", err.Error())
+		return diags
+	}
+	if len(keys) > 0 {
+		sshKeyValues := make([]attr.Value, len(keys))
+		for i, k := range keys {
+			sshKeyValues[i] = types.StringValue(k)
+		}
+		model.SSHKeys = types.SetValueMust(types.StringType, sshKeyValues)
+	} else {
+		model.SSHKeys = types.SetValueMust(types.StringType, []attr.Value{})
+	}
+
+	if conf, err := r.metakubeClusterUpdateKubeconfig(ctx, projectID, model.ID.ValueString()); err != nil {
+		diags.AddWarning("Could not get kubeconfig", fmt.Sprintf("could not update kubeconfig: %v", err))
+		model.KubeConfig = types.StringValue("")
+	} else {
+		model.KubeConfig = types.StringValue(conf)
+	}
+
+	if hasSyselevenAuth(ctx, model) {
+		if conf, err := r.metakubeClusterUpdateOIDCKubeconfig(ctx, projectID, model.ID.ValueString()); err != nil {
+			diags.AddWarning("Could not get OIDC kubeconfig", fmt.Sprintf("could not update OIDC kubeconfig: %s", common.StringifyResponseError(err)))
+			model.OIDCKubeConfig = types.StringValue("")
+		} else {
+			model.OIDCKubeConfig = types.StringValue(conf)
+		}
+
+		if conf, err := r.metakubeClusterUpdateKubeloginKubeconfig(ctx, projectID, model.ID.ValueString()); err != nil {
+			diags.AddWarning("Could not get kubelogin kubeconfig", fmt.Sprintf("could not update kubelogin kubeconfig: %v", err))
+			model.KubeLoginKubeConfig = types.StringValue("")
+		} else {
+			model.KubeLoginKubeConfig = types.StringValue(conf)
+		}
+	} else {
+		model.OIDCKubeConfig = types.StringValue("")
+		model.KubeLoginKubeConfig = types.StringValue("")
+	}
+
+	return diags
+}
+
+func (r *clusterResource) metakubeClusterUpdateKubeconfig(ctx context.Context, projectID, clusterID string) (string, error) {
+	kubeConfigParams := project.NewGetClusterKubeconfigV2Params()
+	kubeConfigParams.SetContext(ctx)
+	kubeConfigParams.SetProjectID(projectID)
+	kubeConfigParams.SetClusterID(clusterID)
+	ret, err := r.meta.Client.Project.GetClusterKubeconfigV2(kubeConfigParams, r.meta.Auth)
+	if err != nil {
+		return "", fmt.Errorf("failed to get kube_config: %s", common.StringifyResponseError(err))
+	}
+	return string(ret.Payload), nil
+}
+
+func (r *clusterResource) metakubeClusterUpdateOIDCKubeconfig(ctx context.Context, projectID, clusterID string) (string, error) {
+	kubeConfigParams := project.NewGetOidcClusterKubeconfigV2Params()
+	kubeConfigParams.SetContext(ctx)
+	kubeConfigParams.SetProjectID(projectID)
+	kubeConfigParams.SetClusterID(clusterID)
+	ret, err := r.meta.Client.Project.GetOidcClusterKubeconfigV2(kubeConfigParams, r.meta.Auth)
+	if err != nil {
+		return "", fmt.Errorf("failed to get oidc_kube_config: %s", common.StringifyResponseError(err))
+	}
+	return string(ret.Payload), nil
+}
+
+func (r *clusterResource) metakubeClusterUpdateKubeloginKubeconfig(ctx context.Context, projectID, clusterID string) (string, error) {
+	kubeConfigParams := project.NewGetKubeLoginClusterKubeconfigV2Params()
+	kubeConfigParams.SetContext(ctx)
+	kubeConfigParams.SetProjectID(projectID)
+	kubeConfigParams.SetClusterID(clusterID)
+	ret, err := r.meta.Client.Project.GetKubeLoginClusterKubeconfigV2(kubeConfigParams, r.meta.Auth)
+	if err != nil {
+		return "", fmt.Errorf("failed to get kube_login_kube_config: %s", common.StringifyResponseError(err))
+	}
+	return string(ret.Payload), nil
+}
+
+func (r *clusterResource) metakubeClusterGetAssignedSSHKeys(ctx context.Context, projectID, clusterID string) ([]string, error) {
+	p := project.NewListSSHKeysAssignedToClusterV2Params().WithProjectID(projectID).WithClusterID(clusterID).WithContext(ctx)
+	ret, err := r.meta.Client.Project.ListSSHKeysAssignedToClusterV2(p, r.meta.Auth)
+	if err != nil {
+		return nil, fmt.Errorf("list project keys error %v", common.StringifyResponseError(err))
+	}
+
+	var ids []string
+	for _, v := range ret.Payload {
+		ids = append(ids, v.ID)
+	}
+	return ids, nil
+}
+
+func (r *clusterResource) assignSSHKeysToCluster(projectID, clusterID string, sshkeyIDs []string) error {
+	for _, id := range sshkeyIDs {
+		p := project.NewAssignSSHKeyToClusterV2Params().WithProjectID(projectID).WithClusterID(clusterID).WithKeyID(id)
+		_, err := r.meta.Client.Project.AssignSSHKeyToClusterV2(p, r.meta.Auth)
+		if err != nil {
+			return fmt.Errorf("can't assign sshkeys to cluster '%s': %v", clusterID, err)
+		}
+	}
+	return nil
+}
+
+func (r *clusterResource) validateDatacenter(ctx context.Context, model *ClusterModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	name := model.DCName.ValueString()
+	p := datacenter.NewListDatacentersV2Params().WithContext(ctx)
+	result, err := r.meta.Client.Datacenter.ListDatacentersV2(p, r.meta.Auth)
+	if err != nil {
+		diags.AddError("Can't list datacenters", common.StringifyResponseError(err))
+		return diags
 	}
 
 	available := make([]string, 0)
-	openstackCluster := metakubeResourceClusterIsOpenstack(d)
-	awsCluster := metakubeResourceClusterIsAWS(d)
-	azureCluster := metakubeResourceClusterIsAzure(d)
-	for _, dc := range r.Payload {
+	openstackCluster := hasOpenstackConfig(ctx, model)
+	awsCluster := hasAWSConfig(ctx, model)
+	azureCluster := hasAzureConfig(ctx, model)
+
+	for _, dc := range result.Payload {
 		openstackDatacenter := dc.Spec.Openstack != nil
 		awsDatacenter := dc.Spec.Aws != nil
 		azureDatacenter := dc.Spec.Azure != nil
@@ -256,7 +591,7 @@ func metakubeResourceClusterFindDatacenterByName(ctx context.Context, k *common.
 			available = append(available, dc.Metadata.Name)
 		}
 		if dc.Metadata.Name == name {
-			return dc, nil
+			return diags
 		}
 	}
 
@@ -269,526 +604,240 @@ func metakubeResourceClusterFindDatacenterByName(ctx context.Context, k *common.
 		details = fmt.Sprintf("Please set one of available datacenters for the provider - %v", available)
 	}
 
-	return nil, diag.Diagnostics{{
-		Severity:      diag.Error,
-		Summary:       summary,
-		AttributePath: cty.Path{cty.GetAttrStep{Name: "dc_name"}},
-		Detail:        details,
-	}}
+	diags.AddAttributeError(path.Root("dc_name"), summary, details)
+	return diags
 }
 
-func metakubeResourceClusterIsOpenstack(d *schema.ResourceData) bool {
-	return d.Get("spec.0.cloud.0.openstack.#").(int) == 1
-}
+func (r *clusterResource) sendPatchRequest(ctx context.Context, plan, state *ClusterModel) error {
+	projectID := plan.ProjectID.ValueString()
+	clusterID := state.ID.ValueString()
 
-func metakubeResourceClusterIsAzure(d *schema.ResourceData) bool {
-	return d.Get("spec.0.cloud.0.azure.#").(int) == 1
-}
-
-func metakubeResourceClusterIsAWS(d *schema.ResourceData) bool {
-	return d.Get("spec.0.cloud.0.aws.#").(int) == 1
-}
-
-func metakubeResourceClusterRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	k := m.(*common.MetaKubeProviderMeta)
-
-	projectID := d.Get("project_id").(string)
-	if projectID == "" {
-		var err error
-		projectID, err = common.MetakubeResourceClusterFindProjectID(ctx, d.Id(), k)
-		if err != nil {
-			return diag.FromErr(err)
-		}
-		if projectID == "" {
-			d.SetId("")
-			return nil
-		}
-		k.Log.Debugf("found cluster in project '%s'", projectID)
-	}
-	p := project.NewGetClusterV2Params().WithContext(ctx).WithProjectID(projectID).WithClusterID(d.Id())
-	r, err := k.Client.Project.GetClusterV2(p, k.Auth)
-	if metakubeResourceClusterResponseNotFound(err) {
-		k.Log.Infof("removing cluster '%s', could not find the resource", d.Id())
-		d.SetId("")
-		return nil
-	}
-	if err != nil {
-		// TODO: check the cluster API code
-		// when cluster does not exist but it is in terraform state file
-		// the GET request returns 500 http code instead of 404, probably it's a bug
-		// because of that manual action to clean terraform state file is required
-
-		k.Log.Debugf("get cluster: %v", err)
-		return diag.Errorf("unable to get cluster '%s/%s': %s", projectID, d.Id(), common.StringifyResponseError(err))
-	}
-
-	_ = d.Set("project_id", projectID)
-	_ = d.Set("dc_name", r.Payload.Spec.Cloud.DatacenterName)
-	_ = d.Set("name", r.Payload.Name)
-	if len(r.Payload.Labels) > 0 {
-		if err := d.Set("labels", r.Payload.Labels); err != nil {
-			return diag.Diagnostics{{
-				Severity:      diag.Error,
-				Summary:       "Invalid value",
-				AttributePath: cty.Path{cty.GetAttrStep{Name: "labels"}},
-			}}
-		}
-	}
-
-	values := readClusterPreserveValues(d)
-	specFlattened := metakubeResourceClusterFlattenSpec(values, r.Payload.Spec)
-	if err = d.Set("spec", specFlattened); err != nil {
-		return diag.Diagnostics{{
-			Severity:      diag.Error,
-			Summary:       "Invalid value",
-			AttributePath: cty.Path{cty.GetAttrStep{Name: "spec"}},
-		}}
-	}
-
-	_ = d.Set("creation_timestamp", r.Payload.CreationTimestamp.String())
-
-	_ = d.Set("deletion_timestamp", r.Payload.DeletionTimestamp.String())
-
-	keys, err := metakubeClusterGetAssignedSSHKeys(ctx, d, k)
-	if err != nil {
-		return diag.FromErr(err)
-	}
-	if len(keys) > 0 {
-		d.Set("sshkeys", keys)
-	}
-
-	if conf, err := metakubeClusterUpdateKubeconfig(ctx, k, projectID, d.Id()); err != nil {
-		return diag.Diagnostics{{
-			Severity:      diag.Warning,
-			Summary:       fmt.Sprintf("could not update kubeconfig: %v", err),
-			AttributePath: cty.GetAttrPath("kube_config"),
-		}}
-	} else {
-		err = d.Set("kube_config", conf)
-		if err != nil {
-			k.Log.Error(err)
-		}
-	}
-
-	if _, ok := d.GetOk("spec.0.syseleven_auth.0.realm"); ok {
-		if conf, err := metakubeClusterUpdateOIDCKubeconfig(ctx, k, projectID, d.Id()); err != nil {
-			return diag.Diagnostics{{
-				Severity:      diag.Warning,
-				Summary:       fmt.Sprintf("could not update OIDC kubeconfig: %s", common.StringifyResponseError(err)),
-				AttributePath: cty.GetAttrPath("oidc_kube_config"),
-			}}
-		} else {
-			err = d.Set("oidc_kube_config", conf)
-			if err != nil {
-				k.Log.Error(err)
-			}
-		}
-
-		if conf, err := metakubeClusterUpdateKubeloginKubeconfig(ctx, k, projectID, d.Id()); err != nil {
-			return diag.Diagnostics{{
-				Severity:      diag.Warning,
-				Summary:       fmt.Sprintf("could not update kubelogin kubeconfig: %v", err),
-				AttributePath: cty.GetAttrPath("kube_login_kube_config"),
-			}}
-		} else {
-			err = d.Set("kube_login_kube_config", conf)
-			if err != nil {
-				k.Log.Error(err)
-			}
-		}
-	}
-
-	return nil
-}
-
-func metakubeClusterUpdateKubeconfig(ctx context.Context, k *common.MetaKubeProviderMeta, projectID, clusterID string) (string, error) {
-	kubeConfigParams := project.NewGetClusterKubeconfigV2Params()
-	kubeConfigParams.SetContext(ctx)
-	kubeConfigParams.SetProjectID(projectID)
-	kubeConfigParams.SetClusterID(clusterID)
-	ret, err := k.Client.Project.GetClusterKubeconfigV2(kubeConfigParams, k.Auth)
-	if err != nil {
-		return "", fmt.Errorf("failed to get kube_config: %s", common.StringifyResponseError(err))
-	}
-	return string(ret.Payload), nil
-}
-
-func metakubeClusterUpdateOIDCKubeconfig(ctx context.Context, k *common.MetaKubeProviderMeta, projectID, clusterID string) (string, error) {
-	kubeConfigParams := project.NewGetOidcClusterKubeconfigV2Params()
-	kubeConfigParams.SetContext(ctx)
-	kubeConfigParams.SetProjectID(projectID)
-	kubeConfigParams.SetClusterID(clusterID)
-	ret, err := k.Client.Project.GetOidcClusterKubeconfigV2(kubeConfigParams, k.Auth)
-	if err != nil {
-		return "", fmt.Errorf("failed to get oidc_kube_config: %s", common.StringifyResponseError(err))
-	}
-	return string(ret.Payload), nil
-}
-
-func metakubeClusterUpdateKubeloginKubeconfig(ctx context.Context, k *common.MetaKubeProviderMeta, projectID, clusterID string) (string, error) {
-	kubeConfigParams := project.NewGetKubeLoginClusterKubeconfigV2Params()
-	kubeConfigParams.SetContext(ctx)
-	kubeConfigParams.SetProjectID(projectID)
-	kubeConfigParams.SetClusterID(clusterID)
-	ret, err := k.Client.Project.GetKubeLoginClusterKubeconfigV2(kubeConfigParams, k.Auth)
-	if err != nil {
-		return "", fmt.Errorf("failed to get kube_login_kube_config: %s", common.StringifyResponseError(err))
-	}
-	return string(ret.Payload), nil
-}
-
-func metakubeResourceClusterResponseNotFound(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	e, ok := err.(*project.GetClusterV2Default)
-	if !ok {
-		return false
-	}
-
-	// All api replies and errors, that nevertheless indicate cluster was deleted.
-	return e.Code() == http.StatusNotFound
-}
-
-func metakubeClusterGetAssignedSSHKeys(ctx context.Context, d *schema.ResourceData, k *common.MetaKubeProviderMeta) ([]string, error) {
-	projectID := d.Get("project_id").(string)
-	p := project.NewListSSHKeysAssignedToClusterV2Params().WithProjectID(projectID).WithClusterID(d.Id()).WithContext(ctx)
-	ret, err := k.Client.Project.ListSSHKeysAssignedToClusterV2(p, k.Auth)
-	if err != nil {
-		return nil, fmt.Errorf("List project keys error %v", common.StringifyResponseError(err))
-	}
-
-	var ids []string
-	for _, v := range ret.Payload {
-		ids = append(ids, v.ID)
-	}
-	return ids, nil
-}
-
-// clusterPreserveValues helps avoid misleading diffs during read phase.
-// API does not return some important fields, like access key or password.
-// To avoid diffs because of missing field when API reply is flattened we manually set
-// values for fields to preserve in flattened object before committing it to state.
-type clusterPreserveValues struct {
-	openstack *clusterOpenstackPreservedValues
-	// API returns empty spec for Azure and AWS clusters, so we just preserve values used for creation
-	azure *models.AzureCloudSpec
-	aws   *models.AWSCloudSpec
-}
-
-type clusterOpenstackPreservedValues struct {
-	openstackUsername                     interface{}
-	openstackPassword                     interface{}
-	openstackProjectID                    interface{}
-	openstackProjectName                  interface{}
-	openstackServerGroupID                interface{}
-	openstackApplicationCredentialsID     interface{}
-	openstackApplicationCredentialsSecret interface{}
-}
-
-func readClusterPreserveValues(d *schema.ResourceData) clusterPreserveValues {
-	key := func(s string) string {
-		return fmt.Sprint("spec.0.cloud.0.", s)
-	}
-	var openstack *clusterOpenstackPreservedValues
-	if _, ok := d.GetOk(key("openstack.0")); ok {
-		openstack = &clusterOpenstackPreservedValues{
-			openstackUsername:                     d.Get(key("openstack.0.user_credentials.0.username")),
-			openstackPassword:                     d.Get(key("openstack.0.user_credentials.0.password")),
-			openstackProjectID:                    d.Get(key("openstack.0.user_credentials.0.project_id")),
-			openstackProjectName:                  d.Get(key("openstack.0.userd_credentials.0.project_name")),
-			openstackServerGroupID:                d.Get(key("openstack.0.server_group_id")),
-			openstackApplicationCredentialsID:     d.Get(key("openstack.0.application_credentials.0.id")),
-			openstackApplicationCredentialsSecret: d.Get(key("openstack.0.application_credentials.0.secret")),
-		}
-	}
-
-	var azure *models.AzureCloudSpec
-	if _, ok := d.GetOk(key("azure.0")); ok {
-		azure = &models.AzureCloudSpec{
-			AvailabilitySet:        d.Get(key("azure.0.availability_set")).(string),
-			ClientID:               d.Get(key("azure.0.client_id")).(string),
-			ClientSecret:           d.Get(key("azure.0.client_secret")).(string),
-			SubscriptionID:         d.Get(key("azure.0.subscription_id")).(string),
-			TenantID:               d.Get(key("azure.0.tenant_id")).(string),
-			ResourceGroup:          d.Get(key("azure.0.resource_group")).(string),
-			RouteTableName:         d.Get(key("azure.0.route_table")).(string),
-			SecurityGroup:          d.Get(key("azure.0.security_group")).(string),
-			SubnetName:             d.Get(key("azure.0.subnet")).(string),
-			VNetName:               d.Get(key("azure.0.vnet")).(string),
-			OpenstackBillingTenant: d.Get(key("azure.0.openstack_billing_tenant")).(string),
-		}
-	}
-
-	var aws *models.AWSCloudSpec
-	if _, ok := d.GetOk(key("aws.0")); ok {
-		aws = &models.AWSCloudSpec{
-			AccessKeyID:            d.Get(key("aws.0.access_key_id")).(string),
-			SecretAccessKey:        d.Get(key("aws.0.secret_access_key")).(string),
-			VPCID:                  d.Get(key("aws.0.vpc_id")).(string),
-			SecurityGroupID:        d.Get(key("aws.0.security_group_id")).(string),
-			RouteTableID:           d.Get(key("aws.0.route_table_id")).(string),
-			InstanceProfileName:    d.Get(key("aws.0.instance_profile_name")).(string),
-			ControlPlaneRoleARN:    d.Get(key("aws.0.role_arn")).(string),
-			OpenstackBillingTenant: d.Get(key("aws.0.openstack_billing_tenant")).(string),
-		}
-	}
-
-	return clusterPreserveValues{
-		openstack,
-		azure,
-		aws,
-	}
-}
-
-func metakubeResourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	k := m.(*common.MetaKubeProviderMeta)
-	projectID := d.Get("project_id").(string)
-
-	var retDiags diag.Diagnostics
-	if cluster, ok, err := common.MetakubeGetCluster(ctx, projectID, d.Id(), k); err != nil {
-		return diag.FromErr(err)
-	} else if !ok {
-		// Indicate resource deleted.
-		d.SetId("")
-		return nil
-	} else if d.HasChange("spec.0.version") {
-		k.Log.Debugf("validating version change")
-		retDiags = metakubeResourceClusterValidateVersionUpgrade(ctx, projectID, d.Get("spec.0.version").(string), cluster, k)
-	}
-	retDiags = append(retDiags, metakubeResourceClusterValidateClusterFields(ctx, d, k)...)
-
-	_, diagnostics := metakubeResourceClusterFindDatacenterByName(ctx, k, d)
-	// TODO: delete composed diagnostics, seems to be useless at the moment.
-	retDiags = append(retDiags, diagnostics...)
-	if len(retDiags) > 0 {
-		return retDiags
-	}
-
-	if d.HasChanges("name", "labels", "spec") {
-		if err := metakubeResourceClusterSendPatchReq(ctx, d, k); err != nil {
-			return diag.FromErr(err)
-		}
-	}
-	if d.HasChange("sshkeys") {
-		if err := updateClusterSSHKeys(ctx, d, k); err != nil {
-			return diag.FromErr(err)
-		}
-	}
-
-	configuredVersion, ok := d.GetOk("spec.0.version")
-	if !ok {
-		return nil
-	}
-	if err := common.MetakubeResourceClusterWaitForReady(ctx, k, d.Timeout(schema.TimeoutUpdate), projectID, d.Id(), configuredVersion.(string)); err != nil {
-		return diag.Errorf("cluster '%s' is not ready: %v", d.Id(), err)
-	}
-
-	return nil
-}
-
-func metakubeResourceClusterSendPatchReq(ctx context.Context, d *schema.ResourceData, k *common.MetaKubeProviderMeta) error {
-	projectID := d.Get("project_id").(string)
 	p := project.NewPatchClusterV2Params()
 	p.SetContext(ctx)
 	p.SetProjectID(projectID)
-	p.SetClusterID(d.Id())
-	name := d.Get("name").(string)
-	labels := metakubeResourceClusterGetLabelsChange(d)
-	clusterSpec := metakubeResourceClusterExpandSpec(d.Get("spec").([]interface{}), d.Get("dc_name").(string), func(k string) bool { return d.HasChange("spec.0." + k) })
+	p.SetClusterID(clusterID)
+
+	name := plan.Name.ValueString()
+	labels := getLabelsChange(ctx, plan, state)
+	clusterSpec := metakubeResourceClusterExpandSpec(ctx, plan, plan.DCName.ValueString(), func(_ string) bool { return true })
+
 	p.SetPatch(map[string]interface{}{
 		"name":   name,
 		"labels": labels,
 		"spec":   clusterSpec,
 	})
 
-	var patchedCluster *models.Cluster
-	err := retry.RetryContext(ctx, d.Timeout(schema.TimeoutUpdate), func() *retry.RetryError {
-		patchResult, err := k.Client.Project.PatchClusterV2(p, k.Auth)
+	timeout := 20 * time.Minute
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
+		_, err := r.meta.Client.Project.PatchClusterV2(p, r.meta.Auth)
 		if err != nil {
 			if e, ok := err.(*project.PatchClusterV2Default); ok && e.Code() == http.StatusConflict {
-				return retry.RetryableError(fmt.Errorf("cluster patch conflict: %v", err))
-			}
-			return retry.NonRetryableError(fmt.Errorf("patch cluster '%s': %v", d.Id(), common.StringifyResponseError(err)))
-		}
-		patchedCluster = patchResult.GetPayload()
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-
-	if patchedCluster.Labels == nil {
-		// if the cluster has no labels after patching, set them to nil in the state data explicitly
-		// otherwise, if the cluster had labels before that were all removed by the patch, remnants
-		// (empty labels) would remain in the data, showing up as a permanent difference on subsequent runs
-		_ = d.Set("labels", nil)
-	}
-
-	return nil
-}
-
-func metakubeResourceClusterGetLabelsChange(d *schema.ResourceData) map[string]interface{} {
-	oldLabels, newLabels := d.GetChange("labels")
-	var oldLabelsMap, newLabelsMap map[string]interface{}
-	if oldLabels != nil {
-		oldLabelsMap = oldLabels.(map[string]interface{})
-	}
-	if newLabels != nil {
-		newLabelsMap = newLabels.(map[string]interface{})
-	} else {
-		newLabelsMap = make(map[string]interface{})
-	}
-
-	for k := range oldLabelsMap {
-		if _, ok := newLabelsMap[k]; !ok {
-			newLabelsMap[k] = nil
-		}
-	}
-
-	return newLabelsMap
-}
-
-func updateClusterSSHKeys(ctx context.Context, d *schema.ResourceData, k *common.MetaKubeProviderMeta) error {
-	projectID := d.Get("project_id").(string)
-	var unassigned, assign []string
-	cur := d.Get("sshkeys")
-	prev, err := metakubeClusterGetAssignedSSHKeys(ctx, d, k)
-	if err != nil {
-		return err
-	}
-	for _, id := range prev {
-		if !cur.(*schema.Set).Contains(id) {
-			unassigned = append(unassigned, id)
-		}
-	}
-
-	prevset := make(map[string]bool)
-	for _, id := range prev {
-		prevset[id] = true
-	}
-	for _, id := range cur.(*schema.Set).List() {
-		if !prevset[id.(string)] {
-			assign = append(assign, id.(string))
-		}
-	}
-
-	for _, id := range unassigned {
-		p := project.NewDetachSSHKeyFromClusterV2Params()
-		p.SetProjectID(projectID)
-		p.SetClusterID(d.Id())
-		p.SetKeyID(id)
-		_, err := k.Client.Project.DetachSSHKeyFromClusterV2(p, k.Auth)
-		if err != nil {
-			if e, ok := err.(*project.DetachSSHKeyFromClusterV2Default); ok && e.Code() == http.StatusNotFound {
+				time.Sleep(5 * time.Second)
 				continue
 			}
-			return fmt.Errorf("failed to unassign sshkey: %s", common.StringifyResponseError(err))
+			return fmt.Errorf("patch cluster '%s': %v", clusterID, common.StringifyResponseError(err))
 		}
+
+		return nil
 	}
 
-	if err := assignSSHKeysToCluster(projectID, d.Id(), assign, k); err != nil {
+	return fmt.Errorf("timeout patching cluster '%s'", clusterID)
+}
+
+func (r *clusterResource) updateClusterSSHKeys(ctx context.Context, plan, state *ClusterModel) error {
+	projectID := plan.ProjectID.ValueString()
+	clusterID := state.ID.ValueString()
+
+	planKeys := expandSSHKeysFromModel(ctx, plan.SSHKeys)
+	prevKeys, err := r.metakubeClusterGetAssignedSSHKeys(ctx, projectID, clusterID)
+	if err != nil {
 		return err
 	}
 
-	return nil
-}
-
-func assignSSHKeysToCluster(projectID, clusterID string, sshkeyIDs []string, k *common.MetaKubeProviderMeta) error {
-	for _, id := range sshkeyIDs {
-		p := project.NewAssignSSHKeyToClusterV2Params().WithProjectID(projectID).WithClusterID(clusterID).WithKeyID(id)
-		_, err := k.Client.Project.AssignSSHKeyToClusterV2(p, k.Auth)
-		if err != nil {
-			return fmt.Errorf("can't assign sshkeys to cluster '%s': %v", clusterID, err)
-		}
+	planKeySet := make(map[string]bool)
+	for _, k := range planKeys {
+		planKeySet[k] = true
 	}
 
-	return nil
-}
-
-func metakubeResourceClusterDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	k := m.(*common.MetaKubeProviderMeta)
-	projectID := d.Get("project_id").(string)
-	p := project.NewDeleteClusterV2Params()
-
-	p.SetProjectID(projectID)
-	p.SetClusterID(d.Id())
-
-	deleteSent := false
-	err := retry.RetryContext(ctx, d.Timeout(schema.TimeoutDelete), func() *retry.RetryError {
-		if !deleteSent {
-			_, err := k.Client.Project.DeleteClusterV2(p, k.Auth)
+	for _, id := range prevKeys {
+		if !planKeySet[id] {
+			p := project.NewDetachSSHKeyFromClusterV2Params()
+			p.SetProjectID(projectID)
+			p.SetClusterID(clusterID)
+			p.SetKeyID(id)
+			_, err := r.meta.Client.Project.DetachSSHKeyFromClusterV2(p, r.meta.Auth)
 			if err != nil {
-				if e, ok := err.(*project.DeleteClusterV2Default); ok {
-					if e.Code() == http.StatusConflict {
-						return retry.RetryableError(err)
-					}
-					if e.Code() == http.StatusNotFound {
-						return nil
-					}
+				if e, ok := err.(*project.DetachSSHKeyFromClusterV2Default); ok && e.Code() == http.StatusNotFound {
+					continue
 				}
-				if _, ok := err.(*project.DeleteClusterV2Forbidden); ok {
-					return nil
-				}
-				return retry.NonRetryableError(fmt.Errorf("unable to delete cluster '%s': %s", d.Id(), common.StringifyResponseError(err)))
+				return fmt.Errorf("failed to unassign sshkey: %s", common.StringifyResponseError(err))
 			}
-			deleteSent = true
-		}
-		p := project.NewGetClusterV2Params()
-
-		p.SetProjectID(projectID)
-		p.SetClusterID(d.Id())
-
-		r, err := k.Client.Project.GetClusterV2(p, k.Auth)
-		if err != nil {
-			if e, ok := err.(*project.GetClusterV2Default); ok {
-				if e.Code() == http.StatusNotFound {
-					k.Log.Debugf("cluster '%s' has been destroyed, returned http code: %d", d.Id(), e.Code())
-					return nil
-				} else if e.Code() == http.StatusInternalServerError {
-					return retry.RetryableError(err)
-				}
-			}
-			if _, ok := err.(*project.GetClusterV2Forbidden); ok {
-				return retry.RetryableError(err)
-			}
-			return retry.NonRetryableError(fmt.Errorf("unable to get cluster '%s': %v", d.Id(), err))
-		}
-
-		k.Log.Debugf("cluster '%s' deletion in progress, deletionTimestamp: %s",
-			d.Id(), r.Payload.DeletionTimestamp.String())
-		return retry.RetryableError(fmt.Errorf("cluster '%s' deletion in progress", d.Id()))
-	})
-	if err != nil {
-		return diag.FromErr(err)
-	}
-	return nil
-}
-
-func getProject(meta *common.MetaKubeProviderMeta, id string) (*models.Project, error) {
-	ret, err := meta.Client.Project.GetProject(project.NewGetProjectParams().WithProjectID(id), meta.Auth)
-	if err != nil {
-		return nil, fmt.Errorf("%v", common.StringifyResponseError(err))
-	}
-	return ret.Payload, nil
-}
-
-func mapFirstContains(a, b map[string]string) string {
-	for k := range a {
-		if _, ok := b[k]; ok {
-			return k
 		}
 	}
-	return ""
+
+	prevKeySet := make(map[string]bool)
+	for _, k := range prevKeys {
+		prevKeySet[k] = true
+	}
+
+	var toAssign []string
+	for _, id := range planKeys {
+		if !prevKeySet[id] {
+			toAssign = append(toAssign, id)
+		}
+	}
+
+	return r.assignSSHKeysToCluster(projectID, clusterID, toAssign)
 }
 
-func mapExclude(from, exclude map[string]string) map[string]string {
+func isNotFoundError(err error) bool {
+	if err == nil {
+		return false
+	}
+	e, ok := err.(*project.GetClusterV2Default)
+	if !ok {
+		return false
+	}
+	return e.Code() == http.StatusNotFound
+}
+
+func getSSHAgentEnabled(ctx context.Context, model *ClusterModel) bool {
+	if model.Spec.IsNull() || model.Spec.IsUnknown() {
+		return true // default
+	}
+	var specs []ClusterSpecModel
+	if diags := model.Spec.ElementsAs(ctx, &specs, false); diags.HasError() || len(specs) == 0 {
+		return true
+	}
+	if specs[0].EnableSSHAgent.IsNull() || specs[0].EnableSSHAgent.IsUnknown() {
+		return true
+	}
+	return specs[0].EnableSSHAgent.ValueBool()
+}
+
+func getVersionFromModel(ctx context.Context, model *ClusterModel) string {
+	if model.Spec.IsNull() || model.Spec.IsUnknown() {
+		return ""
+	}
+	var specs []ClusterSpecModel
+	if diags := model.Spec.ElementsAs(ctx, &specs, false); diags.HasError() || len(specs) == 0 {
+		return ""
+	}
+	return specs[0].Version.ValueString()
+}
+
+func hasSyselevenAuth(ctx context.Context, model *ClusterModel) bool {
+	if model.Spec.IsNull() || model.Spec.IsUnknown() {
+		return false
+	}
+	var specs []ClusterSpecModel
+	if diags := model.Spec.ElementsAs(ctx, &specs, false); diags.HasError() || len(specs) == 0 {
+		return false
+	}
+	if specs[0].SyselevenAuth.IsNull() || specs[0].SyselevenAuth.IsUnknown() {
+		return false
+	}
+	var sysAuth []SyselevenAuthModel
+	if diags := specs[0].SyselevenAuth.ElementsAs(ctx, &sysAuth, false); diags.HasError() || len(sysAuth) == 0 {
+		return false
+	}
+	return !sysAuth[0].Realm.IsNull() && sysAuth[0].Realm.ValueString() != ""
+}
+
+func hasAWSConfig(ctx context.Context, model *ClusterModel) bool {
+	if model.Spec.IsNull() || model.Spec.IsUnknown() {
+		return false
+	}
+	var specs []ClusterSpecModel
+	if diags := model.Spec.ElementsAs(ctx, &specs, false); diags.HasError() || len(specs) == 0 {
+		return false
+	}
+	if specs[0].Cloud.IsNull() || specs[0].Cloud.IsUnknown() {
+		return false
+	}
+	var clouds []ClusterCloudSpecModel
+	if diags := specs[0].Cloud.ElementsAs(ctx, &clouds, false); diags.HasError() || len(clouds) == 0 {
+		return false
+	}
+	if clouds[0].AWS.IsNull() || clouds[0].AWS.IsUnknown() {
+		return false
+	}
+	var aws []AWSCloudSpecModel
+	if diags := clouds[0].AWS.ElementsAs(ctx, &aws, false); diags.HasError() || len(aws) == 0 {
+		return false
+	}
+	return true
+}
+
+func hasAzureConfig(ctx context.Context, model *ClusterModel) bool {
+	if model.Spec.IsNull() || model.Spec.IsUnknown() {
+		return false
+	}
+	var specs []ClusterSpecModel
+	if diags := model.Spec.ElementsAs(ctx, &specs, false); diags.HasError() || len(specs) == 0 {
+		return false
+	}
+	if specs[0].Cloud.IsNull() || specs[0].Cloud.IsUnknown() {
+		return false
+	}
+	var clouds []ClusterCloudSpecModel
+	if diags := specs[0].Cloud.ElementsAs(ctx, &clouds, false); diags.HasError() || len(clouds) == 0 {
+		return false
+	}
+	if clouds[0].Azure.IsNull() || clouds[0].Azure.IsUnknown() {
+		return false
+	}
+	var azure []AzureCloudSpecModel
+	if diags := clouds[0].Azure.ElementsAs(ctx, &azure, false); diags.HasError() || len(azure) == 0 {
+		return false
+	}
+	return true
+}
+
+func expandLabelsFromModel(ctx context.Context, labels types.Map) map[string]string {
 	result := make(map[string]string)
-	for k, v := range from {
-		if _, ok := exclude[k]; !ok {
-			result[k] = v
+	if labels.IsNull() || labels.IsUnknown() {
+		return result
+	}
+	elements := labels.Elements()
+	for k, v := range elements {
+		if sv, ok := v.(types.String); ok {
+			result[k] = sv.ValueString()
 		}
 	}
+	return result
+}
+
+func expandSSHKeysFromModel(ctx context.Context, sshkeys types.Set) []string {
+	var result []string
+	if sshkeys.IsNull() || sshkeys.IsUnknown() {
+		return result
+	}
+	for _, v := range sshkeys.Elements() {
+		if sv, ok := v.(types.String); ok {
+			result = append(result, sv.ValueString())
+		}
+	}
+	return result
+}
+
+func getLabelsChange(ctx context.Context, plan, state *ClusterModel) map[string]interface{} {
+	oldLabels := expandLabelsFromModel(ctx, state.Labels)
+	newLabels := expandLabelsFromModel(ctx, plan.Labels)
+
+	result := make(map[string]interface{})
+	for k, v := range newLabels {
+		result[k] = v
+	}
+
+	// Mark removed labels as nil for API
+	for k := range oldLabels {
+		if _, ok := newLabels[k]; !ok {
+			result[k] = nil
+		}
+	}
+
 	return result
 }
