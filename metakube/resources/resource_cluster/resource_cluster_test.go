@@ -315,7 +315,7 @@ resource "metakube_cluster" "acctest_cluster" {
     timeouts {
         create = "15m"
         update = "15m"
-        delete = "15m"
+        delete = "30m"
     }
 
 	spec {
