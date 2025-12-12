@@ -273,7 +273,7 @@ func (r *clusterResource) Delete(ctx context.Context, req resource.DeleteRequest
 	projectID := state.ProjectID.ValueString()
 	clusterID := state.ID.ValueString()
 
-	deleteTimeout, diags := state.Timeouts.Delete(ctx, 40*time.Minute)
+	deleteTimeout, diags := state.Timeouts.Delete(ctx, 20*time.Minute)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
