@@ -26,6 +26,14 @@ type metakubeK8sClusterVersionDataSource struct {
 	meta *common.MetaKubeProviderMeta
 }
 
+func (d *metakubeK8sClusterVersionDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = "metakube_k8s_version"
+}
+
+func (d *metakubeK8sClusterVersionDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	resp.Schema = DataSourceK8sVersionSchema()
+}
+
 func (d *metakubeK8sClusterVersionDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
@@ -36,31 +44,6 @@ func (d *metakubeK8sClusterVersionDataSource) Configure(_ context.Context, req d
 		resp.Diagnostics.AddError(
 			"Unexpected Data Source Configure Type",
 			fmt.Sprintf("Expected *common.MetaKubeProviderMeta, got: %T. Please report this issue to the provider developers.", req.ProviderData),
-		)
-		return
-	}
-
-	d.meta = meta
-}
-
-func (d *metakubeK8sClusterVersionDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = "metakube_k8s_version"
-}
-
-func (d *metakubeK8sClusterVersionDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
-	resp.Schema = DataSourceK8sVersionSchema()
-}
-
-func (d *metakubeK8sClusterVersionDataSource) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		return
-	}
-
-	meta, ok := req.ProviderData.(*common.MetaKubeProviderMeta)
-	if !ok {
-		resp.Diagnostics.AddError(
-			"Unexpected Provider Data Type",
-			fmt.Sprintf("Expected *common.MetaKubeProviderMeta, got: %T", req.ProviderData),
 		)
 		return
 	}
