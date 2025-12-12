@@ -2,64 +2,81 @@ package datasource_sshkey
 
 import (
 	"context"
+	"fmt"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/syseleven/go-metakube/client/project"
 	"github.com/syseleven/terraform-provider-metakube/metakube/common"
 )
 
-func DataSourceMetakubeSSHKey() *schema.Resource {
-	return &schema.Resource{
-		ReadContext: metakubeDataSourceSSHKeyRead,
-		Schema: map[string]*schema.Schema{
-			"project_id": {
-				Type:         schema.TypeString,
-				Required:     true,
-				ValidateFunc: validation.NoZeroValues,
-			},
+var (
+	_ datasource.DataSource = &metakubeSSHKeyDataSource{}
+)
 
-			"name": {
-				Type:         schema.TypeString,
-				Required:     true,
-				ValidateFunc: validation.NoZeroValues,
-			},
-
-			"public_key": {
-				Type:     schema.TypeString,
-				Optional: true,
-			},
-
-			"fingerprint": {
-				Type:     schema.TypeString,
-				Optional: true,
-			},
-		},
-	}
+func NewSSHKeyDataSource() datasource.DataSource {
+	return &metakubeSSHKeyDataSource{}
 }
 
-func metakubeDataSourceSSHKeyRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	meta := m.(*common.MetaKubeProviderMeta)
+type metakubeSSHKeyDataSource struct {
+	meta *common.MetaKubeProviderMeta
+}
 
-	prj := d.Get("project_id").(string)
-	prms := project.NewListSSHKeysParams().WithContext(ctx).WithProjectID(prj)
-	res, err := meta.Client.Project.ListSSHKeys(prms, meta.Auth)
-	if err != nil {
-		return diag.FromErr(err)
+func (d *metakubeSSHKeyDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = "metakube_sshkey"
+}
+
+func (d *metakubeSSHKeyDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	resp.Schema = DataSourceSSHKeySchema()
+}
+
+func (d *metakubeSSHKeyDataSource) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
 	}
 
-	name := d.Get("name").(string)
+	meta, ok := req.ProviderData.(*common.MetaKubeProviderMeta)
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Unexpected Provider Data Type",
+			fmt.Sprintf("Expected *common.MetaKubeProviderMeta, got: %T", req.ProviderData),
+		)
+		return
+	}
+
+	d.meta = meta
+}
+
+func (d *metakubeSSHKeyDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var data metakubeSSHKeyDataSourceModel
+
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	prj := data.ProjectID.ValueString()
+	prms := project.NewListSSHKeysParams().WithContext(ctx).WithProjectID(prj)
+	res, err := d.meta.Client.Project.ListSSHKeys(prms, d.meta.Auth)
+	if err != nil {
+		resp.Diagnostics.AddError("API Error", fmt.Sprintf("Failed to list SSH keys: %s", common.StringifyResponseError(err)))
+		return
+	}
+
+	name := data.Name.ValueString()
 	for _, r := range res.Payload {
 		if r != nil && r.Name == name {
-			d.SetId(r.ID)
-			d.Set("public_key", r.Spec.PublicKey)
-			d.Set("name", name)
-			d.Set("project_id", prj)
-			d.Set("fingerprint", r.Spec.Fingerprint)
-			return nil
+			data.ID = types.StringValue(r.ID)
+			data.ProjectID = types.StringValue(prj)
+			data.Name = types.StringValue(r.Name)
+			data.PublicKey = types.StringValue(r.Spec.PublicKey)
+			data.Fingerprint = types.StringValue(r.Spec.Fingerprint)
+
+			resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+			return
 		}
 	}
 
-	return diag.Errorf("Could not find sshkey with name '%s' in a project with id '%s'", d.Get("name").(string), prj)
+	resp.Diagnostics.AddError(fmt.Sprintf("Could not find sshkey with name '%s' in a project with id '%s'", name, prj), "")
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }

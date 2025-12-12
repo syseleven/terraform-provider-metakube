@@ -87,11 +87,6 @@ func Provider() *pluginSchema.Provider {
 			"metakube_sshkey":               resource_sshkey.MetakubeResourceSSHKey(),
 			"metakube_maintenance_cron_job": resource_maintenance_cronjob.MetakubeResourceMaintenanceCronJob(),
 		},
-
-		DataSourcesMap: map[string]*pluginSchema.Resource{
-			"metakube_sshkey":  datasource_sshkey.DataSourceMetakubeSSHKey(),
-			"metakube_project": datasource_project.DataSourceMetakubeProject(),
-		},
 	}
 
 	// copying stderr because of https://github.com/hashicorp/go-plugin/issues/93
@@ -368,8 +363,8 @@ func (p *metakubeProvider) Configure(ctx context.Context, req provider.Configure
 func (p *metakubeProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		datasource_k8s_version.NewK8sClusterVersionDataSource,
-		// dataSourceMetakubeSSHKey,
-		// dataSourceMetakubeProject,
+		datasource_sshkey.NewSSHKeyDataSource,
+		datasource_project.NewProjectDataSource,
 	}
 }
 
