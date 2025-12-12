@@ -5,15 +5,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/syseleven/go-metakube/client/project"
-	"github.com/syseleven/terraform-provider-metakube/metakube/common"
-
-	"github.com/hashicorp/go-cty/cty"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/syseleven/go-metakube/client/openstack"
+	"github.com/syseleven/go-metakube/client/project"
 	"github.com/syseleven/go-metakube/client/versions"
 	"github.com/syseleven/go-metakube/models"
+	"github.com/syseleven/terraform-provider-metakube/metakube/common"
 )
 
 type metakubeResourceClusterOpenstackValidationData struct {
@@ -53,41 +52,122 @@ func (data *metakubeResourceClusterOpenstackValidationData) setParams(ctx contex
 	p.SetContext(ctx)
 }
 
-func newOpenstackValidationData(d *schema.ResourceData) metakubeResourceClusterOpenstackValidationData {
-	return metakubeResourceClusterOpenstackValidationData{
-		dcName:                       toStrPtrOrNil(d.Get("dc_name")),
-		domain:                       common.StrToPtr("Default"),
-		username:                     toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.user_credentials.0.username")),
-		password:                     toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.user_credentials.0.password")),
-		projectID:                    toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.user_credentials.0.project_id")),
-		projectName:                  toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.user_credentials.0.project_name")),
-		applicationCredentialsID:     toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.application_credentials.0.id")),
-		applicationCredentialsSecret: toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.application_credentials.0.secret")),
-		network:                      toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.network")),
-		subnetID:                     toStrPtrOrNil(d.Get("spec.0.cloud.0.openstack.0.subnet_id")),
+func newOpenstackValidationData(ctx context.Context, model *ClusterModel) metakubeResourceClusterOpenstackValidationData {
+	data := metakubeResourceClusterOpenstackValidationData{
+		domain: common.StrToPtr("Default"),
 	}
+
+	if model == nil {
+		return data
+	}
+
+	data.dcName = stringValueToPtr(model.DCName)
+
+	var specs []ClusterSpecModel
+	if model.Spec.IsNull() || model.Spec.IsUnknown() {
+		return data
+	}
+	if diags := model.Spec.ElementsAs(ctx, &specs, false); diags.HasError() || len(specs) == 0 {
+		return data
+	}
+
+	var clouds []ClusterCloudSpecModel
+	if specs[0].Cloud.IsNull() || specs[0].Cloud.IsUnknown() {
+		return data
+	}
+	if diags := specs[0].Cloud.ElementsAs(ctx, &clouds, false); diags.HasError() || len(clouds) == 0 {
+		return data
+	}
+
+	var openstacks []OpenstackCloudSpecModel
+	if clouds[0].Openstack.IsNull() || clouds[0].Openstack.IsUnknown() {
+		return data
+	}
+	if diags := clouds[0].Openstack.ElementsAs(ctx, &openstacks, false); diags.HasError() || len(openstacks) == 0 {
+		return data
+	}
+
+	os := openstacks[0]
+	data.network = stringValueToPtr(os.Network)
+	data.subnetID = stringValueToPtr(os.SubnetID)
+
+	var userCreds []OpenstackUserCredentialsModel
+	if !os.UserCredentials.IsNull() && !os.UserCredentials.IsUnknown() {
+		if diags := os.UserCredentials.ElementsAs(ctx, &userCreds, false); !diags.HasError() && len(userCreds) > 0 {
+			uc := userCreds[0]
+			data.username = stringValueToPtr(uc.Username)
+			data.password = stringValueToPtr(uc.Password)
+			data.projectID = stringValueToPtr(uc.ProjectID)
+			data.projectName = stringValueToPtr(uc.ProjectName)
+		}
+	}
+
+	var appCreds []OpenstackApplicationCredentialsModel
+	if !os.ApplicationCredentials.IsNull() && !os.ApplicationCredentials.IsUnknown() {
+		if diags := os.ApplicationCredentials.ElementsAs(ctx, &appCreds, false); !diags.HasError() && len(appCreds) > 0 {
+			ac := appCreds[0]
+			data.applicationCredentialsID = stringValueToPtr(ac.ID)
+			data.applicationCredentialsSecret = stringValueToPtr(ac.Secret)
+		}
+	}
+
+	return data
 }
 
-func toStrPtrOrNil(v interface{}) *string {
-	if v == nil {
+func stringValueToPtr(s types.String) *string {
+	if s.IsUnknown() || s.IsNull() {
 		return nil
 	}
-	return common.StrToPtr(v.(string))
+	val := s.ValueString()
+	if val == "" {
+		return nil
+	}
+	return &val
 }
 
-func metakubeResourceClusterValidateClusterFields(ctx context.Context, d *schema.ResourceData, k *common.MetaKubeProviderMeta) diag.Diagnostics {
-	ret := metakubeResourceValidateVersionExistence(ctx, d, k)
-	if _, ok := d.GetOk("spec.0.cloud.0.openstack.0"); !ok {
+func metakubeResourceClusterValidateClusterFields(ctx context.Context, model *ClusterModel, k *common.MetaKubeProviderMeta, isUpdate bool) diag.Diagnostics {
+	var ret diag.Diagnostics
+
+	ret.Append(metakubeResourceValidateVersionExistence(ctx, model, k, isUpdate)...)
+
+	if !hasOpenstackConfig(ctx, model) {
 		return ret
 	}
-	data := newOpenstackValidationData(d)
+
+	data := newOpenstackValidationData(ctx, model)
 	hasAuthData := (data.username == nil || *data.username != "") && (data.applicationCredentialsID == nil || *data.applicationCredentialsSecret != "")
 	if hasAuthData {
-		ret = append(ret, metakubeResourceClusterValidateFloatingIPPool(ctx, d, k)...)
-		ret = append(ret, metakubeResourceClusterValidateOpenstackNetwork(ctx, d, k)...)
-		ret = append(ret, diagnoseOpenstackSubnetWithIDExistsIfSet(ctx, d, k)...)
+		ret.Append(metakubeResourceClusterValidateFloatingIPPool(ctx, model, k)...)
+		ret.Append(metakubeResourceClusterValidateOpenstackNetwork(ctx, model, k)...)
+		ret.Append(diagnoseOpenstackSubnetWithIDExistsIfSet(ctx, model, k)...)
 	}
-	return append(ret, metakubeResourceClusterValidateAccessCredentialsSet(d)...)
+	ret.Append(metakubeResourceClusterValidateAccessCredentialsSet(ctx, model)...)
+	return ret
+}
+
+func hasOpenstackConfig(ctx context.Context, model *ClusterModel) bool {
+	if model.Spec.IsNull() || model.Spec.IsUnknown() {
+		return false
+	}
+	var specs []ClusterSpecModel
+	if diags := model.Spec.ElementsAs(ctx, &specs, false); diags.HasError() || len(specs) == 0 {
+		return false
+	}
+	if specs[0].Cloud.IsNull() || specs[0].Cloud.IsUnknown() {
+		return false
+	}
+	var clouds []ClusterCloudSpecModel
+	if diags := specs[0].Cloud.ElementsAs(ctx, &clouds, false); diags.HasError() || len(clouds) == 0 {
+		return false
+	}
+	if clouds[0].Openstack.IsNull() || clouds[0].Openstack.IsUnknown() {
+		return false
+	}
+	var openstacks []OpenstackCloudSpecModel
+	if diags := clouds[0].Openstack.ElementsAs(ctx, &openstacks, false); diags.HasError() || len(openstacks) == 0 {
+		return false
+	}
+	return true
 }
 
 func metakubeResourceClusterValidateVersionUpgrade(ctx context.Context, projectID, newVersion string, cluster *models.Cluster, k *common.MetaKubeProviderMeta) diag.Diagnostics {
@@ -97,7 +177,9 @@ func metakubeResourceClusterValidateVersionUpgrade(ctx context.Context, projectI
 		WithClusterID(cluster.ID)
 	r, err := k.Client.Project.GetClusterUpgradesV2(p, k.Auth)
 	if err != nil {
-		return diag.FromErr(err)
+		var ret diag.Diagnostics
+		ret.AddError("Failed to get cluster upgrades", err.Error())
+		return ret
 	}
 	var available []string
 	for _, item := range r.Payload {
@@ -106,23 +188,40 @@ func metakubeResourceClusterValidateVersionUpgrade(ctx context.Context, projectI
 			return nil
 		}
 	}
-	return diag.Diagnostics{{
-		Severity:      diag.Error,
-		Summary:       fmt.Sprintf("not allowed upgrade %s->%s", cluster.Spec.Version, newVersion),
-		AttributePath: cty.GetAttrPath("spec").IndexInt(0).GetAttr("version"),
-		Detail:        fmt.Sprintf("Please select one of available upgrades: %v", available),
-	}}
+	var ret diag.Diagnostics
+	ret.AddAttributeError(
+		path.Root("spec").AtListIndex(0).AtName("version"),
+		fmt.Sprintf("Not allowed upgrade %s->%s", cluster.Spec.Version, newVersion),
+		fmt.Sprintf("Please select one of available upgrades: %v", available),
+	)
+	return ret
 }
 
-func metakubeResourceValidateVersionExistence(ctx context.Context, d *schema.ResourceData, k *common.MetaKubeProviderMeta) diag.Diagnostics {
-	if !d.HasChange("spec.0.version") && d.Id() != "" {
+func metakubeResourceValidateVersionExistence(ctx context.Context, model *ClusterModel, k *common.MetaKubeProviderMeta, isUpdate bool) diag.Diagnostics {
+	if isUpdate {
 		return nil
 	}
-	version := d.Get("spec.0.version").(string)
+
+	if model.Spec.IsNull() || model.Spec.IsUnknown() {
+		return nil
+	}
+
+	var specs []ClusterSpecModel
+	if diags := model.Spec.ElementsAs(ctx, &specs, false); diags.HasError() || len(specs) == 0 {
+		return nil
+	}
+
+	version := specs[0].Version.ValueString()
+	if version == "" {
+		return nil
+	}
+
 	p := versions.NewGetMasterVersionsParams().WithContext(ctx)
 	r, err := k.Client.Versions.GetMasterVersions(p, k.Auth)
 	if err != nil {
-		return diag.Errorf("%s", common.StringifyResponseError(err))
+		var ret diag.Diagnostics
+		ret.AddError("Failed to get available versions", common.StringifyResponseError(err))
+		return ret
 	}
 
 	available := make([]string, 0)
@@ -133,43 +232,63 @@ func metakubeResourceValidateVersionExistence(ctx context.Context, d *schema.Res
 		}
 	}
 
-	return diag.Diagnostics{{
-		Severity:      diag.Error,
-		Summary:       fmt.Sprintf("unknown version %s", version),
-		AttributePath: cty.GetAttrPath("spec").IndexInt(0).GetAttr("version"),
-		Detail:        fmt.Sprintf("Please select one of available versions: %v", available),
-	}}
+	var ret diag.Diagnostics
+	ret.AddAttributeError(
+		path.Root("spec").AtListIndex(0).AtName("version"),
+		fmt.Sprintf("Unknown version %s", version),
+		fmt.Sprintf("Please select one of available versions: %v", available),
+	)
+	return ret
 }
 
-func metakubeResourceClusterValidateFloatingIPPool(ctx context.Context, d *schema.ResourceData, k *common.MetaKubeProviderMeta) diag.Diagnostics {
-	nets, err := validateOpenstackNetworkExistsIfSet(ctx, d, k, "spec.0.cloud.0.openstack.0.floating_ip_pool", true)
+func metakubeResourceClusterValidateFloatingIPPool(ctx context.Context, model *ClusterModel, k *common.MetaKubeProviderMeta) diag.Diagnostics {
+	data := newOpenstackValidationData(ctx, model)
+
+	floatingIPPool, ok := getOpenstackFieldString(ctx, model, func(os OpenstackCloudSpecModel) types.String {
+		return os.FloatingIPPool
+	})
+	if !ok || floatingIPPool == "" {
+		return nil
+	}
+
+	_, allNets, err := getNetwork(ctx, k, data, floatingIPPool, true)
 	if err != nil {
 		var diagnoseDetail string
-		if len(nets) > 0 {
+		if len(allNets) > 0 {
 			names := make([]string, 0)
-			for _, n := range nets {
+			for _, n := range allNets {
 				if n.External {
 					names = append(names, n.Name)
 				}
 			}
 			diagnoseDetail = fmt.Sprintf("We found following floating IP pools: %v", names)
 		}
-		return diag.Diagnostics{{
-			Severity:      diag.Error,
-			Summary:       fmt.Sprintf("invalid value: %v", err),
-			AttributePath: cty.GetAttrPath("spec").IndexInt(0).GetAttr("cloud").IndexInt(0).GetAttr("openstack").IndexInt(0).GetAttr("floating_ip_pool"),
-			Detail:        diagnoseDetail,
-		}}
+		var ret diag.Diagnostics
+		ret.AddAttributeError(
+			path.Root("spec").AtListIndex(0).AtName("cloud").AtListIndex(0).AtName("openstack").AtListIndex(0).AtName("floating_ip_pool"),
+			fmt.Sprintf("Invalid value: %v", err),
+			diagnoseDetail,
+		)
+		return ret
 	}
 	return nil
 }
 
-func metakubeResourceClusterValidateOpenstackNetwork(ctx context.Context, d *schema.ResourceData, k *common.MetaKubeProviderMeta) diag.Diagnostics {
-	allnets, err := validateOpenstackNetworkExistsIfSet(ctx, d, k, "spec.0.cloud.0.openstack.0.network", false)
+func metakubeResourceClusterValidateOpenstackNetwork(ctx context.Context, model *ClusterModel, k *common.MetaKubeProviderMeta) diag.Diagnostics {
+	data := newOpenstackValidationData(ctx, model)
+
+	network, ok := getOpenstackFieldString(ctx, model, func(os OpenstackCloudSpecModel) types.String {
+		return os.Network
+	})
+	if !ok || network == "" {
+		return nil
+	}
+
+	_, allNets, err := getNetwork(ctx, k, data, network, false)
 	if err != nil {
 		names := make([]string, 0)
-		for _, n := range allnets {
-			if n.External == false {
+		for _, n := range allNets {
+			if !n.External {
 				names = append(names, n.Name)
 			}
 		}
@@ -177,29 +296,19 @@ func metakubeResourceClusterValidateOpenstackNetwork(ctx context.Context, d *sch
 		if len(names) > 0 {
 			diagnoseDetail = fmt.Sprintf("We found following networks: %v", names)
 		}
-		return diag.Diagnostics{{
-			Severity:      diag.Error,
-			Summary:       fmt.Sprintf("invalid value: %v", err),
-			AttributePath: cty.GetAttrPath("spec").IndexInt(0).GetAttr("cloud").IndexInt(0).GetAttr("openstack").IndexInt(0).GetAttr("network"),
-			Detail:        diagnoseDetail,
-		}}
+		var ret diag.Diagnostics
+		ret.AddAttributeError(
+			path.Root("spec").AtListIndex(0).AtName("cloud").AtListIndex(0).AtName("openstack").AtListIndex(0).AtName("network"),
+			fmt.Sprintf("Invalid value: %v", err),
+			diagnoseDetail,
+		)
+		return ret
 	}
 	return nil
 }
 
-func validateOpenstackNetworkExistsIfSet(ctx context.Context, d *schema.ResourceData, k *common.MetaKubeProviderMeta, field string, external bool) ([]*models.OpenstackNetwork, error) {
-	value, ok := d.GetOk(field)
-	if !ok {
-		return nil, nil
-	}
-
-	data := newOpenstackValidationData(d)
-	_, all, err := getNetwork(ctx, k, data, value.(string), external)
-	return all, err
-}
-
-func diagnoseOpenstackSubnetWithIDExistsIfSet(ctx context.Context, d *schema.ResourceData, k *common.MetaKubeProviderMeta) diag.Diagnostics {
-	data := newOpenstackValidationData(d)
+func diagnoseOpenstackSubnetWithIDExistsIfSet(ctx context.Context, model *ClusterModel, k *common.MetaKubeProviderMeta) diag.Diagnostics {
+	data := newOpenstackValidationData(ctx, model)
 	if data.network == nil || data.subnetID == nil {
 		return nil
 	}
@@ -220,12 +329,42 @@ func diagnoseOpenstackSubnetWithIDExistsIfSet(ctx context.Context, d *schema.Res
 		}
 		diagnoseDetail = fmt.Sprintf("We found following subnets (name/id): %v", tmp)
 	}
-	return diag.Diagnostics{{
-		Severity:      diag.Error,
-		Summary:       fmt.Sprintf("invalid value: %v", err),
-		AttributePath: cty.GetAttrPath("spec").IndexInt(0).GetAttr("cloud").IndexInt(0).GetAttr("openstack").IndexInt(0).GetAttr("subnetID"),
-		Detail:        diagnoseDetail,
-	}}
+	var ret diag.Diagnostics
+	ret.AddAttributeError(
+		path.Root("spec").AtListIndex(0).AtName("cloud").AtListIndex(0).AtName("openstack").AtListIndex(0).AtName("subnet_id"),
+		fmt.Sprintf("Invalid value: %v", err),
+		diagnoseDetail,
+	)
+	return ret
+}
+
+func getOpenstackFieldString(ctx context.Context, model *ClusterModel, getter func(OpenstackCloudSpecModel) types.String) (string, bool) {
+	if model.Spec.IsNull() || model.Spec.IsUnknown() {
+		return "", false
+	}
+	var specs []ClusterSpecModel
+	if diags := model.Spec.ElementsAs(ctx, &specs, false); diags.HasError() || len(specs) == 0 {
+		return "", false
+	}
+	if specs[0].Cloud.IsNull() || specs[0].Cloud.IsUnknown() {
+		return "", false
+	}
+	var clouds []ClusterCloudSpecModel
+	if diags := specs[0].Cloud.ElementsAs(ctx, &clouds, false); diags.HasError() || len(clouds) == 0 {
+		return "", false
+	}
+	if clouds[0].Openstack.IsNull() || clouds[0].Openstack.IsUnknown() {
+		return "", false
+	}
+	var openstacks []OpenstackCloudSpecModel
+	if diags := clouds[0].Openstack.ElementsAs(ctx, &openstacks, false); diags.HasError() || len(openstacks) == 0 {
+		return "", false
+	}
+	field := getter(openstacks[0])
+	if field.IsNull() || field.IsUnknown() {
+		return "", false
+	}
+	return field.ValueString(), true
 }
 
 func getNetwork(ctx context.Context, k *common.MetaKubeProviderMeta, data metakubeResourceClusterOpenstackValidationData, name string, external bool) (*models.OpenstackNetwork, []*models.OpenstackNetwork, error) {
@@ -271,8 +410,8 @@ func findSubnet(list []*models.OpenstackSubnet, id string) *models.OpenstackSubn
 	return nil
 }
 
-func metakubeResourceClusterValidateAccessCredentialsSet(d *schema.ResourceData) diag.Diagnostics {
-	data := newOpenstackValidationData(d)
+func metakubeResourceClusterValidateAccessCredentialsSet(ctx context.Context, model *ClusterModel) diag.Diagnostics {
+	data := newOpenstackValidationData(ctx, model)
 
 	username := data.username != nil && *data.username != ""
 	password := data.password != nil && *data.password != ""
@@ -296,12 +435,13 @@ func metakubeResourceClusterValidateAccessCredentialsSet(d *schema.ResourceData)
 		if !projectID {
 			details = append(details, "project_id not set")
 		}
-		return diag.Diagnostics{{
-			Severity:      diag.Error,
-			Summary:       "Please set all username, password, project_id and project_name or use application_credentials",
-			AttributePath: cty.GetAttrPath("spec").IndexInt(0).GetAttr("cloud").IndexInt(0).GetAttr("openstack").IndexInt(0),
-			Detail:        strings.Join(details, ", "),
-		}}
+		var ret diag.Diagnostics
+		ret.AddAttributeError(
+			path.Root("spec").AtListIndex(0).AtName("cloud").AtListIndex(0).AtName("openstack").AtListIndex(0),
+			"Please set all username, password, project_id and project_name or use application_credentials",
+			strings.Join(details, ", "),
+		)
+		return ret
 	}
 
 	if usingApplicationCredentials && (!applicationCredentialsID || !applicationCredentialsSecret) {
@@ -312,12 +452,13 @@ func metakubeResourceClusterValidateAccessCredentialsSet(d *schema.ResourceData)
 		if !applicationCredentialsSecret {
 			details = append(details, "secret not set")
 		}
-		return diag.Diagnostics{{
-			Severity:      diag.Error,
-			Summary:       "Please set both id and secret",
-			AttributePath: cty.GetAttrPath("spec").IndexInt(0).GetAttr("cloud").IndexInt(0).GetAttr("openstack").IndexInt(0),
-			Detail:        strings.Join(details, ", "),
-		}}
+		var ret diag.Diagnostics
+		ret.AddAttributeError(
+			path.Root("spec").AtListIndex(0).AtName("cloud").AtListIndex(0).AtName("openstack").AtListIndex(0),
+			"Please set both id and secret",
+			strings.Join(details, ", "),
+		)
+		return ret
 	}
 
 	return nil

@@ -42,7 +42,7 @@ func TestAccMetakubeRoleBinding(t *testing.T) {
 	}
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testutil.TestAccPreCheck(t) },
-		ProtoV5ProviderFactories: testutil.TestAccProtoV5ProviderFactories,
+		ProtoV6ProviderFactories: testutil.TestAccProtoV6ProviderFactories,
 		CheckDestroy:             testutil.TestAccCheckMetaKubeSSHKeyDestroy,
 		Steps: []resource.TestStep{
 			{
