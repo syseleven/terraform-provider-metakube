@@ -48,7 +48,7 @@ func TestAccMetakubeCluster_MaintenanceCronJob_Basic(t *testing.T) {
 		PreCheck: func() {
 			testutil.TestAccPreCheckForOpenstack(t)
 		},
-		ProtoV5ProviderFactories: testutil.TestAccProtoV5ProviderFactories,
+		ProtoV6ProviderFactories: testutil.TestAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckMetaKubeMaintenanceCronJobDestroy,
 		Steps: []resource.TestStep{
 			{

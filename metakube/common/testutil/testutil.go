@@ -11,7 +11,9 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov5"
-	"github.com/hashicorp/terraform-plugin-mux/tf5muxserver"
+	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
+	"github.com/hashicorp/terraform-plugin-mux/tf5to6server"
+	"github.com/hashicorp/terraform-plugin-mux/tf6muxserver"
 	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
@@ -22,13 +24,25 @@ import (
 	"go.uber.org/zap"
 )
 
-var TestAccProtoV5ProviderFactories = map[string]func() (tfprotov5.ProviderServer, error){
-	"metakube": func() (tfprotov5.ProviderServer, error) {
-		providers := []func() tfprotov5.ProviderServer{
-			providerserver.NewProtocol5(metakube.NewFrameworkProvider()),
-			metakube.Provider().GRPCProvider,
+var TestAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
+	"metakube": func() (tfprotov6.ProviderServer, error) {
+		ctx := context.Background()
+
+		upgradedSdkProvider, err := tf5to6server.UpgradeServer(
+			ctx,
+			func() tfprotov5.ProviderServer {
+				return metakube.Provider().GRPCProvider()
+			},
+		)
+		if err != nil {
+			return nil, err
 		}
-		muxServer, err := tf5muxserver.NewMuxServer(context.Background(), providers...)
+
+		providers := []func() tfprotov6.ProviderServer{
+			providerserver.NewProtocol6(metakube.NewFrameworkProvider()),
+			func() tfprotov6.ProviderServer { return upgradedSdkProvider },
+		}
+		muxServer, err := tf6muxserver.NewMuxServer(ctx, providers...)
 		if err != nil {
 			return nil, err
 		}
@@ -99,9 +113,9 @@ func TestAccPreCheckForOpenstack(t *testing.T) {
 
 func GetTestClient() (*common.MetaKubeProviderMeta, error) {
 	host := os.Getenv("METAKUBE_HOST")
-	client, err := common.NewClient(host)
-	if err != nil {
-		return nil, fmt.Errorf("create client: %v", err)
+	client, diags := common.NewClient(host)
+	if diags.HasError() {
+		return nil, fmt.Errorf("create client: %v", diags.Errors())
 	}
 
 	token := os.Getenv(common.TestEnvServiceAccountCredential)
