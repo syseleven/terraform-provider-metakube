@@ -29,8 +29,8 @@ func TestAccMetakubeRoleBinding(t *testing.T) {
 		OpenstackApplicationCredentialSecret: os.Getenv(common.TestEnvServiceAccountCredential),
 
 		Namespace:        "kube-system",
-		RoleName:         "namespace-viewer",
-		UserSubjectName:  "foo.bar@mycompany.xyz",
+		RoleName:         "namespacex-viewer",
+		UserSubjectName:  "john.doe@mycompany.xyz",
 		GroupSubjectName: "support-team",
 	}
 	resource.Test(t, resource.TestCase{
