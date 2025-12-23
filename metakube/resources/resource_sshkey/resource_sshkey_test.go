@@ -32,7 +32,7 @@ func TestAccMetakubeSSHKey_Basic(t *testing.T) {
 	resourceName := "metakube_sshkey.acctest_sshkey"
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testutil.TestAccPreCheck(t) },
-		ProtoV5ProviderFactories: testutil.TestAccProtoV5ProviderFactories,
+		ProtoV6ProviderFactories: testutil.TestAccProtoV6ProviderFactories,
 		CheckDestroy:             testutil.TestAccCheckMetaKubeSSHKeyDestroy,
 		Steps: []resource.TestStep{
 			{

@@ -48,7 +48,7 @@ func TestAccMetakubeClusterRoleBinding(t *testing.T) {
 			testutil.CheckEnv(t, common.TestEnvK8sVersionOpenstack)
 			testutil.CheckEnv(t, common.TestEnvProjectID)
 		},
-		ProtoV5ProviderFactories: testutil.TestAccProtoV5ProviderFactories,
+		ProtoV6ProviderFactories: testutil.TestAccProtoV6ProviderFactories,
 		CheckDestroy:             testutil.TestAccCheckMetaKubeSSHKeyDestroy,
 		Steps: []resource.TestStep{
 			{
