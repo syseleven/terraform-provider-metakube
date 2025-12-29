@@ -65,7 +65,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 		PreCheck: func() {
 			testutil.TestAccPreCheckForOpenstack(t)
 		},
-		ProtoV5ProviderFactories: testutil.TestAccProtoV5ProviderFactories,
+		ProtoV6ProviderFactories: testutil.TestAccProtoV6ProviderFactories,
 		ExternalProviders: map[string]resource.ExternalProvider{
 			"openstack": {
 				Source: "terraform-provider-openstack/openstack",
@@ -203,7 +203,7 @@ func TestAccMetakubeCluster_Openstack_ApplicationCredentials(t *testing.T) {
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testutil.TestAccPreCheckForOpenstack(t) },
-		ProtoV5ProviderFactories: testutil.TestAccProtoV5ProviderFactories,
+		ProtoV6ProviderFactories: testutil.TestAccProtoV6ProviderFactories,
 		ExternalProviders: map[string]resource.ExternalProvider{
 			"openstack": {
 				Source: "terraform-provider-openstack/openstack",
@@ -250,7 +250,7 @@ func TestAccMetakubeCluster_Openstack_UpgradeVersion(t *testing.T) {
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testutil.TestAccPreCheckForOpenstack(t) },
-		ProtoV5ProviderFactories: testutil.TestAccProtoV5ProviderFactories,
+		ProtoV6ProviderFactories: testutil.TestAccProtoV6ProviderFactories,
 		ExternalProviders: map[string]resource.ExternalProvider{
 			"openstack": {
 				Source: "terraform-provider-openstack/openstack",
