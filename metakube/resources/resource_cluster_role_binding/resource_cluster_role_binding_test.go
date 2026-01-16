@@ -7,20 +7,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
-	"github.com/syseleven/terraform-provider-metakube/metakube"
 	"github.com/syseleven/terraform-provider-metakube/metakube/common"
-	"github.com/syseleven/terraform-provider-metakube/metakube/common/provider_testutil"
 	"github.com/syseleven/terraform-provider-metakube/metakube/common/testutil"
 )
 
 func TestMain(m *testing.M) {
-	provider_testutil.TestAccProvider = metakube.Provider()
-	provider_testutil.TestAccProviders = map[string]*schema.Provider{
-		"metakube": provider_testutil.TestAccProvider,
-	}
 	resource.TestMain(m)
 }
 
@@ -48,7 +41,7 @@ func TestAccMetakubeClusterRoleBinding(t *testing.T) {
 			testutil.CheckEnv(t, common.TestEnvK8sVersionOpenstack)
 			testutil.CheckEnv(t, common.TestEnvProjectID)
 		},
-		ProtoV5ProviderFactories: testutil.TestAccProtoV5ProviderFactories,
+		ProtoV6ProviderFactories: testutil.TestAccProtoV6ProviderFactories,
 		CheckDestroy:             testutil.TestAccCheckMetaKubeSSHKeyDestroy,
 		Steps: []resource.TestStep{
 			{

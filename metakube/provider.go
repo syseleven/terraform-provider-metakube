@@ -30,6 +30,7 @@ import (
 	"github.com/syseleven/terraform-provider-metakube/metakube/resources/resource_node_deployment"
 	"github.com/syseleven/terraform-provider-metakube/metakube/resources/resource_role_binding"
 	"github.com/syseleven/terraform-provider-metakube/metakube/resources/resource_sshkey"
+
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -82,8 +83,6 @@ func Provider() *pluginSchema.Provider {
 
 		ResourcesMap: map[string]*pluginSchema.Resource{
 			"metakube_cluster":              resource_cluster.MetakubeResourceCluster(),
-			"metakube_cluster_role_binding": resource_cluster_role_binding.MetakubeResourceClusterRoleBinding(),
-			"metakube_role_binding":         resource_role_binding.MetakubeResourceRoleBinding(),
 			"metakube_node_deployment":      resource_node_deployment.MetakubeResourceNodeDeployment(),
 			"metakube_sshkey":               resource_sshkey.MetakubeResourceSSHKey(),
 			"metakube_maintenance_cron_job": resource_maintenance_cronjob.MetakubeResourceMaintenanceCronJob(),
@@ -376,8 +375,8 @@ func (p *metakubeProvider) Metadata(ctx context.Context, req provider.MetadataRe
 func (p *metakubeProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		// metakubeResourceCluster,
-		// metakubeResourceClusterRoleBinding,
-		// metakubeResourceRoleBinding,
+		resource_cluster_role_binding.NewClusterRoleBinding,
+		resource_role_binding.NewRoleBinding,
 		// metakubeResourceNodeDeployment,
 		// metakubeResourceSSHKey,
 		// metakubeResourceMaintenanceCronJob,

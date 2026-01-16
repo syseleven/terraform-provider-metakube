@@ -6,31 +6,41 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov5"
-	"github.com/hashicorp/terraform-plugin-go/tfprotov5/tf5server"
-	"github.com/hashicorp/terraform-plugin-mux/tf5muxserver"
+	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
+	"github.com/hashicorp/terraform-plugin-go/tfprotov6/tf6server"
+	"github.com/hashicorp/terraform-plugin-mux/tf5to6server"
+	"github.com/hashicorp/terraform-plugin-mux/tf6muxserver"
 	"github.com/syseleven/terraform-provider-metakube/metakube"
 )
 
 func main() {
-	// plugin.Serve(&plugin.ServeOpts{
-	// 	ProviderFunc: func() *schema.Provider {
-	// 		return metakube.Provider()
-	// 	},
-	// })
+	ctx := context.Background()
 
-	providers := []func() tfprotov5.ProviderServer{
-		providerserver.NewProtocol5(metakube.NewFrameworkProvider()),
-		metakube.Provider().GRPCProvider,
-	}
-
-	muxServer, err := tf5muxserver.NewMuxServer(context.Background(), providers...)
+	upgradedSdkProvider, err := tf5to6server.UpgradeServer(
+		ctx,
+		func() tfprotov5.ProviderServer {
+			return metakube.Provider().GRPCProvider()
+		},
+	)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	var serveOpts []tf5server.ServeOpt
+	providers := []func() tfprotov6.ProviderServer{
+		providerserver.NewProtocol6(metakube.NewFrameworkProvider()),
+		func() tfprotov6.ProviderServer {
+			return upgradedSdkProvider
+		},
+	}
 
-	err = tf5server.Serve("registry.terraform.io/syseleven/metakube", muxServer.ProviderServer, serveOpts...)
+	muxServer, err := tf6muxserver.NewMuxServer(ctx, providers...)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var serveOpts []tf6server.ServeOpt
+
+	err = tf6server.Serve("registry.terraform.io/syseleven/metakube", muxServer.ProviderServer, serveOpts...)
 	if err != nil {
 		log.Fatal(err)
 	}
