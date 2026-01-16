@@ -3,140 +3,188 @@ package resource_cluster_role_binding
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"strings"
+	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/syseleven/go-metakube/client/project"
 	"github.com/syseleven/terraform-provider-metakube/metakube/common"
-
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
 
-func MetakubeResourceClusterRoleBinding() *schema.Resource {
-	return &schema.Resource{
-		CreateContext: metakubeResourceClusterRoleBindingCreate,
-		ReadContext:   metakubeResourceClusterRoleBindingRead,
-		DeleteContext: metakubeResourceClusterRoleBindingDelete,
-		Importer: &schema.ResourceImporter{
-			StateContext: common.ImportResourceWithProjectAndClusterID("cluster_role_binding_name"),
-		},
+var (
+	_ resource.Resource                = &metakubeClusterRoleBinding{}
+	_ resource.ResourceWithConfigure   = &metakubeClusterRoleBinding{}
+	_ resource.ResourceWithImportState = &metakubeClusterRoleBinding{}
+)
 
-		Schema: map[string]*schema.Schema{
-			"project_id": {
-				Type:         schema.TypeString,
-				Required:     true,
-				ValidateFunc: validation.NoZeroValues,
-				ForceNew:     true,
-				Description:  "The id of the project resource belongs to",
-			},
-			"cluster_id": {
-				Type:         schema.TypeString,
-				ValidateFunc: validation.NoZeroValues,
-				Required:     true,
-				ForceNew:     true,
-				Description:  "The id of the cluster resource belongs to",
-			},
-			"cluster_role_name": {
-				Type:         schema.TypeString,
-				Required:     true,
-				ValidateFunc: validation.NoZeroValues,
-				ForceNew:     true,
-				Description:  "The name of the cluster role to bind to",
-			},
-			"subject": {
-				Type:        schema.TypeList,
-				Required:    true,
-				ForceNew:    true,
-				Description: "Users and groups to bind for",
-				MinItems:    1,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"kind": {
-							Type:         schema.TypeString,
-							Required:     true,
-							Description:  "Can be either 'user' or 'group'",
-							ValidateFunc: validation.StringInSlice([]string{"user", "group"}, false),
-						},
-						"name": {
-							Type:         schema.TypeString,
-							Optional:     true,
-							Description:  "Subject name",
-							ValidateFunc: validation.NoZeroValues,
-						},
-					},
-				},
-			},
-		},
-	}
+func NewClusterRoleBinding() resource.Resource {
+	return &metakubeClusterRoleBinding{}
 }
 
-func metakubeResourceClusterRoleBindingCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	k := m.(*common.MetaKubeProviderMeta)
+type metakubeClusterRoleBinding struct {
+	meta *common.MetaKubeProviderMeta
+}
 
-	subjects := metakubeClusterRoleBindingExpandSubjects(d.Get("subject"))
+func (r *metakubeClusterRoleBinding) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_cluster_role_binding"
+}
+
+func (r *metakubeClusterRoleBinding) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = ClusterRoleBindingSchema()
+}
+
+func (r *metakubeClusterRoleBinding) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+
+	meta, ok := req.ProviderData.(*common.MetaKubeProviderMeta)
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Unexpected Resource Configure Type",
+			fmt.Sprintf("Expected *common.MetaKubeProviderMeta, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+		)
+		return
+	}
+
+	r.meta = meta
+}
+
+func (r *metakubeClusterRoleBinding) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan ClusterRoleBindingModel
+
+	diags := req.Plan.Get(ctx, &plan)
+
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	projectID := plan.ProjectID.ValueString()
+	clusterID := plan.ClusterID.ValueString()
+	clusterRoleName := plan.ClusterRoleName.ValueString()
+
+	subjects := metakubeClusterRoleBindingExpandSubjects(ctx, plan.Subject)
 	for _, sub := range subjects {
-		params := project.NewBindUserToClusterRoleV2Params().
-			WithContext(ctx).
-			WithProjectID(d.Get("project_id").(string)).
-			WithClusterID(d.Get("cluster_id").(string)).
-			WithRoleID(d.Get("cluster_role_name").(string)).
-			WithBody(&sub)
-		_, err := k.Client.Project.BindUserToClusterRoleV2(params, k.Auth)
-		if err != nil {
-			return diag.FromErr(fmt.Errorf("failed to create cluster role bindings: %s", common.StringifyResponseError(err)))
+		timeout := 20 * time.Minute
+		deadline := time.Now().Add(timeout)
+		for time.Now().Before(deadline) {
+			params := project.NewBindUserToClusterRoleV2Params().
+				WithContext(ctx).
+				WithProjectID(projectID).
+				WithClusterID(clusterID).
+				WithRoleID(clusterRoleName).
+				WithBody(&sub)
+			_, err := r.meta.Client.Project.BindUserToClusterRoleV2(params, r.meta.Auth)
+			if err != nil {
+				e, ok := err.(*project.BindUserToClusterRoleV2Default)
+				if ok && (e.Code() == http.StatusConflict || e.Code() == http.StatusNotFound) {
+					time.Sleep(5 * time.Second)
+					continue
+				}
+				resp.Diagnostics.AddError("Timeout creating cluster role binding", fmt.Sprintf(
+					"Timeout waiting for cluster role binding for cluster '%s' to be created: %s", clusterID, common.StringifyResponseError(err)))
+				return
+			}
 		}
 	}
-	d.SetId(d.Get("cluster_role_name").(string))
-	return metakubeResourceClusterRoleBindingRead(ctx, d, m)
+
+	plan.ID = types.StringValue(clusterRoleName)
+
+	diags = resp.State.Set(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
 }
 
-func metakubeResourceClusterRoleBindingRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	k := m.(*common.MetaKubeProviderMeta)
+func (r *metakubeClusterRoleBinding) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var data ClusterRoleBindingModel
+
+	diags := req.State.Get(ctx, &data)
+
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	params := project.NewListClusterRoleBindingV2Params().
 		WithContext(ctx).
-		WithProjectID(d.Get("project_id").(string)).
-		WithClusterID(d.Get("cluster_id").(string))
-	ret, err := k.Client.Project.ListClusterRoleBindingV2(params, k.Auth)
+		WithProjectID(data.ProjectID.ValueString()).
+		WithClusterID(data.ClusterID.ValueString())
+	ret, err := r.meta.Client.Project.ListClusterRoleBindingV2(params, r.meta.Auth)
 	if err != nil {
-		return diag.FromErr(err)
+		resp.Diagnostics.AddError("API Error", fmt.Sprintf("Failed to list cluster role bindings: %s", common.StringifyResponseError(err)))
+		return
 	}
 
+	clusterRoleName := data.ClusterRoleName.ValueString()
 	for _, item := range ret.Payload {
-		if item.RoleRefName == d.Id() && len(item.Subjects) != 0 {
-			err := d.Set("subject", common.MetakubeClusterRoleBindingFlattenSubjects(item.Subjects))
-			if err != nil {
-				return diag.FromErr(err)
+		if item.RoleRefName == clusterRoleName && len(item.Subjects) != 0 {
+			resp.Diagnostics.Append(metakubeClusterRoleBindingFlattenSubjects(ctx, &data, item.Subjects)...)
+			if resp.Diagnostics.HasError() {
+				return
 			}
-			d.SetId(item.RoleRefName)
-			err = d.Set("cluster_role_name", item.RoleRefName)
-			if err != nil {
-				return diag.FromErr(err)
-			}
-			return nil
+
+			data.ID = types.StringValue(item.RoleRefName)
+			data.ClusterRoleName = types.StringValue(item.RoleRefName)
+
+			diags = resp.State.Set(ctx, &data)
+			resp.Diagnostics.Append(diags...)
+
+			return
 		}
 	}
 
-	// Signal record was not found by setting id = ""
-	d.SetId("")
-	return nil
+	data.ID = types.StringNull()
+
+	resp.State.RemoveResource(ctx)
 }
 
-func metakubeResourceClusterRoleBindingDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	k := m.(*common.MetaKubeProviderMeta)
+func (r *metakubeClusterRoleBinding) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state ClusterRoleBindingModel
 
-	subjects := metakubeClusterRoleBindingExpandSubjects(d.Get("subject"))
+	diags := req.State.Get(ctx, &state)
+
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	projectID := state.ProjectID.ValueString()
+	clusterID := state.ClusterID.ValueString()
+	clusterRoleName := state.ClusterRoleName.ValueString()
+
+	subjects := metakubeClusterRoleBindingExpandSubjects(ctx, state.Subject)
 	for _, sub := range subjects {
 		params := project.NewUnbindUserFromClusterRoleBindingV2Params().
 			WithContext(ctx).
-			WithProjectID(d.Get("project_id").(string)).
-			WithClusterID(d.Get("cluster_id").(string)).
-			WithRoleID(d.Id()).
+			WithProjectID(projectID).
+			WithClusterID(clusterID).
+			WithRoleID(clusterRoleName).
 			WithBody(&sub)
-		_, err := k.Client.Project.UnbindUserFromClusterRoleBindingV2(params, k.Auth)
+		_, err := r.meta.Client.Project.UnbindUserFromClusterRoleBindingV2(params, r.meta.Auth)
 		if err != nil {
-			return diag.FromErr(fmt.Errorf("failed to delete cluster role binding: %s", common.StringifyResponseError(err)))
+			resp.Diagnostics.AddError("API Error", fmt.Sprintf("Failed to delete cluster role bindings: %s", common.StringifyResponseError(err)))
+			return
 		}
 	}
-	return nil
+}
+
+func (r *metakubeClusterRoleBinding) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	parts := strings.Split(req.ID, ":")
+
+	if len(parts) != 3 {
+		resp.Diagnostics.AddError(
+			"Invalid import ID",
+			"Please provide resource identifier in format 'project_id:cluster_id:cluster_role_name'",
+		)
+	}
+
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("project"), parts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("cluster_id"), parts[1])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[2])...)
+}
+
+func (r *metakubeClusterRoleBinding) Update(_ context.Context, _ resource.UpdateRequest, _ *resource.UpdateResponse) {
 }
