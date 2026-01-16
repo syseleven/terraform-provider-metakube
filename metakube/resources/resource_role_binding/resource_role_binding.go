@@ -183,7 +183,7 @@ func (r *metakubeRoleBinding) ImportState(ctx context.Context, req resource.Impo
 	if len(parts) != 4 {
 		resp.Diagnostics.AddError(
 			"Invalid import ID",
-			"Please provide resource identifier in format project_id:cluster_id:role_namespace:role_name'",
+			"Please provide resource identifier in format 'project_id:cluster_id:role_namespace:role_name'",
 		)
 	}
 
