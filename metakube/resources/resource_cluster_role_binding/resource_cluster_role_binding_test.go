@@ -75,7 +75,7 @@ func TestAccMetakubeClusterRoleBinding(t *testing.T) {
 				ImportState:       true,
 				ImportStateVerify: false,
 				ImportStateId:     "123abc",
-				ExpectError:       regexp.MustCompile(`please provide resource identifier in format 'project_id:cluster_id:cluster_role_binding_name'`),
+				ExpectError:       regexp.MustCompile(`please provide resource identifier in format\s+'project_id:cluster_id:cluster_role_binding_name'`),
 			},
 		},
 	})
