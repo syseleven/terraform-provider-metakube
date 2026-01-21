@@ -197,6 +197,11 @@ var nodeDeploymentBasicTemplate = testutil.MustParseTemplate("nodeDeploymentBasi
 		name = "{{ .Name }}"
 		dc_name = "{{ .DatacenterName }}"
 		project_id = "{{ .ProjectID }}"
+	timeouts {
+		create = "40m"
+		update = "40m"
+		delete = "40m"
+	}
 		spec {
 			version = "{{ .ClusterVersion }}"
 			cloud {
