@@ -71,7 +71,17 @@ func (r *metakubeClusterRoleBinding) Create(ctx context.Context, req resource.Cr
 	for _, sub := range subjects {
 		timeout := 20 * time.Minute
 		deadline := time.Now().Add(timeout)
-		for time.Now().Before(deadline) {
+		var lastErr error
+		for {
+			if time.Now().After(deadline) {
+				message := fmt.Sprintf("Timeout waiting for cluster role binding for cluster '%s' to be created", clusterID)
+				if lastErr != nil {
+					message = fmt.Sprintf("%s: %s", message, common.StringifyResponseError(lastErr))
+				}
+				resp.Diagnostics.AddError("Timeout creating cluster role binding", message)
+				return
+			}
+
 			params := project.NewBindUserToClusterRoleV2Params().
 				WithContext(ctx).
 				WithProjectID(projectID).
@@ -79,16 +89,20 @@ func (r *metakubeClusterRoleBinding) Create(ctx context.Context, req resource.Cr
 				WithRoleID(clusterRoleName).
 				WithBody(&sub)
 			_, err := r.meta.Client.Project.BindUserToClusterRoleV2(params, r.meta.Auth)
-			if err != nil {
-				e, ok := err.(*project.BindUserToClusterRoleV2Default)
-				if ok && (e.Code() == http.StatusConflict || e.Code() == http.StatusNotFound) {
-					time.Sleep(5 * time.Second)
-					continue
-				}
-				resp.Diagnostics.AddError("Timeout creating cluster role binding", fmt.Sprintf(
-					"Timeout waiting for cluster role binding for cluster '%s' to be created: %s", clusterID, common.StringifyResponseError(err)))
-				return
+			if err == nil || clusterRoleBindingAlreadyConnected(err) {
+				break
 			}
+
+			e, ok := err.(*project.BindUserToClusterRoleV2Default)
+			if ok && (e.Code() == http.StatusConflict || e.Code() == http.StatusNotFound) {
+				lastErr = err
+				time.Sleep(5 * time.Second)
+				continue
+			}
+
+			resp.Diagnostics.AddError("API Error", fmt.Sprintf(
+				"Failed to create cluster role binding: %s", common.StringifyResponseError(err)))
+			return
 		}
 	}
 
@@ -177,14 +191,26 @@ func (r *metakubeClusterRoleBinding) ImportState(ctx context.Context, req resour
 	if len(parts) != 3 {
 		resp.Diagnostics.AddError(
 			"Invalid import ID",
-			"Please provide resource identifier in format 'project_id:cluster_id:cluster_role_name'",
+			"please provide resource identifier in format 'project_id:cluster_id:cluster_role_binding_name'",
 		)
+		return
 	}
 
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("project"), parts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("project_id"), parts[0])...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("cluster_id"), parts[1])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("cluster_role_name"), parts[2])...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[2])...)
 }
 
 func (r *metakubeClusterRoleBinding) Update(_ context.Context, _ resource.UpdateRequest, _ *resource.UpdateResponse) {
+}
+
+func clusterRoleBindingAlreadyConnected(err error) bool {
+	e, ok := err.(*project.BindUserToClusterRoleV2Default)
+	if !ok || e.Payload == nil || e.Payload.Error == nil || e.Payload.Error.Message == nil {
+		return false
+	}
+
+	message := strings.ToLower(*e.Payload.Error.Message)
+	return strings.Contains(message, "already connected") && strings.Contains(message, "cluster role")
 }
