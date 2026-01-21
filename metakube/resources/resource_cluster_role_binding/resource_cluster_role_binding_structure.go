@@ -42,7 +42,7 @@ func metakubeClusterRoleBindingFlattenSubjects(ctx context.Context, clusterRoleB
 	}
 
 	var diags diag.Diagnostics
-	var subjectModel SubjectModel
+	subjectVals := make([]attr.Value, 0, len(in))
 
 	for _, subject := range in {
 		if subject == nil || (subject.Kind == "" || subject.Name == "") {
@@ -50,19 +50,25 @@ func metakubeClusterRoleBindingFlattenSubjects(ctx context.Context, clusterRoleB
 			return diags
 		}
 
-		subjectModel.Kind = types.StringValue(strings.ToLower(subject.Kind))
-		subjectModel.Name = types.StringValue(subject.Name)
-
+		subjectModel := SubjectModel{
+			Kind: types.StringValue(strings.ToLower(subject.Kind)),
+			Name: types.StringValue(subject.Name),
+		}
 		objVal, d := types.ObjectValueFrom(ctx, metakubeSubjectAttrTypes(), subjectModel)
 		diags.Append(d...)
 		if diags.HasError() {
 			return diags
 		}
 
-		listVal, d := types.ListValue(types.ObjectType{AttrTypes: metakubeSubjectAttrTypes()}, []attr.Value{objVal})
-		diags.Append(d...)
-		clusterRoleBindingModel.Subject = listVal
+		subjectVals = append(subjectVals, objVal)
 	}
+
+	listVal, d := types.ListValue(types.ObjectType{AttrTypes: metakubeSubjectAttrTypes()}, subjectVals)
+	diags.Append(d...)
+	if diags.HasError() {
+		return diags
+	}
+	clusterRoleBindingModel.Subject = listVal
 
 	return diags
 }
