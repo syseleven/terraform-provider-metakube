@@ -1,18 +1,26 @@
 package resource_cluster_role_binding
 
 import (
+	"context"
+
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func ClusterRoleBindingSchema() schema.Schema {
+func ClusterRoleBindingSchema(ctx context.Context) schema.Schema {
+	blocks := metakubeClusterRoleBindingSubjectBlock()
+	blocks["timeouts"] = timeouts.Block(ctx, timeouts.Opts{
+		Create: true,
+	})
+
 	return schema.Schema{
 		Attributes: metakubeClusterRoleBindingAttributes(),
-		Blocks:     metakubeClusterRoleBindingSubjectBlock(),
+		Blocks:     blocks,
 	}
 }
 
@@ -23,6 +31,7 @@ type ClusterRoleBindingModel struct {
 	ClusterID       types.String `tfsdk:"cluster_id"`
 	ClusterRoleName types.String `tfsdk:"cluster_role_name"`
 	Subject         types.List   `tfsdk:"subject"`
+	Timeouts        timeouts.Value `tfsdk:"timeouts"`
 }
 
 // SubjectModel represents the subject block.

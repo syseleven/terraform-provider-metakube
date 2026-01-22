@@ -1,18 +1,26 @@
 package resource_role_binding
 
 import (
+	"context"
+
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func RoleBindingSchema() schema.Schema {
+func RoleBindingSchema(ctx context.Context) schema.Schema {
+	blocks := metakubeRoleBindingSubjectBlock()
+	blocks["timeouts"] = timeouts.Block(ctx, timeouts.Opts{
+		Create: true,
+	})
+
 	return schema.Schema{
 		Attributes: metakubeRoleBindingAttributes(),
-		Blocks:     metakubeRoleBindingSubjectBlock(),
+		Blocks:     blocks,
 	}
 }
 
@@ -24,6 +32,7 @@ type RoleBindingModel struct {
 	Namespace types.String `tfsdk:"namespace"`
 	RoleName  types.String `tfsdk:"role_name"`
 	Subject   types.List   `tfsdk:"subject"`
+	Timeouts  timeouts.Value `tfsdk:"timeouts"`
 }
 
 // SubjectModel represents the subject block.

@@ -32,8 +32,8 @@ func (r *metakubeRoleBinding) Metadata(_ context.Context, req resource.MetadataR
 	resp.TypeName = req.ProviderTypeName + "_role_binding"
 }
 
-func (r *metakubeRoleBinding) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	resp.Schema = RoleBindingSchema()
+func (r *metakubeRoleBinding) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = RoleBindingSchema(ctx)
 }
 
 func (r *metakubeRoleBinding) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -113,12 +113,25 @@ func (r *metakubeRoleBinding) Create(ctx context.Context, req resource.CreateReq
 	namespace := plan.Namespace.ValueString()
 	roleName := plan.RoleName.ValueString()
 
+	createTimeout, diags := plan.Timeouts.Create(ctx, 20*time.Minute)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	subjects := metakubeRoleBindingExpandSubjects(ctx, plan.Subject)
 	for _, sub := range subjects {
-		timeout := 20 * time.Minute
-		deadline := time.Now().Add(timeout)
+		deadline := time.Now().Add(createTimeout)
 		var lastErr error
 		for {
+			if err := ctx.Err(); err != nil {
+				resp.Diagnostics.AddError(
+					"Context cancelled",
+					fmt.Sprintf("Context cancelled while waiting for role binding for cluster '%s' to be created: %s", clusterID, err),
+				)
+				return
+			}
+
 			if time.Now().After(deadline) {
 				message := fmt.Sprintf("Timeout waiting for role binding for cluster '%s' to be created", clusterID)
 				if lastErr != nil {
@@ -143,7 +156,15 @@ func (r *metakubeRoleBinding) Create(ctx context.Context, req resource.CreateReq
 			e, ok := err.(*project.BindUserToRoleV2Default)
 			if ok && (e.Code() == http.StatusConflict || e.Code() == http.StatusNotFound) {
 				lastErr = err
-				time.Sleep(5 * time.Second)
+				select {
+				case <-ctx.Done():
+					resp.Diagnostics.AddError(
+						"Context cancelled",
+						fmt.Sprintf("Context cancelled while waiting for role binding for cluster '%s' to be created: %s", clusterID, ctx.Err()),
+					)
+					return
+				case <-time.After(5 * time.Second):
+				}
 				continue
 			}
 
