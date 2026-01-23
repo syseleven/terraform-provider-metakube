@@ -21,6 +21,10 @@ resource "metakube_role_binding" "example" {
     kind = "group"
     name = "SRE-team"
   }
+
+  timeouts {
+    create = "5m"
+  }
 }
 ```
 
@@ -42,3 +46,9 @@ The following arguments are supported:
 
 * `kind` - (Required) Either 'group' or 'user'.
 * `name` - (Optional) Name of the group or user's email.
+
+### `timeouts`
+
+#### Arguments
+
+* `create` - (Optional) Timeout for creating bindings. Defaults to `20m`. Applies per subject.

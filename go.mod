@@ -16,12 +16,13 @@ require (
 	github.com/hashicorp/go-cty v1.5.0
 	github.com/hashicorp/go-version v1.7.0
 	github.com/hashicorp/terraform-plugin-framework v1.16.1
+	github.com/hashicorp/terraform-plugin-framework-timeouts v0.7.0
 	github.com/hashicorp/terraform-plugin-go v0.29.0
 	github.com/hashicorp/terraform-plugin-mux v0.21.0
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.38.1
 	github.com/hashicorp/terraform-plugin-testing v1.5.1
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/syseleven/go-metakube v0.0.0-20250924142620-9d436b4755e2
+	github.com/syseleven/go-metakube v0.0.0-20260121125850-22994dc8f62e
 	go.uber.org/zap v1.19.0
 	golang.org/x/mod v0.27.0
 	k8s.io/utils v0.0.0-20241104163129-6fe5fd82f078
@@ -51,12 +52,12 @@ require (
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/fatih/color v1.16.0 // indirect
 	github.com/go-openapi/analysis v0.23.0 // indirect
-	github.com/go-openapi/errors v0.22.0 // indirect
-	github.com/go-openapi/jsonpointer v0.21.0 // indirect
+	github.com/go-openapi/errors v0.22.2 // indirect
+	github.com/go-openapi/jsonpointer v0.21.2 // indirect
 	github.com/go-openapi/jsonreference v0.21.0 // indirect
 	github.com/go-openapi/loads v0.22.0 // indirect
 	github.com/go-openapi/spec v0.21.0 // indirect
-	github.com/go-openapi/swag v0.23.0 // indirect
+	github.com/go-openapi/swag v0.23.1 // indirect
 	github.com/go-openapi/validate v0.24.0 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
@@ -78,7 +79,7 @@ require (
 	github.com/hashicorp/terraform-svchost v0.1.1 // indirect
 	github.com/hashicorp/yamux v0.1.2 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
-	github.com/mailru/easyjson v0.7.7 // indirect
+	github.com/mailru/easyjson v0.9.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
@@ -91,7 +92,7 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/vmihailenco/msgpack v4.0.4+incompatible // indirect
 	github.com/zclconf/go-cty v1.17.0 // indirect
-	go.mongodb.org/mongo-driver v1.14.0 // indirect
+	go.mongodb.org/mongo-driver v1.17.4 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	golang.org/x/crypto v0.42.0 // indirect

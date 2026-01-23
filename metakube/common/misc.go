@@ -192,19 +192,3 @@ func MetakubeResourceClusterWaitForReady(ctx context.Context, k *MetaKubeProvide
 		return retry.RetryableError(fmt.Errorf("waiting for cluster '%s' to be ready", clusterID))
 	})
 }
-
-func MetakubeClusterRoleBindingFlattenSubjects(in []*models.Subject) []interface{} {
-	if len(in) == 0 {
-		return nil
-	}
-
-	var result []interface{}
-	for _, subject := range in {
-		result = append(result, map[string]interface{}{
-			"kind": strings.ToLower(subject.Kind),
-			"name": subject.Name,
-		})
-	}
-
-	return result
-}
