@@ -67,7 +67,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 		PreCheck: func() {
 			testutil.TestAccPreCheckForOpenstack(t)
 		},
-		ProtoV5ProviderFactories: testutil.TestAccProtoV5ProviderFactories,
+		ProtoV6ProviderFactories: testutil.TestAccProtoV6ProviderFactories,
 		ExternalProviders: map[string]resource.ExternalProvider{
 			"openstack": {
 				Source: "terraform-provider-openstack/openstack",
@@ -197,6 +197,11 @@ var nodeDeploymentBasicTemplate = testutil.MustParseTemplate("nodeDeploymentBasi
 		name = "{{ .Name }}"
 		dc_name = "{{ .DatacenterName }}"
 		project_id = "{{ .ProjectID }}"
+	timeouts {
+		create = "40m"
+		update = "40m"
+		delete = "40m"
+	}
 		spec {
 			version = "{{ .ClusterVersion }}"
 			cloud {
