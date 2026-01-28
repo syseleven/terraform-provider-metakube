@@ -84,9 +84,12 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "name", data.Name),
 					resource.TestCheckResourceAttrPtr(resourceName, "name", &ndepl.Name),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.replicas", "2"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.labels.%", "4"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.labels.%", "2"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.labels.a", "b"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.labels.c", "d"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.all_labels.%", "4"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.all_labels.a", "b"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.all_labels.c", "d"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.flavor", data.NodeFlavor),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.operating_system.0.ubuntu.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.versions.0.kubelet", data.KubeletVersion),
@@ -256,6 +259,9 @@ var nodeDeploymentBasicTemplate = testutil.MustParseTemplate("nodeDeploymentBasi
 				}
 				operating_system {
 					ubuntu {}
+				}
+				machine_annotations = {
+					"machines.metakube.syseleven.de/user-data-plugin" = "ubuntu-sysext"
 				}
 				versions {
 					kubelet = "{{ .KubeletVersion }}"
