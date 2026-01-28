@@ -29,9 +29,38 @@ resource "metakube_node_deployment" "example_node" {
           dist_upgrade_on_boot = true
         }
       }
-	  versions {
-	    kubelet = "1.21.3"
-	  }
+      versions {
+        kubelet = "1.21.3"
+      }
+    }
+  }
+}
+```
+
+### Example with machine annotations
+
+To configure the user-data plugin for Ubuntu nodes with sysext:
+
+```hcl
+resource "metakube_node_deployment" "example_with_annotations" {
+  cluster_id = metakube_cluster.example_cluster.id
+  spec {
+    replicas = 1
+    template {
+      cloud {
+        openstack {
+          flavor = "m1.small"
+          image  = "Ubuntu 22.04"
+        }
+      }
+      operating_system {
+        ubuntu {
+          dist_upgrade_on_boot = false
+        }
+      }
+      machine_annotations = {
+        "machines.metakube.syseleven.de/user-data-plugin" = "ubuntu-sysext"
+      }
     }
   }
 }
@@ -48,9 +77,24 @@ The following arguments are supported:
 ### Timeouts
 
 `metakube_node_deployment` provides the following Timeouts configuration options:
+
 * create - (Default 20 minutes) Used for Creating node deployments and waiting for them to join the cluster.
 * update - (Default 20 minutes) Used for node deployment modifications.
 * delete - (Default 20 minutes) Used for destroying node deployment.
+
+Example usage:
+
+```hcl
+resource "metakube_node_deployment" "example" {
+  # ... other configuration ...
+
+  timeouts {
+    create = "45m"
+    update = "45m"
+    delete = "30m"
+  }
+}
+```
 
 ## Attributes
 
@@ -77,8 +121,11 @@ The following arguments are supported:
 * `cloud` - (Required) Cloud specification.
 * `operating_system` - (Required) Operating system settings.
 * `versions` - (Optional) K8s components versions.
-* `labels` - (Optional) Map of string keys and values that can be used to organize and categorize (scope and select) objects. It will be applied to Nodes allowing users run their apps on specific Node using labelSelector.
+* `labels` - (Optional) Map of string keys and values that can be used to organize and categorize (scope and select) objects. It will be applied to Nodes allowing users run their apps on specific Node using labelSelector. Note: The server adds system labels (`system/cluster`, `system/project`) which are available in `all_labels`.
+* `all_labels` - (Computed) All labels on the node deployment, including user-specified labels and system-managed labels (`system/cluster`, `system/project`) added by the server. This is read-only.
 * `taints` - (Optional) List of taints to set on nodes.
+* `node_annotations` - (Optional) Map of annotations to set on nodes.
+* `machine_annotations` - (Optional) Map of annotations to set on machine objects. Use this to configure machine-controller behavior, such as the user-data plugin.
 
 ### `cloud`
 
@@ -88,6 +135,7 @@ One of the following must be selected.
 
 * `openstack` - (Optional) Openstack node deployment specification.
 * `aws` - (Optional) AWS node deployment specification.
+* `azure` - (Optional) Azure node deployment specification.
 
 ### `operating_system`
 
@@ -146,3 +194,15 @@ One of the following must be selected.
 #### Arguments
 
 * `disable_auto_update` - (Optional) Disable Flatcar auto update feature. Defaults to false.
+
+### `azure`
+
+#### Arguments
+
+* `size` - (Required) VM size.
+* `image_id` - (Optional) Node image ID.
+* `assign_public_ip` - (Optional) Whether to have public facing IP or not. Defaults to false.
+* `disk_size_gb` - (Optional) Data disk size in GB. Defaults to 0.
+* `os_disk_size_gb` - (Optional) OS disk size in GB. Defaults to 0.
+* `tags` - (Optional) Additional metadata to set.
+* `zones` - (Optional) Represents the availability zones for Azure VMs.
