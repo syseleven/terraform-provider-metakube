@@ -181,7 +181,6 @@ func flattenCloudSpec(ctx context.Context, in *models.NodeCloudSpec) (types.List
 	cloudModel := CloudSpecModel{
 		AWS:       types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}),
 		OpenStack: types.ListNull(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}),
-		Azure:     types.ListNull(types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()}),
 	}
 
 	if in.Aws != nil {
@@ -194,12 +193,6 @@ func flattenCloudSpec(ctx context.Context, in *models.NodeCloudSpec) (types.List
 		osList, d := flattenOpenStackCloudSpec(ctx, in.Openstack)
 		diags.Append(d...)
 		cloudModel.OpenStack = osList
-	}
-
-	if in.Azure != nil {
-		azureList, d := flattenAzureCloudSpec(ctx, in.Azure)
-		diags.Append(d...)
-		cloudModel.Azure = azureList
 	}
 
 	objVal, d := types.ObjectValueFrom(ctx, cloudSpecAttrTypes(), cloudModel)
@@ -355,67 +348,6 @@ func flattenOpenStackCloudSpec(ctx context.Context, in *models.OpenstackNodeSpec
 	}
 
 	listVal, d := types.ListValue(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}, []attr.Value{objVal})
-	diags.Append(d...)
-
-	return listVal, diags
-}
-
-func flattenAzureCloudSpec(ctx context.Context, in *models.AzureNodeSpec) (types.List, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	if in == nil {
-		return types.ListNull(types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()}), diags
-	}
-
-	azureModel := AzureCloudSpecModel{
-		AssignPublicIP: types.BoolValue(in.AssignPublicIP),
-		DiskSizeGB:     types.Int64Value(int64(in.DataDiskSize)),
-		OSDiskSizeGB:   types.Int64Value(int64(in.OSDiskSize)),
-	}
-
-	if in.ImageID != "" {
-		azureModel.ImageID = types.StringValue(in.ImageID)
-	} else {
-		azureModel.ImageID = types.StringNull()
-	}
-
-	if in.Size != nil {
-		azureModel.Size = types.StringValue(*in.Size)
-	} else {
-		azureModel.Size = types.StringNull()
-	}
-
-	if len(in.Tags) > 0 {
-		tagsMap := make(map[string]attr.Value, len(in.Tags))
-		for k, v := range in.Tags {
-			tagsMap[k] = types.StringValue(v)
-		}
-		tagsVal, d := types.MapValue(types.StringType, tagsMap)
-		diags.Append(d...)
-		azureModel.Tags = tagsVal
-	} else {
-		azureModel.Tags = types.MapNull(types.StringType)
-	}
-
-	if len(in.Zones) > 0 {
-		zonesVals := make([]attr.Value, len(in.Zones))
-		for i, z := range in.Zones {
-			zonesVals[i] = types.StringValue(z)
-		}
-		zonesVal, d := types.ListValue(types.StringType, zonesVals)
-		diags.Append(d...)
-		azureModel.Zones = zonesVal
-	} else {
-		azureModel.Zones = types.ListNull(types.StringType)
-	}
-
-	objVal, d := types.ObjectValueFrom(ctx, azureCloudSpecAttrTypes(), azureModel)
-	diags.Append(d...)
-	if diags.HasError() {
-		return types.ListNull(types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()}), diags
-	}
-
-	listVal, d := types.ListValue(types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()}, []attr.Value{objVal})
 	diags.Append(d...)
 
 	return listVal, diags
@@ -715,13 +647,6 @@ func expandCloudSpec(ctx context.Context, cloudList types.List) (*models.NodeClo
 		obj.Openstack = openstack
 	}
 
-	// Azure
-	if !cloud.Azure.IsNull() && !cloud.Azure.IsUnknown() && len(cloud.Azure.Elements()) > 0 {
-		azure, d := expandAzureCloudSpec(ctx, cloud.Azure)
-		diags.Append(d...)
-		obj.Azure = azure
-	}
-
 	return obj, diags
 }
 
@@ -834,61 +759,6 @@ func expandOpenStackCloudSpec(ctx context.Context, osList types.List) (*models.O
 				obj.Tags[k] = strVal.ValueString()
 			}
 		}
-	}
-
-	return obj, diags
-}
-
-func expandAzureCloudSpec(ctx context.Context, azureList types.List) (*models.AzureNodeSpec, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	if azureList.IsNull() || azureList.IsUnknown() || len(azureList.Elements()) == 0 {
-		return nil, diags
-	}
-
-	var azureModels []AzureCloudSpecModel
-	diags.Append(azureList.ElementsAs(ctx, &azureModels, false)...)
-	if diags.HasError() || len(azureModels) == 0 {
-		return nil, diags
-	}
-
-	azure := azureModels[0]
-	obj := &models.AzureNodeSpec{}
-
-	if !azure.ImageID.IsNull() && !azure.ImageID.IsUnknown() {
-		obj.ImageID = azure.ImageID.ValueString()
-	}
-
-	if !azure.Size.IsNull() && !azure.Size.IsUnknown() {
-		obj.Size = common.StrToPtr(azure.Size.ValueString())
-	}
-
-	if !azure.AssignPublicIP.IsNull() && !azure.AssignPublicIP.IsUnknown() {
-		obj.AssignPublicIP = azure.AssignPublicIP.ValueBool()
-	}
-
-	if !azure.DiskSizeGB.IsNull() && !azure.DiskSizeGB.IsUnknown() {
-		obj.DataDiskSize = int32(azure.DiskSizeGB.ValueInt64())
-	}
-
-	if !azure.OSDiskSizeGB.IsNull() && !azure.OSDiskSizeGB.IsUnknown() {
-		obj.OSDiskSize = int32(azure.OSDiskSizeGB.ValueInt64())
-	}
-
-	if !azure.Tags.IsNull() && !azure.Tags.IsUnknown() {
-		obj.Tags = make(map[string]string)
-		tagsMap := azure.Tags.Elements()
-		for k, v := range tagsMap {
-			if strVal, ok := v.(types.String); ok && !strVal.IsNull() && !strVal.IsUnknown() {
-				obj.Tags[k] = strVal.ValueString()
-			}
-		}
-	}
-
-	if !azure.Zones.IsNull() && !azure.Zones.IsUnknown() {
-		var zones []string
-		diags.Append(azure.Zones.ElementsAs(ctx, &zones, false)...)
-		obj.Zones = zones
 	}
 
 	return obj, diags
@@ -1072,9 +942,6 @@ func getCloudProviderFromModel(ctx context.Context, model *NodeDeploymentModel) 
 	}
 	if !cloud.OpenStack.IsNull() && !cloud.OpenStack.IsUnknown() && len(cloud.OpenStack.Elements()) > 0 {
 		return "openstack", diags
-	}
-	if !cloud.Azure.IsNull() && !cloud.Azure.IsUnknown() && len(cloud.Azure.Elements()) > 0 {
-		return "azure", diags
 	}
 
 	return "", diags

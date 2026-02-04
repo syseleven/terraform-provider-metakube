@@ -12,7 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -52,7 +51,6 @@ type NodeSpecModel struct {
 type CloudSpecModel struct {
 	AWS       types.List `tfsdk:"aws"`
 	OpenStack types.List `tfsdk:"openstack"`
-	Azure     types.List `tfsdk:"azure"`
 }
 
 type AWSCloudSpecModel struct {
@@ -75,16 +73,6 @@ type OpenStackCloudSpecModel struct {
 	InstanceReadyCheckPeriod  types.String `tfsdk:"instance_ready_check_period"`
 	InstanceReadyCheckTimeout types.String `tfsdk:"instance_ready_check_timeout"`
 	ServerGroupID             types.String `tfsdk:"server_group_id"`
-}
-
-type AzureCloudSpecModel struct {
-	ImageID        types.String `tfsdk:"image_id"`
-	Size           types.String `tfsdk:"size"`
-	AssignPublicIP types.Bool   `tfsdk:"assign_public_ip"`
-	DiskSizeGB     types.Int64  `tfsdk:"disk_size_gb"`
-	OSDiskSizeGB   types.Int64  `tfsdk:"os_disk_size_gb"`
-	Tags           types.Map    `tfsdk:"tags"`
-	Zones          types.List   `tfsdk:"zones"`
 }
 
 type OperatingSystemModel struct {
@@ -138,7 +126,6 @@ func cloudSpecAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"aws":       types.ListType{ElemType: types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}},
 		"openstack": types.ListType{ElemType: types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}},
-		"azure":     types.ListType{ElemType: types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()}},
 	}
 }
 
@@ -165,18 +152,6 @@ func openstackCloudSpecAttrTypes() map[string]attr.Type {
 		"instance_ready_check_period":  types.StringType,
 		"instance_ready_check_timeout": types.StringType,
 		"server_group_id":              types.StringType,
-	}
-}
-
-func azureCloudSpecAttrTypes() map[string]attr.Type {
-	return map[string]attr.Type{
-		"image_id":         types.StringType,
-		"size":             types.StringType,
-		"assign_public_ip": types.BoolType,
-		"disk_size_gb":     types.Int64Type,
-		"os_disk_size_gb":  types.Int64Type,
-		"tags":             types.MapType{ElemType: types.StringType},
-		"zones":            types.ListType{ElemType: types.StringType},
 	}
 }
 
@@ -215,7 +190,7 @@ func taintAttrTypes() map[string]attr.Type {
 
 // NodeDeploymentSchema returns the framework schema for metakube_node_deployment
 func NodeDeploymentSchema(ctx context.Context) schema.Schema {
-	blocks := nodeDeploymentBlocks(ctx)
+	blocks := nodeDeploymentBlocks()
 	blocks["timeouts"] = timeouts.Block(ctx, timeouts.Opts{
 		Create: true,
 		Update: true,
@@ -279,7 +254,7 @@ func nodeDeploymentAttributes() map[string]schema.Attribute {
 	}
 }
 
-func nodeDeploymentBlocks(ctx context.Context) map[string]schema.Block {
+func nodeDeploymentBlocks() map[string]schema.Block {
 	return map[string]schema.Block{
 		"spec": schema.ListNestedBlock{
 			Description: "Node deployment specification",
@@ -289,7 +264,7 @@ func nodeDeploymentBlocks(ctx context.Context) map[string]schema.Block {
 			},
 			NestedObject: schema.NestedBlockObject{
 				Attributes: nodeDeploymentSpecAttributes(),
-				Blocks:     nodeDeploymentSpecBlocks(ctx),
+				Blocks:     nodeDeploymentSpecBlocks(),
 			},
 		},
 	}
@@ -320,7 +295,7 @@ func nodeDeploymentSpecAttributes() map[string]schema.Attribute {
 	}
 }
 
-func nodeDeploymentSpecBlocks(ctx context.Context) map[string]schema.Block {
+func nodeDeploymentSpecBlocks() map[string]schema.Block {
 	return map[string]schema.Block{
 		"template": schema.ListNestedBlock{
 			Description: "Template specification",
@@ -330,7 +305,7 @@ func nodeDeploymentSpecBlocks(ctx context.Context) map[string]schema.Block {
 			},
 			NestedObject: schema.NestedBlockObject{
 				Attributes: nodeSpecAttributes(),
-				Blocks:     nodeSpecBlocks(ctx),
+				Blocks:     nodeSpecBlocks(),
 			},
 		},
 	}
@@ -361,7 +336,7 @@ func nodeSpecAttributes() map[string]schema.Attribute {
 	}
 }
 
-func nodeSpecBlocks(ctx context.Context) map[string]schema.Block {
+func nodeSpecBlocks() map[string]schema.Block {
 	return map[string]schema.Block{
 		"cloud": schema.ListNestedBlock{
 			Description: "Cloud specification",
@@ -370,7 +345,7 @@ func nodeSpecBlocks(ctx context.Context) map[string]schema.Block {
 				listvalidator.SizeAtLeast(1),
 			},
 			NestedObject: schema.NestedBlockObject{
-				Blocks: cloudSpecBlocks(ctx),
+				Blocks: cloudSpecBlocks(),
 			},
 		},
 		"operating_system": schema.ListNestedBlock{
@@ -380,7 +355,7 @@ func nodeSpecBlocks(ctx context.Context) map[string]schema.Block {
 				listvalidator.SizeAtLeast(1),
 			},
 			NestedObject: schema.NestedBlockObject{
-				Blocks: operatingSystemBlocks(ctx),
+				Blocks: operatingSystemBlocks(),
 			},
 		},
 		"versions": schema.ListNestedBlock{
@@ -401,7 +376,7 @@ func nodeSpecBlocks(ctx context.Context) map[string]schema.Block {
 	}
 }
 
-func cloudSpecBlocks(ctx context.Context) map[string]schema.Block {
+func cloudSpecBlocks() map[string]schema.Block {
 	return map[string]schema.Block{
 		"aws": schema.ListNestedBlock{
 			Description: "AWS node deployment specification",
@@ -419,15 +394,6 @@ func cloudSpecBlocks(ctx context.Context) map[string]schema.Block {
 			},
 			NestedObject: schema.NestedBlockObject{
 				Attributes: openstackCloudSpecAttributes(),
-			},
-		},
-		"azure": schema.ListNestedBlock{
-			Description: "Azure node deployment specification",
-			Validators: []validator.List{
-				listvalidator.SizeAtMost(1),
-			},
-			NestedObject: schema.NestedBlockObject{
-				Attributes: azureCloudSpecAttributes(),
 			},
 		},
 	}
@@ -553,59 +519,7 @@ func openstackCloudSpecAttributes() map[string]schema.Attribute {
 	}
 }
 
-func azureCloudSpecAttributes() map[string]schema.Attribute {
-	return map[string]schema.Attribute{
-		"image_id": schema.StringAttribute{
-			Optional:    true,
-			Description: "Node image id",
-		},
-		"size": schema.StringAttribute{
-			Required:    true,
-			Description: "VM size",
-			Validators: []validator.String{
-				stringvalidator.LengthAtLeast(1),
-			},
-		},
-		"assign_public_ip": schema.BoolAttribute{
-			Optional:    true,
-			Computed:    true,
-			Default:     booldefault.StaticBool(false),
-			Description: "whether to have public facing IP or not",
-		},
-		"disk_size_gb": schema.Int64Attribute{
-			Optional:    true,
-			Computed:    true,
-			Default:     int64default.StaticInt64(0),
-			Description: "Data disk size in GB",
-			PlanModifiers: []planmodifier.Int64{
-				int64RequiresReplacePlanModifier{},
-			},
-		},
-		"os_disk_size_gb": schema.Int64Attribute{
-			Optional:    true,
-			Computed:    true,
-			Default:     int64default.StaticInt64(0),
-			Description: "OS disk size in GB",
-			PlanModifiers: []planmodifier.Int64{
-				int64RequiresReplacePlanModifier{},
-			},
-		},
-		"tags": schema.MapAttribute{
-			Optional:    true,
-			Computed:    true,
-			ElementType: types.StringType,
-			Description: "Additional metadata to set",
-		},
-		"zones": schema.ListAttribute{
-			Optional:    true,
-			Computed:    true,
-			ElementType: types.StringType,
-			Description: "Represents the availability zones for azure vms",
-		},
-	}
-}
-
-func operatingSystemBlocks(ctx context.Context) map[string]schema.Block {
+func operatingSystemBlocks() map[string]schema.Block {
 	return map[string]schema.Block{
 		"ubuntu": schema.ListNestedBlock{
 			Description: "Ubuntu operating system",

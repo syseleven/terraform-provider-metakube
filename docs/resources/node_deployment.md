@@ -135,7 +135,6 @@ One of the following must be selected.
 
 * `openstack` - (Optional) Openstack node deployment specification.
 * `aws` - (Optional) AWS node deployment specification.
-* `azure` - (Optional) Azure node deployment specification.
 
 ### `operating_system`
 
@@ -194,15 +193,3 @@ One of the following must be selected.
 #### Arguments
 
 * `disable_auto_update` - (Optional) Disable Flatcar auto update feature. Defaults to false.
-
-### `azure`
-
-#### Arguments
-
-* `size` - (Required) VM size.
-* `image_id` - (Optional) Node image ID.
-* `assign_public_ip` - (Optional) Whether to have public facing IP or not. Defaults to false.
-* `disk_size_gb` - (Optional) Data disk size in GB. Defaults to 0.
-* `os_disk_size_gb` - (Optional) OS disk size in GB. Defaults to 0.
-* `tags` - (Optional) Additional metadata to set.
-* `zones` - (Optional) Represents the availability zones for Azure VMs.

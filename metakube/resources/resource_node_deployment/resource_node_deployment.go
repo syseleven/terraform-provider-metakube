@@ -558,8 +558,6 @@ func (r *nodeDeploymentResource) validateProviderMatchesCluster(ctx context.Cont
 		clusterProvider = "aws"
 	case cluster.Spec.Cloud.Openstack != nil:
 		clusterProvider = "openstack"
-	case cluster.Spec.Cloud.Azure != nil:
-		clusterProvider = "azure"
 	default:
 		return result
 	}

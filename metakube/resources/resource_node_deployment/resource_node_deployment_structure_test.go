@@ -208,7 +208,6 @@ func TestGetCloudProviderFromModel(t *testing.T) {
 			cloudModel: CloudSpecModel{
 				AWS:       buildMockAWSList(ctx, t),
 				OpenStack: types.ListNull(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}),
-				Azure:     types.ListNull(types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()}),
 			},
 			wantProvider: "aws",
 		},
@@ -217,18 +216,8 @@ func TestGetCloudProviderFromModel(t *testing.T) {
 			cloudModel: CloudSpecModel{
 				AWS:       types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}),
 				OpenStack: buildMockOpenStackList(ctx, t),
-				Azure:     types.ListNull(types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()}),
 			},
 			wantProvider: "openstack",
-		},
-		{
-			name: "Azure",
-			cloudModel: CloudSpecModel{
-				AWS:       types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}),
-				OpenStack: types.ListNull(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}),
-				Azure:     buildMockAzureList(ctx, t),
-			},
-			wantProvider: "azure",
 		},
 	}
 
@@ -291,28 +280,6 @@ func buildMockOpenStackList(ctx context.Context, t *testing.T) types.List {
 	list, diags := types.ListValue(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}, []attr.Value{objVal})
 	if diags.HasError() {
 		t.Fatalf("failed to build OpenStack list: %v", diags)
-	}
-	return list
-}
-
-func buildMockAzureList(ctx context.Context, t *testing.T) types.List {
-	t.Helper()
-	azureModel := AzureCloudSpecModel{
-		ImageID:        types.StringNull(),
-		Size:           types.StringValue("Standard_D2s_v3"),
-		AssignPublicIP: types.BoolValue(false),
-		DiskSizeGB:     types.Int64Value(0),
-		OSDiskSizeGB:   types.Int64Value(0),
-		Tags:           types.MapNull(types.StringType),
-		Zones:          types.ListNull(types.StringType),
-	}
-	objVal, diags := types.ObjectValueFrom(ctx, azureCloudSpecAttrTypes(), azureModel)
-	if diags.HasError() {
-		t.Fatalf("failed to build Azure object: %v", diags)
-	}
-	list, diags := types.ListValue(types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()}, []attr.Value{objVal})
-	if diags.HasError() {
-		t.Fatalf("failed to build Azure list: %v", diags)
 	}
 	return list
 }
