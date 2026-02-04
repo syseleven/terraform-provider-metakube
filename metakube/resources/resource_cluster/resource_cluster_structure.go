@@ -16,7 +16,6 @@ import (
 type clusterPreserveValues struct {
 	aws       *models.AWSCloudSpec
 	openstack *clusterOpenstackPreservedValues
-	azure     *models.AzureCloudSpec
 }
 
 type clusterOpenstackPreservedValues struct {
@@ -178,25 +177,6 @@ func getPreservedValuesFromModel(ctx context.Context, model *ClusterModel) clust
 		}
 	}
 
-	if !clouds[0].Azure.IsNull() && !clouds[0].Azure.IsUnknown() {
-		var azureSpecs []AzureCloudSpecModel
-		if diags := clouds[0].Azure.ElementsAs(ctx, &azureSpecs, false); !diags.HasError() && len(azureSpecs) > 0 {
-			values.azure = &models.AzureCloudSpec{
-				AvailabilitySet:        azureSpecs[0].AvailabilitySet.ValueString(),
-				ClientID:               azureSpecs[0].ClientID.ValueString(),
-				ClientSecret:           azureSpecs[0].ClientSecret.ValueString(),
-				SubscriptionID:         azureSpecs[0].SubscriptionID.ValueString(),
-				TenantID:               azureSpecs[0].TenantID.ValueString(),
-				ResourceGroup:          azureSpecs[0].ResourceGroup.ValueString(),
-				RouteTableName:         azureSpecs[0].RouteTable.ValueString(),
-				SecurityGroup:          azureSpecs[0].SecurityGroup.ValueString(),
-				SubnetName:             azureSpecs[0].Subnet.ValueString(),
-				VNetName:               azureSpecs[0].VNet.ValueString(),
-				OpenstackBillingTenant: azureSpecs[0].OpenstackBillingTenant.ValueString(),
-			}
-		}
-	}
-
 	return values
 }
 
@@ -256,7 +236,6 @@ func flattenClusterCloudSpec(ctx context.Context, specModel *ClusterSpecModel, v
 	cloudModel := ClusterCloudSpecModel{
 		AWS:       types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}),
 		Openstack: types.ListNull(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}),
-		Azure:     types.ListNull(types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()}),
 	}
 
 	if in.Aws != nil {
@@ -269,14 +248,6 @@ func flattenClusterCloudSpec(ctx context.Context, specModel *ClusterSpecModel, v
 
 	if in.Openstack != nil {
 		diags.Append(flattenOpenstackSpec(ctx, &cloudModel, values.openstack, in.Openstack)...)
-	}
-
-	if in.Azure != nil {
-		azureSpec := in.Azure
-		if values.azure != nil {
-			azureSpec = values.azure
-		}
-		diags.Append(flattenAzureSpec(ctx, &cloudModel, azureSpec)...)
 	}
 
 	objVal, d := types.ObjectValueFrom(ctx, clusterCloudSpecAttrTypes(), cloudModel)
@@ -505,95 +476,6 @@ func flattenOpenstackSpec(ctx context.Context, cloudModel *ClusterCloudSpecModel
 	return diags
 }
 
-func flattenAzureSpec(ctx context.Context, cloudModel *ClusterCloudSpecModel, in *models.AzureCloudSpec) diag.Diagnostics {
-	var diags diag.Diagnostics
-
-	if in == nil {
-		cloudModel.Azure = types.ListNull(types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()})
-		return diags
-	}
-
-	azureModel := AzureCloudSpecModel{}
-
-	if in.AvailabilitySet != "" {
-		azureModel.AvailabilitySet = types.StringValue(in.AvailabilitySet)
-	} else {
-		azureModel.AvailabilitySet = types.StringNull()
-	}
-
-	if in.ClientID != "" {
-		azureModel.ClientID = types.StringValue(in.ClientID)
-	} else {
-		azureModel.ClientID = types.StringNull()
-	}
-
-	if in.ClientSecret != "" {
-		azureModel.ClientSecret = types.StringValue(in.ClientSecret)
-	} else {
-		azureModel.ClientSecret = types.StringNull()
-	}
-
-	if in.SubscriptionID != "" {
-		azureModel.SubscriptionID = types.StringValue(in.SubscriptionID)
-	} else {
-		azureModel.SubscriptionID = types.StringNull()
-	}
-
-	if in.TenantID != "" {
-		azureModel.TenantID = types.StringValue(in.TenantID)
-	} else {
-		azureModel.TenantID = types.StringNull()
-	}
-
-	if in.ResourceGroup != "" {
-		azureModel.ResourceGroup = types.StringValue(in.ResourceGroup)
-	} else {
-		azureModel.ResourceGroup = types.StringNull()
-	}
-
-	if in.RouteTableName != "" {
-		azureModel.RouteTable = types.StringValue(in.RouteTableName)
-	} else {
-		azureModel.RouteTable = types.StringNull()
-	}
-
-	if in.OpenstackBillingTenant != "" {
-		azureModel.OpenstackBillingTenant = types.StringValue(in.OpenstackBillingTenant)
-	} else {
-		azureModel.OpenstackBillingTenant = types.StringNull()
-	}
-
-	if in.SecurityGroup != "" {
-		azureModel.SecurityGroup = types.StringValue(in.SecurityGroup)
-	} else {
-		azureModel.SecurityGroup = types.StringNull()
-	}
-
-	if in.SubnetName != "" {
-		azureModel.Subnet = types.StringValue(in.SubnetName)
-	} else {
-		azureModel.Subnet = types.StringNull()
-	}
-
-	if in.VNetName != "" {
-		azureModel.VNet = types.StringValue(in.VNetName)
-	} else {
-		azureModel.VNet = types.StringNull()
-	}
-
-	objVal, d := types.ObjectValueFrom(ctx, azureCloudSpecAttrTypes(), azureModel)
-	diags.Append(d...)
-	if diags.HasError() {
-		return diags
-	}
-
-	listVal, d := types.ListValue(types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()}, []attr.Value{objVal})
-	diags.Append(d...)
-	cloudModel.Azure = listVal
-
-	return diags
-}
-
 // expanders
 
 func metakubeResourceClusterExpandSpec(ctx context.Context, model *ClusterModel, dcName string, include func(string) bool) *models.ClusterSpec {
@@ -759,10 +641,6 @@ func expandClusterCloudSpec(ctx context.Context, list types.List, dcName string,
 
 	if !clouds[0].Openstack.IsNull() && !clouds[0].Openstack.IsUnknown() && include("openstack") {
 		obj.Openstack = expandOpenstackCloudSpec(ctx, clouds[0].Openstack, func(k string) bool { return include("openstack.0." + k) })
-	}
-
-	if !clouds[0].Azure.IsNull() && !clouds[0].Azure.IsUnknown() && include("azure") {
-		obj.Azure = expandAzureCloudSpec(ctx, clouds[0].Azure, func(k string) bool { return include("azure.0." + k) })
 	}
 
 	return obj
@@ -972,99 +850,6 @@ func expandOpenstackCloudSpec(ctx context.Context, list types.List, include func
 
 	// HACK(furkhat): API doesn't return domain for cluster. Use 'Default' all the time.
 	obj.Domain = "Default"
-
-	return obj
-}
-
-func expandAzureCloudSpec(ctx context.Context, list types.List, include func(string) bool) *models.AzureCloudSpec {
-	if list.IsNull() || list.IsUnknown() {
-		return nil
-	}
-
-	var azureSpecs []AzureCloudSpecModel
-	if diags := list.ElementsAs(ctx, &azureSpecs, false); diags.HasError() || len(azureSpecs) == 0 {
-		return nil
-	}
-
-	obj := &models.AzureCloudSpec{}
-	azure := azureSpecs[0]
-
-	if !azure.AvailabilitySet.IsNull() && !azure.AvailabilitySet.IsUnknown() && include("availability_set") {
-		v := azure.AvailabilitySet.ValueString()
-		if v != "" {
-			obj.AvailabilitySet = v
-		}
-	}
-
-	if !azure.ClientID.IsNull() && !azure.ClientID.IsUnknown() && include("client_id") {
-		v := azure.ClientID.ValueString()
-		if v != "" {
-			obj.ClientID = v
-		}
-	}
-
-	if !azure.ClientSecret.IsNull() && !azure.ClientSecret.IsUnknown() && include("client_secret") {
-		v := azure.ClientSecret.ValueString()
-		if v != "" {
-			obj.ClientSecret = v
-		}
-	}
-
-	if !azure.SubscriptionID.IsNull() && !azure.SubscriptionID.IsUnknown() && include("subscription_id") {
-		v := azure.SubscriptionID.ValueString()
-		if v != "" {
-			obj.SubscriptionID = v
-		}
-	}
-
-	if !azure.TenantID.IsNull() && !azure.TenantID.IsUnknown() && include("tenant_id") {
-		v := azure.TenantID.ValueString()
-		if v != "" {
-			obj.TenantID = v
-		}
-	}
-
-	if !azure.ResourceGroup.IsNull() && !azure.ResourceGroup.IsUnknown() && include("resource_group") {
-		v := azure.ResourceGroup.ValueString()
-		if v != "" {
-			obj.ResourceGroup = v
-		}
-	}
-
-	if !azure.RouteTable.IsNull() && !azure.RouteTable.IsUnknown() && include("route_table") {
-		v := azure.RouteTable.ValueString()
-		if v != "" {
-			obj.RouteTableName = v
-		}
-	}
-
-	if !azure.OpenstackBillingTenant.IsNull() && !azure.OpenstackBillingTenant.IsUnknown() && include("openstack_billing_tenant") {
-		v := azure.OpenstackBillingTenant.ValueString()
-		if v != "" {
-			obj.OpenstackBillingTenant = v
-		}
-	}
-
-	if !azure.SecurityGroup.IsNull() && !azure.SecurityGroup.IsUnknown() && include("security_group") {
-		v := azure.SecurityGroup.ValueString()
-		if v != "" {
-			obj.SecurityGroup = v
-		}
-	}
-
-	if !azure.Subnet.IsNull() && !azure.Subnet.IsUnknown() && include("subnet") {
-		v := azure.Subnet.ValueString()
-		if v != "" {
-			obj.SubnetName = v
-		}
-	}
-
-	if !azure.VNet.IsNull() && !azure.VNet.IsUnknown() && include("vnet") {
-		v := azure.VNet.ValueString()
-		if v != "" {
-			obj.VNetName = v
-		}
-	}
 
 	return obj
 }

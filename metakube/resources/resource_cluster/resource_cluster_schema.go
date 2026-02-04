@@ -340,7 +340,6 @@ func metakubeResourceClusterSpecBlocks() map[string]schema.Block {
 							listvalidator.SizeAtMost(1),
 							listvalidator.ConflictsWith(
 								fwpath.MatchRelative().AtParent().AtName("openstack"),
-								fwpath.MatchRelative().AtParent().AtName("azure"),
 							),
 						},
 						NestedObject: metakubeResourceClusterAWSCloudSpecFields(),
@@ -351,21 +350,9 @@ func metakubeResourceClusterSpecBlocks() map[string]schema.Block {
 							listvalidator.SizeAtMost(1),
 							listvalidator.ConflictsWith(
 								fwpath.MatchRelative().AtParent().AtName("aws"),
-								fwpath.MatchRelative().AtParent().AtName("azure"),
 							),
 						},
 						NestedObject: metakubeResourceClusterOpenstackCloudSpecFields(),
-					},
-					"azure": schema.ListNestedBlock{
-						Description: "Azure cluster specification",
-						Validators: []validator.List{
-							listvalidator.SizeAtMost(1),
-							listvalidator.ConflictsWith(
-								fwpath.MatchRelative().AtParent().AtName("aws"),
-								fwpath.MatchRelative().AtParent().AtName("openstack"),
-							),
-						},
-						NestedObject: metakubeResourceClusterAzureSpecFields(),
 					},
 				},
 			},
@@ -393,71 +380,6 @@ func metakubeResourceClusterSpecBlocks() map[string]schema.Block {
 							BoolDiffSuppress(),
 						},
 					},
-				},
-			},
-		},
-	}
-}
-
-func metakubeResourceClusterAzureSpecFields() schema.NestedBlockObject {
-	return schema.NestedBlockObject{
-		Attributes: map[string]schema.Attribute{
-			"availability_set": schema.StringAttribute{
-				Optional: true,
-			},
-			"client_id": schema.StringAttribute{
-				Required: true,
-				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
-				},
-			},
-			"client_secret": schema.StringAttribute{
-				Required:  true,
-				Sensitive: true,
-				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
-				},
-			},
-			"subscription_id": schema.StringAttribute{
-				Required: true,
-				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
-				},
-			},
-			"tenant_id": schema.StringAttribute{
-				Required: true,
-				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
-				},
-			},
-			"resource_group": schema.StringAttribute{
-				Computed: true,
-				Optional: true,
-			},
-			"route_table": schema.StringAttribute{
-				Computed: true,
-				Optional: true,
-			},
-			"security_group": schema.StringAttribute{
-				Computed: true,
-				Optional: true,
-			},
-			"subnet": schema.StringAttribute{
-				Computed: true,
-				Optional: true,
-			},
-			"vnet": schema.StringAttribute{
-				Computed: true,
-				Optional: true,
-			},
-			"openstack_billing_tenant": schema.StringAttribute{
-				Required: true,
-				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
-				},
-				Description: "Openstack tenant/project name for the account",
-				PlanModifiers: []planmodifier.String{
-					EnvDefaultWithDiffSuppress("OS_PROJECT_NAME"),
 				},
 			},
 		},
@@ -730,7 +652,6 @@ type SyselevenAuthModel struct {
 type ClusterCloudSpecModel struct {
 	AWS       types.List `tfsdk:"aws"`       // []AWSCloudSpecModel
 	Openstack types.List `tfsdk:"openstack"` // []OpenstackCloudSpecModel
-	Azure     types.List `tfsdk:"azure"`     // []AzureCloudSpecModel
 }
 
 // AWSCloudSpecModel represents the AWS cloud specification.
@@ -769,21 +690,6 @@ type OpenstackUserCredentialsModel struct {
 type OpenstackApplicationCredentialsModel struct {
 	ID     types.String `tfsdk:"id"`
 	Secret types.String `tfsdk:"secret"`
-}
-
-// AzureCloudSpecModel represents the Azure cloud specification.
-type AzureCloudSpecModel struct {
-	AvailabilitySet        types.String `tfsdk:"availability_set"`
-	ClientID               types.String `tfsdk:"client_id"`
-	ClientSecret           types.String `tfsdk:"client_secret"`
-	SubscriptionID         types.String `tfsdk:"subscription_id"`
-	TenantID               types.String `tfsdk:"tenant_id"`
-	ResourceGroup          types.String `tfsdk:"resource_group"`
-	RouteTable             types.String `tfsdk:"route_table"`
-	SecurityGroup          types.String `tfsdk:"security_group"`
-	Subnet                 types.String `tfsdk:"subnet"`
-	VNet                   types.String `tfsdk:"vnet"`
-	OpenstackBillingTenant types.String `tfsdk:"openstack_billing_tenant"`
 }
 
 // Attribute type helper functions
@@ -829,7 +735,6 @@ func clusterCloudSpecAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"aws":       types.ListType{ElemType: types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}},
 		"openstack": types.ListType{ElemType: types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}},
-		"azure":     types.ListType{ElemType: types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()}},
 	}
 }
 
@@ -872,21 +777,5 @@ func openstackApplicationCredentialsAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"id":     types.StringType,
 		"secret": types.StringType,
-	}
-}
-
-func azureCloudSpecAttrTypes() map[string]attr.Type {
-	return map[string]attr.Type{
-		"availability_set":         types.StringType,
-		"client_id":                types.StringType,
-		"client_secret":            types.StringType,
-		"subscription_id":          types.StringType,
-		"tenant_id":                types.StringType,
-		"resource_group":           types.StringType,
-		"route_table":              types.StringType,
-		"security_group":           types.StringType,
-		"subnet":                   types.StringType,
-		"vnet":                     types.StringType,
-		"openstack_billing_tenant": types.StringType,
 	}
 }

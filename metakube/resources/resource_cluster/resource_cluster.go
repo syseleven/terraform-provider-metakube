@@ -581,15 +581,12 @@ func (r *clusterResource) validateDatacenter(ctx context.Context, model *Cluster
 	available := make([]string, 0)
 	openstackCluster := hasOpenstackConfig(ctx, model)
 	awsCluster := hasAWSConfig(ctx, model)
-	azureCluster := hasAzureConfig(ctx, model)
 
 	for _, dc := range result.Payload {
 		openstackDatacenter := dc.Spec.Openstack != nil
 		awsDatacenter := dc.Spec.Aws != nil
-		azureDatacenter := dc.Spec.Azure != nil
 		if (openstackCluster && openstackDatacenter) ||
-			(awsCluster && awsDatacenter) ||
-			(azureCluster && azureDatacenter) {
+			(awsCluster && awsDatacenter) {
 			available = append(available, dc.Metadata.Name)
 		}
 		if dc.Metadata.Name == name {
@@ -768,31 +765,6 @@ func hasAWSConfig(ctx context.Context, model *ClusterModel) bool {
 	}
 	var aws []AWSCloudSpecModel
 	if diags := clouds[0].AWS.ElementsAs(ctx, &aws, false); diags.HasError() || len(aws) == 0 {
-		return false
-	}
-	return true
-}
-
-func hasAzureConfig(ctx context.Context, model *ClusterModel) bool {
-	if model.Spec.IsNull() || model.Spec.IsUnknown() {
-		return false
-	}
-	var specs []ClusterSpecModel
-	if diags := model.Spec.ElementsAs(ctx, &specs, false); diags.HasError() || len(specs) == 0 {
-		return false
-	}
-	if specs[0].Cloud.IsNull() || specs[0].Cloud.IsUnknown() {
-		return false
-	}
-	var clouds []ClusterCloudSpecModel
-	if diags := specs[0].Cloud.ElementsAs(ctx, &clouds, false); diags.HasError() || len(clouds) == 0 {
-		return false
-	}
-	if clouds[0].Azure.IsNull() || clouds[0].Azure.IsUnknown() {
-		return false
-	}
-	var azure []AzureCloudSpecModel
-	if diags := clouds[0].Azure.ElementsAs(ctx, &azure, false); diags.HasError() || len(azure) == 0 {
 		return false
 	}
 	return true

@@ -164,10 +164,6 @@ func metakubeNodeDeploymentFlattenCloudSpec(in *models.NodeCloudSpec) []interfac
 		att["openstack"] = metakubeNodeDeploymentFlattenOpenstackSpec(in.Openstack)
 	}
 
-	if in.Azure != nil {
-		att["azure"] = metakubeNodeDeploymentFlattenAzureSpec(in.Azure)
-	}
-
 	return []interface{}{att}
 }
 
@@ -535,12 +531,6 @@ func metakubeNodeDeploymentExpandCloudSpec(p []interface{}) *models.NodeCloudSpe
 	if v, ok := in["openstack"]; ok {
 		if vv, ok := v.([]interface{}); ok {
 			obj.Openstack = metakubeNodeDeploymentExpandOpenstackSpec(vv)
-		}
-	}
-
-	if v, ok := in["azure"]; ok {
-		if vv, ok := v.([]interface{}); ok {
-			obj.Azure = metakubeNodeDeploymentExpandAzureSpec(vv)
 		}
 	}
 

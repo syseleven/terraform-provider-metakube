@@ -287,7 +287,6 @@ func TestFlattenAWSCloudSpec(t *testing.T) {
 			cloudModel := &ClusterCloudSpecModel{
 				AWS:       types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}),
 				Openstack: types.ListNull(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}),
-				Azure:     types.ListNull(types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()}),
 			}
 			diags := flattenAWSCloudSpec(ctx, cloudModel, tc.Input)
 			if diags.HasError() {
@@ -373,7 +372,6 @@ func TestFlattenOpenstackCloudSpec(t *testing.T) {
 			cloudModel := &ClusterCloudSpecModel{
 				AWS:       types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}),
 				Openstack: types.ListNull(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}),
-				Azure:     types.ListNull(types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()}),
 			}
 			diags := flattenOpenstackSpec(ctx, cloudModel, tc.PreserveValues, tc.Input)
 			if diags.HasError() {
@@ -398,76 +396,6 @@ func TestFlattenOpenstackCloudSpec(t *testing.T) {
 			if tc.Input != nil && tc.Input.FloatingIPPool != "" {
 				if osSpecs[0].FloatingIPPool.ValueString() != tc.Input.FloatingIPPool {
 					t.Errorf("FloatingIPPool mismatch: got %v, want %v", osSpecs[0].FloatingIPPool.ValueString(), tc.Input.FloatingIPPool)
-				}
-			}
-		})
-	}
-}
-
-func TestFlattenAzureCloudSpec(t *testing.T) {
-	ctx := context.Background()
-
-	cases := []struct {
-		name       string
-		Input      *models.AzureCloudSpec
-		ExpectNull bool
-	}{
-		{
-			name: "full azure spec",
-			Input: &models.AzureCloudSpec{
-				ClientID:               "ClientID",
-				ClientSecret:           "ClientSecret",
-				SubscriptionID:         "SubscriptionID",
-				TenantID:               "TenantID",
-				ResourceGroup:          "ResourceGroup",
-				RouteTableName:         "RouteTableName",
-				SecurityGroup:          "SecurityGroup",
-				SubnetName:             "SubnetName",
-				VNetName:               "VNetName",
-				OpenstackBillingTenant: "foo",
-			},
-		},
-		{
-			name:  "empty azure spec",
-			Input: &models.AzureCloudSpec{},
-		},
-		{
-			name:       "nil azure spec",
-			Input:      nil,
-			ExpectNull: true,
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			cloudModel := &ClusterCloudSpecModel{
-				AWS:       types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}),
-				Openstack: types.ListNull(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}),
-				Azure:     types.ListNull(types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()}),
-			}
-			diags := flattenAzureSpec(ctx, cloudModel, tc.Input)
-			if diags.HasError() {
-				t.Fatalf("Unexpected error: %v", diags)
-			}
-
-			if tc.ExpectNull {
-				if !cloudModel.Azure.IsNull() {
-					t.Fatalf("Expected null Azure, got %v", cloudModel.Azure)
-				}
-				return
-			}
-
-			var azureSpecs []AzureCloudSpecModel
-			if d := cloudModel.Azure.ElementsAs(ctx, &azureSpecs, false); d.HasError() {
-				t.Fatalf("Failed to get Azure elements: %v", d)
-			}
-			if len(azureSpecs) == 0 {
-				t.Fatal("Expected Azure list to have elements")
-			}
-
-			if tc.Input != nil && tc.Input.ClientID != "" {
-				if azureSpecs[0].ClientID.ValueString() != tc.Input.ClientID {
-					t.Errorf("ClientID mismatch: got %v, want %v", azureSpecs[0].ClientID.ValueString(), tc.Input.ClientID)
 				}
 			}
 		})
@@ -607,7 +535,6 @@ func TestExpandClusterCloudSpec(t *testing.T) {
 				cloudModel := ClusterCloudSpecModel{
 					AWS:       types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}),
 					Openstack: types.ListNull(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}),
-					Azure:     types.ListNull(types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()}),
 				}
 				objVal, _ := types.ObjectValueFrom(ctx, clusterCloudSpecAttrTypes(), cloudModel)
 				listVal, _ := types.ListValue(types.ObjectType{AttrTypes: clusterCloudSpecAttrTypes()}, []attr.Value{objVal})
@@ -888,88 +815,6 @@ func TestExpandOpenstackCloudSpec(t *testing.T) {
 	}
 }
 
-func TestExpandAzureCloudSpec(t *testing.T) {
-	ctx := context.Background()
-
-	cases := []struct {
-		name           string
-		setupList      func() types.List
-		ExpectedOutput *models.AzureCloudSpec
-	}{
-		{
-			name: "full azure spec",
-			setupList: func() types.List {
-				azureModel := AzureCloudSpecModel{
-					ClientID:               types.StringValue("ClientID"),
-					ClientSecret:           types.StringValue("ClientSecret"),
-					TenantID:               types.StringValue("TenantID"),
-					SubscriptionID:         types.StringValue("SubscriptionID"),
-					ResourceGroup:          types.StringValue("ResourceGroup"),
-					RouteTable:             types.StringValue("RouteTableName"),
-					SecurityGroup:          types.StringValue("SecurityGroup"),
-					Subnet:                 types.StringValue("SubnetName"),
-					VNet:                   types.StringValue("VNetName"),
-					AvailabilitySet:        types.StringNull(),
-					OpenstackBillingTenant: types.StringNull(),
-				}
-				objVal, _ := types.ObjectValueFrom(ctx, azureCloudSpecAttrTypes(), azureModel)
-				listVal, _ := types.ListValue(types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()}, []attr.Value{objVal})
-				return listVal
-			},
-			ExpectedOutput: &models.AzureCloudSpec{
-				ClientID:       "ClientID",
-				ClientSecret:   "ClientSecret",
-				SubscriptionID: "SubscriptionID",
-				TenantID:       "TenantID",
-				ResourceGroup:  "ResourceGroup",
-				RouteTableName: "RouteTableName",
-				SecurityGroup:  "SecurityGroup",
-				SubnetName:     "SubnetName",
-				VNetName:       "VNetName",
-			},
-		},
-		{
-			name: "empty azure spec",
-			setupList: func() types.List {
-				azureModel := AzureCloudSpecModel{
-					AvailabilitySet:        types.StringNull(),
-					ClientID:               types.StringNull(),
-					ClientSecret:           types.StringNull(),
-					SubscriptionID:         types.StringNull(),
-					TenantID:               types.StringNull(),
-					ResourceGroup:          types.StringNull(),
-					RouteTable:             types.StringNull(),
-					SecurityGroup:          types.StringNull(),
-					Subnet:                 types.StringNull(),
-					VNet:                   types.StringNull(),
-					OpenstackBillingTenant: types.StringNull(),
-				}
-				objVal, _ := types.ObjectValueFrom(ctx, azureCloudSpecAttrTypes(), azureModel)
-				listVal, _ := types.ListValue(types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()}, []attr.Value{objVal})
-				return listVal
-			},
-			ExpectedOutput: &models.AzureCloudSpec{},
-		},
-		{
-			name: "null list",
-			setupList: func() types.List {
-				return types.ListNull(types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()})
-			},
-			ExpectedOutput: nil,
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			list := tc.setupList()
-			output := expandAzureCloudSpec(ctx, list, func(string) bool { return true })
-			if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
-				t.Fatalf("Unexpected output from expander: mismatch (-want +got):\n%s", diff)
-			}
-		})
-	}
-}
-
 func TestExpandAuditLogging(t *testing.T) {
 	want := &models.AuditLoggingSettings{
 		Enabled: true,
@@ -988,7 +833,6 @@ func TestGetPreservedValuesFromModel(t *testing.T) {
 		setupModel  func() *ClusterModel
 		expectAWS   *models.AWSCloudSpec
 		expectOS    *clusterOpenstackPreservedValues
-		expectAzure *models.AzureCloudSpec
 	}{
 		{
 			name: "null spec returns empty values",
@@ -999,7 +843,6 @@ func TestGetPreservedValuesFromModel(t *testing.T) {
 			},
 			expectAWS:   nil,
 			expectOS:    nil,
-			expectAzure: nil,
 		},
 		{
 			name: "model with AWS credentials preserves them",
@@ -1013,7 +856,6 @@ func TestGetPreservedValuesFromModel(t *testing.T) {
 				SecurityGroupID: "sg-456",
 			},
 			expectOS:    nil,
-			expectAzure: nil,
 		},
 		{
 			name: "model with OpenStack user credentials preserves them",
@@ -1027,7 +869,6 @@ func TestGetPreservedValuesFromModel(t *testing.T) {
 				openstackProjectID:   types.StringValue("project-123"),
 				openstackProjectName: types.StringValue("myproject"),
 			},
-			expectAzure: nil,
 		},
 		{
 			name: "model with OpenStack application credentials preserves them",
@@ -1038,21 +879,6 @@ func TestGetPreservedValuesFromModel(t *testing.T) {
 			expectOS: &clusterOpenstackPreservedValues{
 				openstackApplicationCredentialsID:     types.StringValue("app-id-123"),
 				openstackApplicationCredentialsSecret: types.StringValue("app-secret-456"),
-			},
-			expectAzure: nil,
-		},
-		{
-			name: "model with Azure credentials preserves them",
-			setupModel: func() *ClusterModel {
-				return createModelWithAzureCredentials(ctx, t, "client-id", "client-secret", "tenant-id", "subscription-id")
-			},
-			expectAWS: nil,
-			expectOS:  nil,
-			expectAzure: &models.AzureCloudSpec{
-				ClientID:       "client-id",
-				ClientSecret:   "client-secret",
-				TenantID:       "tenant-id",
-				SubscriptionID: "subscription-id",
 			},
 		},
 		{
@@ -1069,7 +895,6 @@ func TestGetPreservedValuesFromModel(t *testing.T) {
 			},
 			expectAWS:   nil,
 			expectOS:    nil,
-			expectAzure: nil,
 		},
 	}
 
@@ -1127,29 +952,6 @@ func TestGetPreservedValuesFromModel(t *testing.T) {
 				}
 				if result.openstack.openstackApplicationCredentialsSecret.ValueString() != tc.expectOS.openstackApplicationCredentialsSecret.ValueString() {
 					t.Errorf("OpenStack AppCredSecret mismatch: got %v, want %v", result.openstack.openstackApplicationCredentialsSecret.ValueString(), tc.expectOS.openstackApplicationCredentialsSecret.ValueString())
-				}
-			}
-
-			// Check Azure
-			if tc.expectAzure == nil {
-				if result.azure != nil {
-					t.Errorf("Expected nil Azure, got %+v", result.azure)
-				}
-			} else {
-				if result.azure == nil {
-					t.Fatal("Expected Azure to be set, got nil")
-				}
-				if result.azure.ClientID != tc.expectAzure.ClientID {
-					t.Errorf("Azure ClientID mismatch: got %v, want %v", result.azure.ClientID, tc.expectAzure.ClientID)
-				}
-				if result.azure.ClientSecret != tc.expectAzure.ClientSecret {
-					t.Errorf("Azure ClientSecret mismatch: got %v, want %v", result.azure.ClientSecret, tc.expectAzure.ClientSecret)
-				}
-				if result.azure.TenantID != tc.expectAzure.TenantID {
-					t.Errorf("Azure TenantID mismatch: got %v, want %v", result.azure.TenantID, tc.expectAzure.TenantID)
-				}
-				if result.azure.SubscriptionID != tc.expectAzure.SubscriptionID {
-					t.Errorf("Azure SubscriptionID mismatch: got %v, want %v", result.azure.SubscriptionID, tc.expectAzure.SubscriptionID)
 				}
 			}
 		})
@@ -1243,99 +1045,6 @@ func TestFlattenClusterCloudSpecWithAWSPreservedValues(t *testing.T) {
 			}
 			if aws.SecurityGroupID.ValueString() != tc.expectedSecurityGroup {
 				t.Errorf("SecurityGroupID mismatch: got %v, want %v", aws.SecurityGroupID.ValueString(), tc.expectedSecurityGroup)
-			}
-		})
-	}
-}
-
-func TestFlattenClusterCloudSpecWithAzurePreservedValues(t *testing.T) {
-	ctx := context.Background()
-
-	cases := []struct {
-		name                   string
-		apiResponse            *models.CloudSpec
-		preservedValues        clusterPreserveValues
-		expectedClientID       string
-		expectedClientSecret   string
-		expectedTenantID       string
-		expectedSubscriptionID string
-	}{
-		{
-			name: "API returns empty credentials, preserved values used",
-			apiResponse: &models.CloudSpec{
-				Azure: &models.AzureCloudSpec{
-					// API returns empty credentials (sensitive data not returned)
-					ResourceGroup: "api-rg",
-				},
-			},
-			preservedValues: clusterPreserveValues{
-				azure: &models.AzureCloudSpec{
-					ClientID:       "preserved-client-id",
-					ClientSecret:   "preserved-client-secret",
-					TenantID:       "preserved-tenant-id",
-					SubscriptionID: "preserved-subscription-id",
-					ResourceGroup:  "preserved-rg",
-				},
-			},
-			expectedClientID:       "preserved-client-id",
-			expectedClientSecret:   "preserved-client-secret",
-			expectedTenantID:       "preserved-tenant-id",
-			expectedSubscriptionID: "preserved-subscription-id",
-		},
-		{
-			name: "no preserved values, API values used",
-			apiResponse: &models.CloudSpec{
-				Azure: &models.AzureCloudSpec{
-					ClientID:       "api-client-id",
-					ClientSecret:   "api-client-secret",
-					TenantID:       "api-tenant-id",
-					SubscriptionID: "api-subscription-id",
-				},
-			},
-			preservedValues:        clusterPreserveValues{},
-			expectedClientID:       "api-client-id",
-			expectedClientSecret:   "api-client-secret",
-			expectedTenantID:       "api-tenant-id",
-			expectedSubscriptionID: "api-subscription-id",
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			specModel := &ClusterSpecModel{}
-			diags := flattenClusterCloudSpec(ctx, specModel, tc.preservedValues, tc.apiResponse)
-			if diags.HasError() {
-				t.Fatalf("Unexpected error: %v", diags)
-			}
-
-			var clouds []ClusterCloudSpecModel
-			if d := specModel.Cloud.ElementsAs(ctx, &clouds, false); d.HasError() {
-				t.Fatalf("Failed to get cloud elements: %v", d)
-			}
-			if len(clouds) == 0 {
-				t.Fatal("Expected cloud list to have elements")
-			}
-
-			var azureSpecs []AzureCloudSpecModel
-			if d := clouds[0].Azure.ElementsAs(ctx, &azureSpecs, false); d.HasError() {
-				t.Fatalf("Failed to get Azure elements: %v", d)
-			}
-			if len(azureSpecs) == 0 {
-				t.Fatal("Expected Azure list to have elements")
-			}
-
-			azure := azureSpecs[0]
-			if azure.ClientID.ValueString() != tc.expectedClientID {
-				t.Errorf("ClientID mismatch: got %v, want %v", azure.ClientID.ValueString(), tc.expectedClientID)
-			}
-			if azure.ClientSecret.ValueString() != tc.expectedClientSecret {
-				t.Errorf("ClientSecret mismatch: got %v, want %v", azure.ClientSecret.ValueString(), tc.expectedClientSecret)
-			}
-			if azure.TenantID.ValueString() != tc.expectedTenantID {
-				t.Errorf("TenantID mismatch: got %v, want %v", azure.TenantID.ValueString(), tc.expectedTenantID)
-			}
-			if azure.SubscriptionID.ValueString() != tc.expectedSubscriptionID {
-				t.Errorf("SubscriptionID mismatch: got %v, want %v", azure.SubscriptionID.ValueString(), tc.expectedSubscriptionID)
 			}
 		})
 	}
@@ -1447,7 +1156,6 @@ func TestFlattenOpenstackSpecPreservesCredentials(t *testing.T) {
 			cloudModel := &ClusterCloudSpecModel{
 				AWS:       types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}),
 				Openstack: types.ListNull(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}),
-				Azure:     types.ListNull(types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()}),
 			}
 			diags := flattenOpenstackSpec(ctx, cloudModel, tc.preservedValues, tc.apiResponse)
 			if diags.HasError() {
@@ -1602,37 +1310,6 @@ func TestFlattenSpecIntoModelPreservesCloudCredentials(t *testing.T) {
 				}
 				if userCreds[0].Password.ValueString() != "state-pass" {
 					t.Errorf("Password not preserved: got %v, want state-pass", userCreds[0].Password.ValueString())
-				}
-			},
-		},
-		{
-			name: "Azure credentials preserved through full flatten",
-			setupModel: func() *ClusterModel {
-				return createModelWithAzureCredentials(ctx, t, "state-client-id", "state-client-secret", "state-tenant", "state-sub")
-			},
-			apiSpec: &models.ClusterSpec{
-				Version: "1.20.0",
-				Cloud: &models.CloudSpec{
-					DatacenterName: "dc1",
-					Azure: &models.AzureCloudSpec{
-						ResourceGroup: "api-rg",
-						// API returns empty credentials
-					},
-				},
-			},
-			verifyPreserved: func(t *testing.T, model *ClusterModel) {
-				var specs []ClusterSpecModel
-				model.Spec.ElementsAs(ctx, &specs, false)
-				var clouds []ClusterCloudSpecModel
-				specs[0].Cloud.ElementsAs(ctx, &clouds, false)
-				var azureSpecs []AzureCloudSpecModel
-				clouds[0].Azure.ElementsAs(ctx, &azureSpecs, false)
-
-				if azureSpecs[0].ClientID.ValueString() != "state-client-id" {
-					t.Errorf("ClientID not preserved: got %v, want state-client-id", azureSpecs[0].ClientID.ValueString())
-				}
-				if azureSpecs[0].ClientSecret.ValueString() != "state-client-secret" {
-					t.Errorf("ClientSecret not preserved: got %v, want state-client-secret", azureSpecs[0].ClientSecret.ValueString())
 				}
 			},
 		},
@@ -1861,7 +1538,6 @@ func createOpenstackCloudList(ctx context.Context, t *testing.T) types.List {
 	cloudModel := ClusterCloudSpecModel{
 		AWS:       types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}),
 		Openstack: osListVal,
-		Azure:     types.ListNull(types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()}),
 	}
 	cloudObjVal, _ := types.ObjectValueFrom(ctx, clusterCloudSpecAttrTypes(), cloudModel)
 	cloudListVal, _ := types.ListValue(types.ObjectType{AttrTypes: clusterCloudSpecAttrTypes()}, []attr.Value{cloudObjVal})
@@ -1886,7 +1562,6 @@ func createAWSCloudList(ctx context.Context, t *testing.T) types.List {
 	cloudModel := ClusterCloudSpecModel{
 		AWS:       awsListVal,
 		Openstack: types.ListNull(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}),
-		Azure:     types.ListNull(types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()}),
 	}
 	cloudObjVal, _ := types.ObjectValueFrom(ctx, clusterCloudSpecAttrTypes(), cloudModel)
 	cloudListVal, _ := types.ListValue(types.ObjectType{AttrTypes: clusterCloudSpecAttrTypes()}, []attr.Value{cloudObjVal})
@@ -1913,7 +1588,6 @@ func createModelWithAWSCredentials(ctx context.Context, t *testing.T, accessKeyI
 	cloudModel := ClusterCloudSpecModel{
 		AWS:       awsListVal,
 		Openstack: types.ListNull(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}),
-		Azure:     types.ListNull(types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()}),
 	}
 	cloudObjVal, _ := types.ObjectValueFrom(ctx, clusterCloudSpecAttrTypes(), cloudModel)
 	cloudListVal, _ := types.ListValue(types.ObjectType{AttrTypes: clusterCloudSpecAttrTypes()}, []attr.Value{cloudObjVal})
@@ -1962,7 +1636,6 @@ func createModelWithOpenstackUserCredentials(ctx context.Context, t *testing.T, 
 	cloudModel := ClusterCloudSpecModel{
 		AWS:       types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}),
 		Openstack: osListVal,
-		Azure:     types.ListNull(types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()}),
 	}
 	cloudObjVal, _ := types.ObjectValueFrom(ctx, clusterCloudSpecAttrTypes(), cloudModel)
 	cloudListVal, _ := types.ListValue(types.ObjectType{AttrTypes: clusterCloudSpecAttrTypes()}, []attr.Value{cloudObjVal})
@@ -2009,50 +1682,6 @@ func createModelWithOpenstackAppCredentials(ctx context.Context, t *testing.T, a
 	cloudModel := ClusterCloudSpecModel{
 		AWS:       types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}),
 		Openstack: osListVal,
-		Azure:     types.ListNull(types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()}),
-	}
-	cloudObjVal, _ := types.ObjectValueFrom(ctx, clusterCloudSpecAttrTypes(), cloudModel)
-	cloudListVal, _ := types.ListValue(types.ObjectType{AttrTypes: clusterCloudSpecAttrTypes()}, []attr.Value{cloudObjVal})
-
-	specModel := ClusterSpecModel{
-		Version:           types.StringValue("1.20.0"),
-		EnableSSHAgent:    types.BoolNull(),
-		AuditLogging:      types.BoolNull(),
-		PodSecurityPolicy: types.BoolNull(),
-		PodNodeSelector:   types.BoolNull(),
-		ServicesCIDR:      types.StringNull(),
-		PodsCIDR:          types.StringNull(),
-		IPFamily:          types.StringNull(),
-		UpdateWindow:      types.ListNull(types.ObjectType{AttrTypes: updateWindowAttrTypes()}),
-		CNIPlugin:         createCNIPluginObject(ctx, t, "canal"),
-		Cloud:             cloudListVal,
-		SyselevenAuth:     types.ListNull(types.ObjectType{AttrTypes: syselevenAuthAttrTypes()}),
-	}
-	return createTestClusterModel(ctx, t, specModel)
-}
-
-func createModelWithAzureCredentials(ctx context.Context, t *testing.T, clientID, clientSecret, tenantID, subscriptionID string) *ClusterModel {
-	t.Helper()
-	azureModel := AzureCloudSpecModel{
-		AvailabilitySet:        types.StringNull(),
-		ClientID:               types.StringValue(clientID),
-		ClientSecret:           types.StringValue(clientSecret),
-		TenantID:               types.StringValue(tenantID),
-		SubscriptionID:         types.StringValue(subscriptionID),
-		ResourceGroup:          types.StringNull(),
-		RouteTable:             types.StringNull(),
-		SecurityGroup:          types.StringNull(),
-		Subnet:                 types.StringNull(),
-		VNet:                   types.StringNull(),
-		OpenstackBillingTenant: types.StringNull(),
-	}
-	azureObjVal, _ := types.ObjectValueFrom(ctx, azureCloudSpecAttrTypes(), azureModel)
-	azureListVal, _ := types.ListValue(types.ObjectType{AttrTypes: azureCloudSpecAttrTypes()}, []attr.Value{azureObjVal})
-
-	cloudModel := ClusterCloudSpecModel{
-		AWS:       types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}),
-		Openstack: types.ListNull(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}),
-		Azure:     azureListVal,
 	}
 	cloudObjVal, _ := types.ObjectValueFrom(ctx, clusterCloudSpecAttrTypes(), cloudModel)
 	cloudListVal, _ := types.ListValue(types.ObjectType{AttrTypes: clusterCloudSpecAttrTypes()}, []attr.Value{cloudObjVal})

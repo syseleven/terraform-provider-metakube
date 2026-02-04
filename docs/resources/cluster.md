@@ -82,7 +82,6 @@ One of the following must be selected.
 
 * `openstack` - (Optional) Openstack infrastructure.
 * `aws` - (Optional) Amazon Web Services infrastructure.
-* `azure` - (Optional) Azure infrastructure.
 
 
 ### `update_window`
@@ -163,19 +162,3 @@ Configure [SysEleven Login](https://docs.syseleven.de/metakube/en/tutorials/exte
 #### Arguments
 * `realm` - (Optional) The name of the realm.
 * `iam_authentication` - (Optional) Enable authentication against SysEleven IAM system. Defaults to `false`.
-
-### `azure`
-
-#### Arguments
-
-* `client_id` - (Required) Azure client ID.
-* `client_secret` - (Required) Azure client secret.
-* `subscription_id` - (Required) Azure subscription ID.
-* `tenant_id` - (Required) Azure tenant ID.
-* `availability_set` - (Optional) Azure availability set.
-* `resource_group` - (Optional) Azure resource group.
-* `route_table` - (Optional) Azure route table.
-* `security_group` - (Optional) Azure security group.
-* `subnet` - (Optional) Azure subnet.
-* `vnet` - (Optional) Azure virtual network.
-* `openstack_billing_tenant` - (Required) Openstack Tenant/Project name for the account.
