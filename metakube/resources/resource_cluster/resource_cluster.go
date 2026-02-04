@@ -101,7 +101,7 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 		}
 	}
 
-	sshkeys := expandSSHKeysFromModel(ctx, plan.SSHKeys)
+	sshkeys := expandSSHKeysFromModel(plan.SSHKeys)
 	if len(sshkeys) > 0 {
 		sshAgentEnabled := getSSHAgentEnabled(ctx, &plan)
 		if !sshAgentEnabled {
@@ -649,7 +649,7 @@ func (r *clusterResource) updateClusterSSHKeys(ctx context.Context, plan, state 
 	projectID := plan.ProjectID.ValueString()
 	clusterID := state.ID.ValueString()
 
-	planKeys := expandSSHKeysFromModel(ctx, plan.SSHKeys)
+	planKeys := expandSSHKeysFromModel(plan.SSHKeys)
 	prevKeys, err := r.metakubeClusterGetAssignedSSHKeys(ctx, projectID, clusterID)
 	if err != nil {
 		return err
@@ -784,7 +784,7 @@ func expandLabelsFromModel(ctx context.Context, labels types.Map) map[string]str
 	return result
 }
 
-func expandSSHKeysFromModel(ctx context.Context, sshkeys types.Set) []string {
+func expandSSHKeysFromModel(sshkeys types.Set) []string {
 	var result []string
 	if sshkeys.IsNull() || sshkeys.IsUnknown() {
 		return result
