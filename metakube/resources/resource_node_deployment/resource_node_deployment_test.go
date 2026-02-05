@@ -129,28 +129,29 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("operating_system").AtSliceIndex(0).AtMapKey("ubuntu").AtSliceIndex(0).AtMapKey("dist_upgrade_on_boot"),
 						knownvalue.Bool(false)),
-					statecheck.ExpectKnownValue(resourceName,
-						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("machine_annotations"),
-						knownvalue.MapExact(map[string]knownvalue.Check{
-							"machines.metakube.syseleven.de/user-data-plugin": knownvalue.StringExact("ubuntu-sysext"),
-						})),
-					statecheck.ExpectKnownValue(resourceName,
-						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("versions").AtSliceIndex(0).AtMapKey("kubelet"),
-						knownvalue.NotNull()),
-					statecheck.ExpectKnownValue(resourceName,
-						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("all_labels"),
-						knownvalue.MapPartial(map[string]knownvalue.Check{
-							"a": knownvalue.StringExact("b"),
-							"c": knownvalue.StringExact("d"),
-						})),
-				},
+				statecheck.ExpectKnownValue(resourceName,
+					tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("machine_annotations"),
+					knownvalue.MapExact(map[string]knownvalue.Check{
+						"machines.metakube.syseleven.de/user-data-plugin": knownvalue.StringExact("ubuntu-sysext"),
+						"c": knownvalue.StringExact("d"),
+					})),
+				statecheck.ExpectKnownValue(resourceName,
+					tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("versions").AtSliceIndex(0).AtMapKey("kubelet"),
+					knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName,
+					tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("all_labels"),
+					knownvalue.MapPartial(map[string]knownvalue.Check{
+						"a": knownvalue.StringExact("b"),
+						"c": knownvalue.StringExact("d"),
+					})),
 			},
-			{
-				Config:   config.String(),
-				PlanOnly: true,
-			},
-			{
-				Config: config2.String(),
+		},
+		{
+			Config:   config.String(),
+			PlanOnly: true,
+		},
+		{
+			Config: config2.String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testutil.TestResourceInstanceState(resourceName, func(is *terraform.InstanceState) error {
 						// Record IDs to test import
@@ -202,29 +203,30 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("operating_system").AtSliceIndex(0).AtMapKey("ubuntu").AtSliceIndex(0).AtMapKey("dist_upgrade_on_boot"),
 						knownvalue.Bool(false)),
-					statecheck.ExpectKnownValue(resourceName,
-						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("machine_annotations"),
-						knownvalue.MapExact(map[string]knownvalue.Check{
-							"machines.metakube.syseleven.de/user-data-plugin": knownvalue.StringExact("ubuntu-sysext"),
-						})),
-					statecheck.ExpectKnownValue(resourceName,
-						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("versions").AtSliceIndex(0).AtMapKey("kubelet"),
-						knownvalue.NotNull()),
-					statecheck.ExpectKnownValue(resourceName,
-						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("all_labels"),
-						knownvalue.MapPartial(map[string]knownvalue.Check{
-							"a": knownvalue.StringExact("b"),
-							"c": knownvalue.StringExact("d"),
-						})),
-				},
+				statecheck.ExpectKnownValue(resourceName,
+					tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("machine_annotations"),
+					knownvalue.MapExact(map[string]knownvalue.Check{
+						"machines.metakube.syseleven.de/user-data-plugin": knownvalue.StringExact("ubuntu-sysext"),
+						"c": knownvalue.StringExact("d"),
+					})),
+				statecheck.ExpectKnownValue(resourceName,
+					tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("versions").AtSliceIndex(0).AtMapKey("kubelet"),
+					knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName,
+					tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("all_labels"),
+					knownvalue.MapPartial(map[string]knownvalue.Check{
+						"a": knownvalue.StringExact("b"),
+						"c": knownvalue.StringExact("d"),
+					})),
 			},
-			{
-				Config:   config2.String(),
-				PlanOnly: true,
-			},
-			{
-				ResourceName:      resourceName,
-				ImportState:       true,
+		},
+		{
+			Config:   config2.String(),
+			PlanOnly: true,
+		},
+		{
+			ResourceName:      resourceName,
+			ImportState:       true,
 				ImportStateVerify: true,
 				ImportStateIdFunc: func(s *terraform.State) (string, error) {
 					for _, rs := range s.RootModule().Resources {
