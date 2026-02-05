@@ -72,7 +72,7 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 
 	dcname := plan.DCName.ValueString()
 	clusterSpec := metakubeResourceClusterExpandSpec(ctx, &plan, dcname, func(_ string) bool { return true })
-	clusterLabels := expandLabelsFromModel(ctx, plan.Labels)
+	clusterLabels := expandLabelsFromModel(plan.Labels)
 
 	createClusterSpec := &models.CreateClusterSpec{
 		Cluster: &models.Cluster{
@@ -770,7 +770,7 @@ func hasAWSConfig(ctx context.Context, model *ClusterModel) bool {
 	return true
 }
 
-func expandLabelsFromModel(ctx context.Context, labels types.Map) map[string]string {
+func expandLabelsFromModel(labels types.Map) map[string]string {
 	result := make(map[string]string)
 	if labels.IsNull() || labels.IsUnknown() {
 		return result
@@ -798,8 +798,8 @@ func expandSSHKeysFromModel(sshkeys types.Set) []string {
 }
 
 func getLabelsChange(ctx context.Context, plan, state *ClusterModel) map[string]interface{} {
-	oldLabels := expandLabelsFromModel(ctx, state.Labels)
-	newLabels := expandLabelsFromModel(ctx, plan.Labels)
+	oldLabels := expandLabelsFromModel(state.Labels)
+	newLabels := expandLabelsFromModel(plan.Labels)
 
 	result := make(map[string]interface{})
 	for k, v := range newLabels {
