@@ -1,737 +1,948 @@
 package resource_node_deployment
 
 import (
+	"context"
+
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/syseleven/go-metakube/models"
 	"github.com/syseleven/terraform-provider-metakube/metakube/common"
 	"k8s.io/utils/ptr"
 )
 
-// flatteners
-func metakubeNodeDeploymentFlattenSpec(in *models.NodeDeploymentSpec) []interface{} {
+// Framework flatten functions - convert API models to framework types
+
+func flattenNodeDeploymentSpec(ctx context.Context, in *models.NodeDeploymentSpec) (types.List, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
 	if in == nil {
-		return []interface{}{}
+		return types.ListNull(types.ObjectType{AttrTypes: nodeDeploymentSpecAttrTypes()}), diags
 	}
 
-	att := make(map[string]interface{})
+	specModel := NodeDeploymentSpecModel{}
 
 	if in.Replicas != nil {
-		att["replicas"] = *in.Replicas
+		specModel.Replicas = types.Int64Value(int64(*in.Replicas))
+	} else {
+		specModel.Replicas = types.Int64Null()
 	}
 
 	if in.MinReplicas != nil {
-		att["min_replicas"] = *in.MinReplicas
+		specModel.MinReplicas = types.Int64Value(int64(*in.MinReplicas))
+	} else {
+		specModel.MinReplicas = types.Int64Null()
 	}
 
 	if in.MaxReplicas != nil {
-		att["max_replicas"] = *in.MaxReplicas
+		specModel.MaxReplicas = types.Int64Value(int64(*in.MaxReplicas))
+	} else {
+		specModel.MaxReplicas = types.Int64Null()
 	}
 
 	if in.Template != nil {
-		att["template"] = metakubeNodeDeploymentFlattenNodeSpec(in.Template)
+		templateList, d := flattenNodeSpec(ctx, in.Template)
+		diags.Append(d...)
+		specModel.Template = templateList
+	} else {
+		specModel.Template = types.ListNull(types.ObjectType{AttrTypes: nodeSpecAttrTypes()})
 	}
 
-	return []interface{}{att}
+	specObjVal, d := types.ObjectValueFrom(ctx, nodeDeploymentSpecAttrTypes(), specModel)
+	diags.Append(d...)
+	if diags.HasError() {
+		return types.ListNull(types.ObjectType{AttrTypes: nodeDeploymentSpecAttrTypes()}), diags
+	}
+
+	specList, d := types.ListValue(types.ObjectType{AttrTypes: nodeDeploymentSpecAttrTypes()}, []attr.Value{specObjVal})
+	diags.Append(d...)
+
+	return specList, diags
 }
 
-func metakubeNodeDeploymentFlattenNodeSpec(in *models.NodeSpec) []interface{} {
+func flattenNodeSpec(ctx context.Context, in *models.NodeSpec) (types.List, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
 	if in == nil {
-		return []interface{}{}
+		return types.ListNull(types.ObjectType{AttrTypes: nodeSpecAttrTypes()}), diags
 	}
 
-	att := make(map[string]interface{})
+	nodeSpecModel := NodeSpecModel{}
 
-	if l := len(in.Labels); l > 0 {
-		labels := make(map[string]string, l)
-		for key, val := range in.Labels {
-			labels[key] = val
+	// Labels
+	if len(in.Labels) > 0 {
+		allLabelsMap := make(map[string]attr.Value, len(in.Labels))
+		userLabelsMap := make(map[string]attr.Value)
+
+		for k, v := range in.Labels {
+			allLabelsMap[k] = types.StringValue(v)
+			if !isSystemKey(k) {
+				userLabelsMap[k] = types.StringValue(v)
+			}
 		}
-		att["labels"] = labels
-	}
 
-	if in.OperatingSystem != nil {
-		att["operating_system"] = metakubeNodeDeploymentFlattenOperatingSystem(in.OperatingSystem)
-	}
+		allLabelsVal, d := types.MapValue(types.StringType, allLabelsMap)
+		diags.Append(d...)
+		nodeSpecModel.AllLabels = allLabelsVal
 
-	if in.Versions != nil && in.Versions.Kubelet != "" {
-		att["versions"] = metakubeNodeDeploymentFlattenVersion(in.Versions)
-	}
-
-	if l := len(in.Taints); l > 0 {
-		t := make([]interface{}, l)
-		for i, v := range in.Taints {
-			t[i] = metakubeNodeDeploymentFlattenTaintSpec(v)
+		if len(userLabelsMap) > 0 {
+			labelsVal, d := types.MapValue(types.StringType, userLabelsMap)
+			diags.Append(d...)
+			nodeSpecModel.Labels = labelsVal
+		} else {
+			nodeSpecModel.Labels = types.MapNull(types.StringType)
 		}
-		att["taints"] = t
+	} else {
+		nodeSpecModel.Labels = types.MapNull(types.StringType)
+		nodeSpecModel.AllLabels = types.MapNull(types.StringType)
 	}
 
+	// Node annotations
+	if len(in.NodeAnnotations) > 0 {
+		annoMap := make(map[string]attr.Value, len(in.NodeAnnotations))
+		for k, v := range in.NodeAnnotations {
+			annoMap[k] = types.StringValue(v)
+		}
+		annoVal, d := types.MapValue(types.StringType, annoMap)
+		diags.Append(d...)
+		nodeSpecModel.NodeAnnotations = annoVal
+	} else {
+		nodeSpecModel.NodeAnnotations = types.MapNull(types.StringType)
+	}
+
+	// Machine annotations
+	if len(in.MachineAnnotations) > 0 {
+		annoMap := make(map[string]attr.Value, len(in.MachineAnnotations))
+		for k, v := range in.MachineAnnotations {
+			annoMap[k] = types.StringValue(v)
+		}
+		annoVal, d := types.MapValue(types.StringType, annoMap)
+		diags.Append(d...)
+		nodeSpecModel.MachineAnnotations = annoVal
+	} else {
+		nodeSpecModel.MachineAnnotations = types.MapNull(types.StringType)
+	}
+
+	// Cloud
 	if in.Cloud != nil {
-		att["cloud"] = metakubeNodeDeploymentFlattenCloudSpec(in.Cloud)
+		cloudList, d := flattenCloudSpec(ctx, in.Cloud)
+		diags.Append(d...)
+		nodeSpecModel.Cloud = cloudList
+	} else {
+		nodeSpecModel.Cloud = types.ListNull(types.ObjectType{AttrTypes: cloudSpecAttrTypes()})
 	}
 
-	return []interface{}{att}
+	// Operating system
+	if in.OperatingSystem != nil {
+		osList, d := flattenOperatingSystem(ctx, in.OperatingSystem)
+		diags.Append(d...)
+		nodeSpecModel.OperatingSystem = osList
+	} else {
+		nodeSpecModel.OperatingSystem = types.ListNull(types.ObjectType{AttrTypes: operatingSystemAttrTypes()})
+	}
+
+	// Versions
+	if in.Versions != nil && in.Versions.Kubelet != "" {
+		versionsList, d := flattenVersions(ctx, in.Versions)
+		diags.Append(d...)
+		nodeSpecModel.Versions = versionsList
+	} else {
+		nodeSpecModel.Versions = types.ListNull(types.ObjectType{AttrTypes: versionsAttrTypes()})
+	}
+
+	// Taints
+	if len(in.Taints) > 0 {
+		taintsList, d := flattenTaints(ctx, in.Taints)
+		diags.Append(d...)
+		nodeSpecModel.Taints = taintsList
+	} else {
+		nodeSpecModel.Taints = types.ListNull(types.ObjectType{AttrTypes: taintAttrTypes()})
+	}
+
+	objVal, d := types.ObjectValueFrom(ctx, nodeSpecAttrTypes(), nodeSpecModel)
+	diags.Append(d...)
+	if diags.HasError() {
+		return types.ListNull(types.ObjectType{AttrTypes: nodeSpecAttrTypes()}), diags
+	}
+
+	listVal, d := types.ListValue(types.ObjectType{AttrTypes: nodeSpecAttrTypes()}, []attr.Value{objVal})
+	diags.Append(d...)
+
+	return listVal, diags
 }
 
-func metakubeNodeDeploymentFlattenOperatingSystem(in *models.OperatingSystemSpec) []interface{} {
+func flattenCloudSpec(ctx context.Context, in *models.NodeCloudSpec) (types.List, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
 	if in == nil {
-		return []interface{}{}
+		return types.ListNull(types.ObjectType{AttrTypes: cloudSpecAttrTypes()}), diags
 	}
 
-	att := make(map[string]interface{})
-
-	if in.Ubuntu != nil {
-		att["ubuntu"] = metakubeNodeDeploymentFlattenUbuntu(in.Ubuntu)
+	cloudModel := CloudSpecModel{
+		AWS:       types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}),
+		OpenStack: types.ListNull(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}),
 	}
-
-	if in.Flatcar != nil {
-		att["flatcar"] = metakubeNodeDeploymentFlattenFlatcar(in.Flatcar)
-	}
-
-	return []interface{}{att}
-}
-
-func metakubeNodeDeploymentFlattenUbuntu(in *models.UbuntuSpec) []interface{} {
-	if in == nil {
-		return []interface{}{}
-	}
-
-	att := make(map[string]interface{})
-
-	att["dist_upgrade_on_boot"] = in.DistUpgradeOnBoot
-
-	return []interface{}{att}
-}
-
-func metakubeNodeDeploymentFlattenFlatcar(in *models.FlatcarSpec) []interface{} {
-	if in == nil {
-		return []interface{}{}
-	}
-
-	att := make(map[string]interface{})
-
-	att["disable_auto_update"] = in.DisableAutoUpdate
-
-	return []interface{}{att}
-}
-
-func metakubeNodeDeploymentFlattenVersion(in *models.NodeVersionInfo) []interface{} {
-	if in == nil {
-		return []interface{}{}
-	}
-
-	att := make(map[string]interface{})
-
-	if in.Kubelet != "" {
-		att["kubelet"] = in.Kubelet
-	}
-
-	return []interface{}{att}
-}
-
-func metakubeNodeDeploymentFlattenTaintSpec(in *models.TaintSpec) map[string]interface{} {
-	if in == nil {
-		return map[string]interface{}{}
-	}
-
-	att := make(map[string]interface{})
-
-	if in.Key != "" {
-		att["key"] = in.Key
-	}
-
-	if in.Value != "" {
-		att["value"] = in.Value
-	}
-
-	if in.Effect != "" {
-		att["effect"] = in.Effect
-	}
-
-	return att
-}
-
-func metakubeNodeDeploymentFlattenCloudSpec(in *models.NodeCloudSpec) []interface{} {
-	if in == nil {
-		return []interface{}{}
-	}
-
-	att := make(map[string]interface{})
 
 	if in.Aws != nil {
-		att["aws"] = metakubeNodeDeploymentFlattenAWSSpec(in.Aws)
+		awsList, d := flattenAWSCloudSpec(ctx, in.Aws)
+		diags.Append(d...)
+		cloudModel.AWS = awsList
 	}
 
 	if in.Openstack != nil {
-		att["openstack"] = metakubeNodeDeploymentFlattenOpenstackSpec(in.Openstack)
+		osList, d := flattenOpenStackCloudSpec(ctx, in.Openstack)
+		diags.Append(d...)
+		cloudModel.OpenStack = osList
 	}
 
-	return []interface{}{att}
+	objVal, d := types.ObjectValueFrom(ctx, cloudSpecAttrTypes(), cloudModel)
+	diags.Append(d...)
+	if diags.HasError() {
+		return types.ListNull(types.ObjectType{AttrTypes: cloudSpecAttrTypes()}), diags
+	}
+
+	listVal, d := types.ListValue(types.ObjectType{AttrTypes: cloudSpecAttrTypes()}, []attr.Value{objVal})
+	diags.Append(d...)
+
+	return listVal, diags
 }
 
-func metakubeNodeDeploymentFlattenAWSSpec(in *models.AWSNodeSpec) []interface{} {
+func flattenAWSCloudSpec(ctx context.Context, in *models.AWSNodeSpec) (types.List, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
 	if in == nil {
-		return []interface{}{}
+		return types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}), diags
 	}
 
-	att := make(map[string]interface{})
-
-	att["assign_public_ip"] = in.AssignPublicIP
-
-	if l := len(in.Tags); l > 0 {
-		t := make(map[string]string, l)
-		for key, val := range in.Tags {
-			t[key] = val
-		}
-		att["tags"] = t
-	}
-
-	if in.AMI != "" {
-		att["ami"] = in.AMI
-	}
-
-	if in.AvailabilityZone != "" {
-		att["availability_zone"] = in.AvailabilityZone
-	}
-
-	if in.SubnetID != "" {
-		att["subnet_id"] = in.SubnetID
-	}
-
-	if in.VolumeType != nil {
-		att["volume_type"] = *in.VolumeType
-	}
-
-	if in.VolumeSize != nil {
-		att["disk_size"] = *in.VolumeSize
+	awsModel := AWSCloudSpecModel{
+		AssignPublicIP: types.BoolValue(in.AssignPublicIP),
 	}
 
 	if in.InstanceType != nil {
-		att["instance_type"] = *in.InstanceType
+		awsModel.InstanceType = types.StringValue(*in.InstanceType)
+	} else {
+		awsModel.InstanceType = types.StringNull()
 	}
 
-	return []interface{}{att}
+	if in.VolumeSize != nil {
+		awsModel.DiskSize = types.Int64Value(int64(*in.VolumeSize))
+	} else {
+		awsModel.DiskSize = types.Int64Null()
+	}
+
+	if in.VolumeType != nil {
+		awsModel.VolumeType = types.StringValue(*in.VolumeType)
+	} else {
+		awsModel.VolumeType = types.StringNull()
+	}
+
+	if in.AvailabilityZone != "" {
+		awsModel.AvailabilityZone = types.StringValue(in.AvailabilityZone)
+	} else {
+		awsModel.AvailabilityZone = types.StringNull()
+	}
+
+	if in.SubnetID != "" {
+		awsModel.SubnetID = types.StringValue(in.SubnetID)
+	} else {
+		awsModel.SubnetID = types.StringNull()
+	}
+
+	if in.AMI != "" {
+		awsModel.AMI = types.StringValue(in.AMI)
+	} else {
+		awsModel.AMI = types.StringNull()
+	}
+
+	if len(in.Tags) > 0 {
+		tagsMap := make(map[string]attr.Value, len(in.Tags))
+		for k, v := range in.Tags {
+			tagsMap[k] = types.StringValue(v)
+		}
+		tagsVal, d := types.MapValue(types.StringType, tagsMap)
+		diags.Append(d...)
+		awsModel.Tags = tagsVal
+	} else {
+		awsModel.Tags = types.MapNull(types.StringType)
+	}
+
+	objVal, d := types.ObjectValueFrom(ctx, awsCloudSpecAttrTypes(), awsModel)
+	diags.Append(d...)
+	if diags.HasError() {
+		return types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}), diags
+	}
+
+	listVal, d := types.ListValue(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}, []attr.Value{objVal})
+	diags.Append(d...)
+
+	return listVal, diags
 }
 
-func metakubeNodeDeploymentFlattenOpenstackSpec(in *models.OpenstackNodeSpec) []interface{} {
+func flattenOpenStackCloudSpec(ctx context.Context, in *models.OpenstackNodeSpec) (types.List, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
 	if in == nil {
-		return []interface{}{}
+		return types.ListNull(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}), diags
 	}
 
-	att := make(map[string]interface{})
+	osModel := OpenStackCloudSpecModel{}
 
 	if in.Flavor != nil {
-		att["flavor"] = *in.Flavor
+		osModel.Flavor = types.StringValue(*in.Flavor)
+	} else {
+		osModel.Flavor = types.StringNull()
 	}
 
 	if in.Image != nil {
-		att["image"] = *in.Image
+		osModel.Image = types.StringValue(*in.Image)
+	} else {
+		osModel.Image = types.StringNull()
 	}
 
-	att["use_floating_ip"] = in.UseFloatingIP
+	if in.UseFloatingIP != nil {
+		osModel.UseFloatingIP = types.BoolValue(*in.UseFloatingIP)
+	} else {
+		osModel.UseFloatingIP = types.BoolValue(true)
+	}
 
 	if in.InstanceReadyCheckPeriod != "" {
-		att["instance_ready_check_period"] = in.InstanceReadyCheckPeriod
+		osModel.InstanceReadyCheckPeriod = types.StringValue(in.InstanceReadyCheckPeriod)
+	} else {
+		osModel.InstanceReadyCheckPeriod = types.StringValue("5s")
 	}
 
 	if in.InstanceReadyCheckTimeout != "" {
-		att["instance_ready_check_timeout"] = in.InstanceReadyCheckTimeout
-	}
-
-	if in.Tags != nil {
-		att["tags"] = in.Tags
+		osModel.InstanceReadyCheckTimeout = types.StringValue(in.InstanceReadyCheckTimeout)
+	} else {
+		osModel.InstanceReadyCheckTimeout = types.StringValue("120s")
 	}
 
 	if in.RootDiskSizeGB != nil && *in.RootDiskSizeGB != 0 {
-		att["disk_size"] = *in.RootDiskSizeGB
+		osModel.DiskSize = types.Int64Value(*in.RootDiskSizeGB)
+	} else {
+		osModel.DiskSize = types.Int64Null()
 	}
 
 	if in.ServerGroupID != "" {
-		att["server_group_id"] = in.ServerGroupID
+		osModel.ServerGroupID = types.StringValue(in.ServerGroupID)
+	} else {
+		osModel.ServerGroupID = types.StringNull()
 	}
 
-	return []interface{}{att}
+	if len(in.Tags) > 0 {
+		tagsMap := make(map[string]attr.Value, len(in.Tags))
+		for k, v := range in.Tags {
+			tagsMap[k] = types.StringValue(v)
+		}
+		tagsVal, d := types.MapValue(types.StringType, tagsMap)
+		diags.Append(d...)
+		osModel.Tags = tagsVal
+	} else {
+		osModel.Tags = types.MapNull(types.StringType)
+	}
+
+	objVal, d := types.ObjectValueFrom(ctx, openstackCloudSpecAttrTypes(), osModel)
+	diags.Append(d...)
+	if diags.HasError() {
+		return types.ListNull(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}), diags
+	}
+
+	listVal, d := types.ListValue(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}, []attr.Value{objVal})
+	diags.Append(d...)
+
+	return listVal, diags
 }
 
-func metakubeNodeDeploymentFlattenAzureSpec(in *models.AzureNodeSpec) []interface{} {
+func flattenOperatingSystem(ctx context.Context, in *models.OperatingSystemSpec) (types.List, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
 	if in == nil {
-		return []interface{}{}
+		return types.ListNull(types.ObjectType{AttrTypes: operatingSystemAttrTypes()}), diags
 	}
 
-	att := make(map[string]interface{})
-
-	if in.ImageID != "" {
-		att["image_id"] = in.ImageID
+	osModel := OperatingSystemModel{
+		Ubuntu:  types.ListNull(types.ObjectType{AttrTypes: ubuntuAttrTypes()}),
+		Flatcar: types.ListNull(types.ObjectType{AttrTypes: flatcarAttrTypes()}),
 	}
 
-	if in.Size != nil {
-		att["size"] = *in.Size
+	if in.Ubuntu != nil {
+		ubuntuList, d := flattenUbuntu(ctx, in.Ubuntu)
+		diags.Append(d...)
+		osModel.Ubuntu = ubuntuList
 	}
 
-	att["assign_public_ip"] = in.AssignPublicIP
-
-	att["disk_size_gb"] = in.DataDiskSize
-
-	att["os_disk_size_gb"] = in.OSDiskSize
-
-	if in.Tags != nil {
-		att["tags"] = in.Tags
+	if in.Flatcar != nil {
+		flatcarList, d := flattenFlatcar(ctx, in.Flatcar)
+		diags.Append(d...)
+		osModel.Flatcar = flatcarList
 	}
 
-	if in.Zones != nil {
-		att["zones"] = in.Zones
+	objVal, d := types.ObjectValueFrom(ctx, operatingSystemAttrTypes(), osModel)
+	diags.Append(d...)
+	if diags.HasError() {
+		return types.ListNull(types.ObjectType{AttrTypes: operatingSystemAttrTypes()}), diags
 	}
 
-	return []interface{}{att}
+	listVal, d := types.ListValue(types.ObjectType{AttrTypes: operatingSystemAttrTypes()}, []attr.Value{objVal})
+	diags.Append(d...)
+
+	return listVal, diags
 }
 
-// expanders
+func flattenUbuntu(ctx context.Context, in *models.UbuntuSpec) (types.List, diag.Diagnostics) {
+	var diags diag.Diagnostics
 
-func metakubeNodeDeploymentExpandSpec(p []interface{}, isCreate bool) *models.NodeDeploymentSpec {
-	if len(p) < 1 {
-		return nil
+	if in == nil {
+		return types.ListNull(types.ObjectType{AttrTypes: ubuntuAttrTypes()}), diags
 	}
+
+	ubuntuModel := UbuntuModel{
+		DistUpgradeOnBoot: types.BoolValue(in.DistUpgradeOnBoot),
+	}
+
+	objVal, d := types.ObjectValueFrom(ctx, ubuntuAttrTypes(), ubuntuModel)
+	diags.Append(d...)
+	if diags.HasError() {
+		return types.ListNull(types.ObjectType{AttrTypes: ubuntuAttrTypes()}), diags
+	}
+
+	listVal, d := types.ListValue(types.ObjectType{AttrTypes: ubuntuAttrTypes()}, []attr.Value{objVal})
+	diags.Append(d...)
+
+	return listVal, diags
+}
+
+func flattenFlatcar(ctx context.Context, in *models.FlatcarSpec) (types.List, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if in == nil {
+		return types.ListNull(types.ObjectType{AttrTypes: flatcarAttrTypes()}), diags
+	}
+
+	flatcarModel := FlatcarModel{
+		DisableAutoUpdate: types.BoolValue(in.DisableAutoUpdate),
+	}
+
+	objVal, d := types.ObjectValueFrom(ctx, flatcarAttrTypes(), flatcarModel)
+	diags.Append(d...)
+	if diags.HasError() {
+		return types.ListNull(types.ObjectType{AttrTypes: flatcarAttrTypes()}), diags
+	}
+
+	listVal, d := types.ListValue(types.ObjectType{AttrTypes: flatcarAttrTypes()}, []attr.Value{objVal})
+	diags.Append(d...)
+
+	return listVal, diags
+}
+
+func flattenVersions(ctx context.Context, in *models.NodeVersionInfo) (types.List, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if in == nil || in.Kubelet == "" {
+		return types.ListNull(types.ObjectType{AttrTypes: versionsAttrTypes()}), diags
+	}
+
+	versionsModel := VersionsModel{
+		Kubelet: types.StringValue(in.Kubelet),
+	}
+
+	objVal, d := types.ObjectValueFrom(ctx, versionsAttrTypes(), versionsModel)
+	diags.Append(d...)
+	if diags.HasError() {
+		return types.ListNull(types.ObjectType{AttrTypes: versionsAttrTypes()}), diags
+	}
+
+	listVal, d := types.ListValue(types.ObjectType{AttrTypes: versionsAttrTypes()}, []attr.Value{objVal})
+	diags.Append(d...)
+
+	return listVal, diags
+}
+
+func flattenTaints(ctx context.Context, in []*models.TaintSpec) (types.List, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if len(in) == 0 {
+		return types.ListNull(types.ObjectType{AttrTypes: taintAttrTypes()}), diags
+	}
+
+	taintVals := make([]attr.Value, 0, len(in))
+	for _, t := range in {
+		if t == nil {
+			continue
+		}
+
+		taintModel := TaintModel{
+			Effect: types.StringValue(t.Effect),
+			Key:    types.StringValue(t.Key),
+			Value:  types.StringValue(t.Value),
+		}
+
+		objVal, d := types.ObjectValueFrom(ctx, taintAttrTypes(), taintModel)
+		diags.Append(d...)
+		if diags.HasError() {
+			return types.ListNull(types.ObjectType{AttrTypes: taintAttrTypes()}), diags
+		}
+
+		taintVals = append(taintVals, objVal)
+	}
+
+	listVal, d := types.ListValue(types.ObjectType{AttrTypes: taintAttrTypes()}, taintVals)
+	diags.Append(d...)
+
+	return listVal, diags
+}
+
+// Framework expand functions - convert framework types to API models
+
+func expandNodeDeploymentSpec(ctx context.Context, specList types.List, isCreate bool) (*models.NodeDeploymentSpec, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if specList.IsNull() || specList.IsUnknown() || len(specList.Elements()) == 0 {
+		return nil, diags
+	}
+
+	var specModels []NodeDeploymentSpecModel
+	diags.Append(specList.ElementsAs(ctx, &specModels, false)...)
+	if diags.HasError() || len(specModels) == 0 {
+		return nil, diags
+	}
+
+	spec := specModels[0]
 	obj := &models.NodeDeploymentSpec{}
-	if p[0] == nil {
-		return obj
-	}
 
-	in, ok := p[0].(map[string]interface{})
-	if !ok {
-		return obj
-	}
-
-	if v, ok := in["min_replicas"]; ok {
-		if vv, ok := v.(int); ok {
-			obj.MinReplicas = ptr.To(int32(vv))
-			if isCreate {
-				obj.Replicas = common.Int32ToPtr(*obj.MinReplicas)
-			}
+	// Handle autoscaler vs replicas
+	if !spec.MinReplicas.IsNull() && !spec.MinReplicas.IsUnknown() {
+		minVal := int32(spec.MinReplicas.ValueInt64())
+		obj.MinReplicas = ptr.To(minVal)
+		if isCreate {
+			obj.Replicas = ptr.To(minVal)
 		}
 	}
 
-	if v, ok := in["max_replicas"]; ok {
-		if vv, ok := v.(int); ok {
-			obj.MaxReplicas = ptr.To(int32(vv))
-		}
+	if !spec.MaxReplicas.IsNull() && !spec.MaxReplicas.IsUnknown() {
+		obj.MaxReplicas = ptr.To(int32(spec.MaxReplicas.ValueInt64()))
 	}
 
-	if v, ok := in["replicas"]; ok && (obj.MinReplicas == nil || *obj.MinReplicas == 0) {
-		if vv, ok := v.(int); ok {
-			obj.Replicas = common.Int32ToPtr(int32(vv))
-		}
+	// Only use replicas if autoscaler not configured
+	if (obj.MinReplicas == nil || *obj.MinReplicas == 0) && !spec.Replicas.IsNull() && !spec.Replicas.IsUnknown() {
+		obj.Replicas = ptr.To(int32(spec.Replicas.ValueInt64()))
 	}
 
-	if v, ok := in["template"]; ok {
-		if vv, ok := v.([]interface{}); ok {
-			obj.Template = metakubeNodeDeploymentExpandNodeSpec(vv)
-		}
+	if !spec.Template.IsNull() && !spec.Template.IsUnknown() {
+		template, d := expandNodeSpec(ctx, spec.Template)
+		diags.Append(d...)
+		obj.Template = template
 	}
 
-	return obj
+	return obj, diags
 }
 
-func metakubeNodeDeploymentExpandNodeSpec(p []interface{}) *models.NodeSpec {
-	if len(p) < 1 {
-		return nil
+func expandNodeSpec(ctx context.Context, templateList types.List) (*models.NodeSpec, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if templateList.IsNull() || templateList.IsUnknown() || len(templateList.Elements()) == 0 {
+		return nil, diags
 	}
+
+	var templateModels []NodeSpecModel
+	diags.Append(templateList.ElementsAs(ctx, &templateModels, false)...)
+	if diags.HasError() || len(templateModels) == 0 {
+		return nil, diags
+	}
+
+	tmpl := templateModels[0]
 	obj := &models.NodeSpec{}
-	if p[0] == nil {
-		return obj
-	}
 
-	in, ok := p[0].(map[string]interface{})
-	if !ok {
-		return obj
-	}
-
-	if v, ok := in["labels"]; ok {
+	// Labels
+	if !tmpl.Labels.IsNull() && !tmpl.Labels.IsUnknown() {
 		obj.Labels = make(map[string]string)
-		if vv, ok := v.(map[string]interface{}); ok {
-			for key, val := range vv {
-				if s, ok := val.(string); ok && s != "" {
-					obj.Labels[key] = s
-				}
+		labelsMap := tmpl.Labels.Elements()
+		for k, v := range labelsMap {
+			if strVal, ok := v.(types.String); ok && !strVal.IsNull() && !strVal.IsUnknown() {
+				obj.Labels[k] = strVal.ValueString()
 			}
 		}
 	}
 
-	if v, ok := in["operating_system"]; ok {
-		if vv, ok := v.([]interface{}); ok {
-			obj.OperatingSystem = metakubeNodeDeploymentExpandOS(vv)
-		}
-	}
-
-	if v, ok := in["versions"]; ok {
-		if vv, ok := v.([]interface{}); ok {
-			obj.Versions = metakubeNodeDeploymentExpandVersion(vv)
-		}
-	}
-
-	if v, ok := in["taints"]; ok {
-		if vv, ok := v.([]interface{}); ok {
-			for _, t := range vv {
-				if tt, ok := t.(map[string]interface{}); ok {
-					obj.Taints = append(obj.Taints, metakubeNodeDeploymentExpandTaintSpec(tt))
-				}
+	// Node annotations
+	if !tmpl.NodeAnnotations.IsNull() && !tmpl.NodeAnnotations.IsUnknown() {
+		obj.NodeAnnotations = make(map[string]string)
+		annoMap := tmpl.NodeAnnotations.Elements()
+		for k, v := range annoMap {
+			if strVal, ok := v.(types.String); ok && !strVal.IsNull() && !strVal.IsUnknown() {
+				obj.NodeAnnotations[k] = strVal.ValueString()
 			}
 		}
 	}
 
-	if v, ok := in["cloud"]; ok {
-		if vv, ok := v.([]interface{}); ok {
-			obj.Cloud = metakubeNodeDeploymentExpandCloudSpec(vv)
+	// Machine annotations
+	if !tmpl.MachineAnnotations.IsNull() && !tmpl.MachineAnnotations.IsUnknown() {
+		obj.MachineAnnotations = make(map[string]string)
+		annoMap := tmpl.MachineAnnotations.Elements()
+		for k, v := range annoMap {
+			if strVal, ok := v.(types.String); ok && !strVal.IsNull() && !strVal.IsUnknown() {
+				obj.MachineAnnotations[k] = strVal.ValueString()
+			}
 		}
 	}
 
-	return obj
+	// Cloud
+	if !tmpl.Cloud.IsNull() && !tmpl.Cloud.IsUnknown() {
+		cloud, d := expandCloudSpec(ctx, tmpl.Cloud)
+		diags.Append(d...)
+		obj.Cloud = cloud
+	}
+
+	// Operating system
+	if !tmpl.OperatingSystem.IsNull() && !tmpl.OperatingSystem.IsUnknown() {
+		os, d := expandOperatingSystem(ctx, tmpl.OperatingSystem)
+		diags.Append(d...)
+		obj.OperatingSystem = os
+	}
+
+	// Versions
+	if !tmpl.Versions.IsNull() && !tmpl.Versions.IsUnknown() {
+		versions, d := expandVersions(ctx, tmpl.Versions)
+		diags.Append(d...)
+		obj.Versions = versions
+	}
+
+	// Taints
+	if !tmpl.Taints.IsNull() && !tmpl.Taints.IsUnknown() {
+		taints, d := expandTaints(ctx, tmpl.Taints)
+		diags.Append(d...)
+		obj.Taints = taints
+	}
+
+	return obj, diags
 }
 
-func metakubeNodeDeploymentExpandOS(p []interface{}) *models.OperatingSystemSpec {
-	if len(p) < 1 {
-		return nil
-	}
-	obj := &models.OperatingSystemSpec{}
-	if p[0] == nil {
-		return obj
+func expandCloudSpec(ctx context.Context, cloudList types.List) (*models.NodeCloudSpec, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if cloudList.IsNull() || cloudList.IsUnknown() || len(cloudList.Elements()) == 0 {
+		return nil, diags
 	}
 
-	in, ok := p[0].(map[string]interface{})
-	if !ok {
-		return obj
+	var cloudModels []CloudSpecModel
+	diags.Append(cloudList.ElementsAs(ctx, &cloudModels, false)...)
+	if diags.HasError() || len(cloudModels) == 0 {
+		return nil, diags
 	}
 
-	if v, ok := in["ubuntu"]; ok {
-		if vv, ok := v.([]interface{}); ok {
-			obj.Ubuntu = metakubeNodeDeploymentExpandUbuntu(vv)
-		}
-	}
-
-	if v, ok := in["flatcar"]; ok {
-		if vv, ok := v.([]interface{}); ok {
-			obj.Flatcar = metakubeNodeDeploymentExpandFlatcar(vv)
-		}
-	}
-
-	return obj
-}
-
-func metakubeNodeDeploymentExpandUbuntu(p []interface{}) *models.UbuntuSpec {
-	if len(p) < 1 {
-		return nil
-	}
-	obj := &models.UbuntuSpec{}
-	if p[0] == nil {
-		return obj
-	}
-
-	in, ok := p[0].(map[string]interface{})
-	if !ok {
-		return obj
-	}
-
-	if v, ok := in["dist_upgrade_on_boot"]; ok {
-		if vv, ok := v.(bool); ok {
-			obj.DistUpgradeOnBoot = vv
-		}
-	}
-
-	return obj
-}
-
-func metakubeNodeDeploymentExpandFlatcar(p []interface{}) *models.FlatcarSpec {
-	if len(p) < 1 {
-		return nil
-	}
-	obj := &models.FlatcarSpec{}
-	if p[0] == nil {
-		return obj
-	}
-
-	in, ok := p[0].(map[string]interface{})
-	if !ok {
-		return obj
-	}
-
-	if v, ok := in["disable_auto_update"]; ok {
-		if vv, ok := v.(bool); ok {
-			obj.DisableAutoUpdate = vv
-		}
-	}
-
-	return obj
-}
-
-func metakubeNodeDeploymentExpandVersion(p []interface{}) *models.NodeVersionInfo {
-	if len(p) < 1 {
-		return nil
-	}
-	if p[0] == nil {
-		return nil
-	}
-
-	in, ok := p[0].(map[string]interface{})
-	if !ok {
-		return nil
-	}
-
-	v, ok := in["kubelet"]
-	if !ok {
-		return nil
-	}
-
-	if vv, ok := v.(string); ok && vv != "" {
-		return &models.NodeVersionInfo{Kubelet: vv}
-	}
-	return nil
-}
-
-func metakubeNodeDeploymentExpandTaintSpec(in map[string]interface{}) *models.TaintSpec {
-	obj := &models.TaintSpec{}
-
-	if v, ok := in["key"]; ok {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.Key = vv
-		}
-	}
-
-	if v, ok := in["value"]; ok {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.Value = vv
-		}
-	}
-
-	if v, ok := in["effect"]; ok {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.Effect = vv
-		}
-	}
-
-	return obj
-}
-
-func metakubeNodeDeploymentExpandCloudSpec(p []interface{}) *models.NodeCloudSpec {
-	if len(p) < 1 {
-		return nil
-	}
+	cloud := cloudModels[0]
 	obj := &models.NodeCloudSpec{}
-	if p[0] == nil {
-		return obj
+
+	// AWS
+	if !cloud.AWS.IsNull() && !cloud.AWS.IsUnknown() && len(cloud.AWS.Elements()) > 0 {
+		aws, d := expandAWSCloudSpec(ctx, cloud.AWS)
+		diags.Append(d...)
+		obj.Aws = aws
 	}
 
-	in, ok := p[0].(map[string]interface{})
-	if !ok {
-		return obj
+	// OpenStack
+	if !cloud.OpenStack.IsNull() && !cloud.OpenStack.IsUnknown() && len(cloud.OpenStack.Elements()) > 0 {
+		openstack, d := expandOpenStackCloudSpec(ctx, cloud.OpenStack)
+		diags.Append(d...)
+		obj.Openstack = openstack
 	}
 
-	if v, ok := in["aws"]; ok {
-		if vv, ok := v.([]interface{}); ok {
-			obj.Aws = metakubeNodeDeploymentExpandAWSSpec(vv)
-		}
-	}
-
-	if v, ok := in["openstack"]; ok {
-		if vv, ok := v.([]interface{}); ok {
-			obj.Openstack = metakubeNodeDeploymentExpandOpenstackSpec(vv)
-		}
-	}
-
-	return obj
+	return obj, diags
 }
 
-func metakubeNodeDeploymentExpandAWSSpec(p []interface{}) *models.AWSNodeSpec {
-	if len(p) < 1 {
-		return nil
+func expandAWSCloudSpec(ctx context.Context, awsList types.List) (*models.AWSNodeSpec, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if awsList.IsNull() || awsList.IsUnknown() || len(awsList.Elements()) == 0 {
+		return nil, diags
 	}
+
+	var awsModels []AWSCloudSpecModel
+	diags.Append(awsList.ElementsAs(ctx, &awsModels, false)...)
+	if diags.HasError() || len(awsModels) == 0 {
+		return nil, diags
+	}
+
+	aws := awsModels[0]
 	obj := &models.AWSNodeSpec{}
-	if p[0] == nil {
-		return obj
+
+	if !aws.InstanceType.IsNull() && !aws.InstanceType.IsUnknown() {
+		obj.InstanceType = common.StrToPtr(aws.InstanceType.ValueString())
 	}
 
-	in, ok := p[0].(map[string]interface{})
-	if !ok {
-		return obj
+	if !aws.DiskSize.IsNull() && !aws.DiskSize.IsUnknown() {
+		obj.VolumeSize = ptr.To(int32(aws.DiskSize.ValueInt64()))
 	}
 
-	if v, ok := in["instance_type"]; ok {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.InstanceType = common.StrToPtr(vv)
-		}
+	if !aws.VolumeType.IsNull() && !aws.VolumeType.IsUnknown() {
+		obj.VolumeType = common.StrToPtr(aws.VolumeType.ValueString())
 	}
 
-	if v, ok := in["disk_size"]; ok {
-		if vv, ok := v.(int); ok {
-			obj.VolumeSize = common.IntToInt32Ptr(vv)
-		}
+	if !aws.AvailabilityZone.IsNull() && !aws.AvailabilityZone.IsUnknown() {
+		obj.AvailabilityZone = aws.AvailabilityZone.ValueString()
 	}
 
-	if v, ok := in["volume_type"]; ok {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.VolumeType = common.StrToPtr(vv)
-		}
+	if !aws.SubnetID.IsNull() && !aws.SubnetID.IsUnknown() {
+		obj.SubnetID = aws.SubnetID.ValueString()
 	}
 
-	if v, ok := in["availability_zone"]; ok {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.AvailabilityZone = vv
-		}
+	if !aws.AssignPublicIP.IsNull() && !aws.AssignPublicIP.IsUnknown() {
+		obj.AssignPublicIP = aws.AssignPublicIP.ValueBool()
 	}
 
-	if v, ok := in["subnet_id"]; ok {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.SubnetID = vv
-		}
+	if !aws.AMI.IsNull() && !aws.AMI.IsUnknown() {
+		obj.AMI = aws.AMI.ValueString()
 	}
 
-	if v, ok := in["assign_public_ip"]; ok {
-		if vv, ok := v.(bool); ok {
-			obj.AssignPublicIP = vv
-		}
-	}
-
-	if v, ok := in["ami"]; ok {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.AMI = vv
-		}
-	}
-
-	if v, ok := in["tags"]; ok {
+	if !aws.Tags.IsNull() && !aws.Tags.IsUnknown() {
 		obj.Tags = make(map[string]string)
-		if vv, ok := v.(map[string]interface{}); ok {
-			for key, val := range vv {
-				if s, ok := val.(string); ok && s != "" {
-					obj.Tags[key] = s
-				}
+		tagsMap := aws.Tags.Elements()
+		for k, v := range tagsMap {
+			if strVal, ok := v.(types.String); ok && !strVal.IsNull() && !strVal.IsUnknown() {
+				obj.Tags[k] = strVal.ValueString()
 			}
 		}
 	}
 
-	return obj
+	return obj, diags
 }
 
-func metakubeNodeDeploymentExpandOpenstackSpec(p []interface{}) *models.OpenstackNodeSpec {
-	if len(p) < 1 {
-		return nil
+func expandOpenStackCloudSpec(ctx context.Context, osList types.List) (*models.OpenstackNodeSpec, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if osList.IsNull() || osList.IsUnknown() || len(osList.Elements()) == 0 {
+		return nil, diags
 	}
+
+	var osModels []OpenStackCloudSpecModel
+	diags.Append(osList.ElementsAs(ctx, &osModels, false)...)
+	if diags.HasError() || len(osModels) == 0 {
+		return nil, diags
+	}
+
+	os := osModels[0]
 	obj := &models.OpenstackNodeSpec{}
-	if p[0] == nil {
-		return obj
+
+	if !os.Flavor.IsNull() && !os.Flavor.IsUnknown() {
+		obj.Flavor = common.StrToPtr(os.Flavor.ValueString())
 	}
 
-	in, ok := p[0].(map[string]interface{})
-	if !ok {
-		return obj
+	if !os.Image.IsNull() && !os.Image.IsUnknown() {
+		obj.Image = common.StrToPtr(os.Image.ValueString())
 	}
 
-	if v, ok := in["flavor"]; ok {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.Flavor = common.StrToPtr(vv)
-		}
+	if !os.UseFloatingIP.IsNull() && !os.UseFloatingIP.IsUnknown() {
+		obj.UseFloatingIP = ptr.To(os.UseFloatingIP.ValueBool())
 	}
 
-	if v, ok := in["image"]; ok {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.Image = common.StrToPtr(vv)
-		}
+	if !os.InstanceReadyCheckPeriod.IsNull() && !os.InstanceReadyCheckPeriod.IsUnknown() {
+		obj.InstanceReadyCheckPeriod = os.InstanceReadyCheckPeriod.ValueString()
 	}
 
-	if v, ok := in["use_floating_ip"]; ok {
-		if vv, ok := v.(bool); ok {
-			obj.UseFloatingIP = ptr.To(vv)
-		}
+	if !os.InstanceReadyCheckTimeout.IsNull() && !os.InstanceReadyCheckTimeout.IsUnknown() {
+		obj.InstanceReadyCheckTimeout = os.InstanceReadyCheckTimeout.ValueString()
 	}
 
-	if v, ok := in["instance_ready_check_period"]; ok {
-		if vv, ok := v.(string); ok {
-			obj.InstanceReadyCheckPeriod = vv
-		}
+	if !os.DiskSize.IsNull() && !os.DiskSize.IsUnknown() {
+		obj.RootDiskSizeGB = ptr.To(os.DiskSize.ValueInt64())
 	}
 
-	if v, ok := in["instance_ready_check_timeout"]; ok {
-		if vv, ok := v.(string); ok {
-			obj.InstanceReadyCheckTimeout = vv
-		}
+	if !os.ServerGroupID.IsNull() && !os.ServerGroupID.IsUnknown() {
+		obj.ServerGroupID = os.ServerGroupID.ValueString()
 	}
 
-	if v, ok := in["tags"]; ok {
+	if !os.Tags.IsNull() && !os.Tags.IsUnknown() {
 		obj.Tags = make(map[string]string)
-		for key, val := range v.(map[string]interface{}) {
-			if s, ok := val.(string); ok && s != "" {
-				obj.Tags[key] = s
+		tagsMap := os.Tags.Elements()
+		for k, v := range tagsMap {
+			if strVal, ok := v.(types.String); ok && !strVal.IsNull() && !strVal.IsUnknown() {
+				obj.Tags[k] = strVal.ValueString()
 			}
 		}
 	}
 
-	if v, ok := in["disk_size"]; ok {
-		if vv, ok := v.(int); ok {
-			obj.RootDiskSizeGB = ptr.To(int64(vv))
-		}
-	}
-
-	if v, ok := in["server_group_id"]; ok {
-		if vv, ok := v.(string); ok {
-			obj.ServerGroupID = vv
-		}
-	}
-
-	return obj
+	return obj, diags
 }
 
-func metakubeNodeDeploymentExpandAzureSpec(p []interface{}) *models.AzureNodeSpec {
-	if len(p) < 1 {
-		return nil
+func expandOperatingSystem(ctx context.Context, osList types.List) (*models.OperatingSystemSpec, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if osList.IsNull() || osList.IsUnknown() || len(osList.Elements()) == 0 {
+		return nil, diags
 	}
 
-	obj := &models.AzureNodeSpec{}
-
-	if p[0] == nil {
-		return obj
+	var osModels []OperatingSystemModel
+	diags.Append(osList.ElementsAs(ctx, &osModels, false)...)
+	if diags.HasError() || len(osModels) == 0 {
+		return nil, diags
 	}
 
-	in, ok := p[0].(map[string]interface{})
-	if !ok {
-		return obj
+	os := osModels[0]
+	obj := &models.OperatingSystemSpec{}
+
+	if !os.Ubuntu.IsNull() && !os.Ubuntu.IsUnknown() && len(os.Ubuntu.Elements()) > 0 {
+		ubuntu, d := expandUbuntu(ctx, os.Ubuntu)
+		diags.Append(d...)
+		obj.Ubuntu = ubuntu
 	}
 
-	if v, ok := in["image_id"]; ok {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.ImageID = vv
+	if !os.Flatcar.IsNull() && !os.Flatcar.IsUnknown() && len(os.Flatcar.Elements()) > 0 {
+		flatcar, d := expandFlatcar(ctx, os.Flatcar)
+		diags.Append(d...)
+		obj.Flatcar = flatcar
+	}
+
+	return obj, diags
+}
+
+func expandUbuntu(ctx context.Context, ubuntuList types.List) (*models.UbuntuSpec, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if ubuntuList.IsNull() || ubuntuList.IsUnknown() || len(ubuntuList.Elements()) == 0 {
+		return nil, diags
+	}
+
+	var ubuntuModels []UbuntuModel
+	diags.Append(ubuntuList.ElementsAs(ctx, &ubuntuModels, false)...)
+	if diags.HasError() || len(ubuntuModels) == 0 {
+		return nil, diags
+	}
+
+	ubuntu := ubuntuModels[0]
+	obj := &models.UbuntuSpec{}
+
+	if !ubuntu.DistUpgradeOnBoot.IsNull() && !ubuntu.DistUpgradeOnBoot.IsUnknown() {
+		obj.DistUpgradeOnBoot = ubuntu.DistUpgradeOnBoot.ValueBool()
+	}
+
+	return obj, diags
+}
+
+func expandFlatcar(ctx context.Context, flatcarList types.List) (*models.FlatcarSpec, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if flatcarList.IsNull() || flatcarList.IsUnknown() || len(flatcarList.Elements()) == 0 {
+		return nil, diags
+	}
+
+	var flatcarModels []FlatcarModel
+	diags.Append(flatcarList.ElementsAs(ctx, &flatcarModels, false)...)
+	if diags.HasError() || len(flatcarModels) == 0 {
+		return nil, diags
+	}
+
+	flatcar := flatcarModels[0]
+	obj := &models.FlatcarSpec{}
+
+	if !flatcar.DisableAutoUpdate.IsNull() && !flatcar.DisableAutoUpdate.IsUnknown() {
+		obj.DisableAutoUpdate = flatcar.DisableAutoUpdate.ValueBool()
+	}
+
+	return obj, diags
+}
+
+func expandVersions(ctx context.Context, versionsList types.List) (*models.NodeVersionInfo, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if versionsList.IsNull() || versionsList.IsUnknown() || len(versionsList.Elements()) == 0 {
+		return nil, diags
+	}
+
+	var versionsModels []VersionsModel
+	diags.Append(versionsList.ElementsAs(ctx, &versionsModels, false)...)
+	if diags.HasError() || len(versionsModels) == 0 {
+		return nil, diags
+	}
+
+	versions := versionsModels[0]
+
+	if versions.Kubelet.IsNull() || versions.Kubelet.IsUnknown() || versions.Kubelet.ValueString() == "" {
+		return nil, diags
+	}
+
+	return &models.NodeVersionInfo{
+		Kubelet: versions.Kubelet.ValueString(),
+	}, diags
+}
+
+func expandTaints(ctx context.Context, taintsList types.List) ([]*models.TaintSpec, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if taintsList.IsNull() || taintsList.IsUnknown() || len(taintsList.Elements()) == 0 {
+		return nil, diags
+	}
+
+	var taintModels []TaintModel
+	diags.Append(taintsList.ElementsAs(ctx, &taintModels, false)...)
+	if diags.HasError() || len(taintModels) == 0 {
+		return nil, diags
+	}
+
+	taints := make([]*models.TaintSpec, 0, len(taintModels))
+	for _, t := range taintModels {
+		taint := &models.TaintSpec{}
+
+		if !t.Effect.IsNull() && !t.Effect.IsUnknown() {
+			taint.Effect = t.Effect.ValueString()
 		}
-	}
 
-	if v, ok := in["size"]; ok {
-		if vv, ok := v.(string); ok && vv != "" {
-			obj.Size = common.StrToPtr(vv)
+		if !t.Key.IsNull() && !t.Key.IsUnknown() {
+			taint.Key = t.Key.ValueString()
 		}
-	}
 
-	if v, ok := in["assign_public_ip"]; ok {
-		if vv, ok := v.(bool); ok {
-			obj.AssignPublicIP = vv
+		if !t.Value.IsNull() && !t.Value.IsUnknown() {
+			taint.Value = t.Value.ValueString()
 		}
+
+		taints = append(taints, taint)
 	}
 
-	if v, ok := in["disk_size_gb"]; ok {
-		if vv, ok := v.(int32); ok {
-			obj.DataDiskSize = vv
-		}
+	return taints, diags
+}
+
+func getCloudProviderFromModel(ctx context.Context, model *NodeDeploymentModel) (string, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if model.Spec.IsNull() || model.Spec.IsUnknown() || len(model.Spec.Elements()) == 0 {
+		return "", diags
 	}
 
-	if v, ok := in["os_disk_size_gb"]; ok {
-		if vv, ok := v.(int32); ok {
-			obj.OSDiskSize = vv
-		}
+	var specModels []NodeDeploymentSpecModel
+	diags.Append(model.Spec.ElementsAs(ctx, &specModels, false)...)
+	if diags.HasError() || len(specModels) == 0 {
+		return "", diags
 	}
 
-	if v, ok := in["tags"]; ok {
-		if vv, ok := v.(map[string]string); ok {
-			obj.Tags = vv
-		}
+	spec := specModels[0]
+	if spec.Template.IsNull() || spec.Template.IsUnknown() || len(spec.Template.Elements()) == 0 {
+		return "", diags
 	}
 
-	if v, ok := in["zones"]; ok {
-		if vv, ok := v.([]string); ok && len(vv) > 0 {
-			obj.Zones = vv
-		}
+	var templateModels []NodeSpecModel
+	diags.Append(spec.Template.ElementsAs(ctx, &templateModels, false)...)
+	if diags.HasError() || len(templateModels) == 0 {
+		return "", diags
 	}
 
-	return obj
+	tmpl := templateModels[0]
+	if tmpl.Cloud.IsNull() || tmpl.Cloud.IsUnknown() || len(tmpl.Cloud.Elements()) == 0 {
+		return "", diags
+	}
+
+	var cloudModels []CloudSpecModel
+	diags.Append(tmpl.Cloud.ElementsAs(ctx, &cloudModels, false)...)
+	if diags.HasError() || len(cloudModels) == 0 {
+		return "", diags
+	}
+
+	cloud := cloudModels[0]
+
+	if !cloud.AWS.IsNull() && !cloud.AWS.IsUnknown() && len(cloud.AWS.Elements()) > 0 {
+		return "aws", diags
+	}
+	if !cloud.OpenStack.IsNull() && !cloud.OpenStack.IsUnknown() && len(cloud.OpenStack.Elements()) > 0 {
+		return "openstack", diags
+	}
+
+	return "", diags
 }

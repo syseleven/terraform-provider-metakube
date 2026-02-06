@@ -1,723 +1,345 @@
 package resource_node_deployment
 
 import (
+	"context"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/syseleven/go-metakube/models"
-	"github.com/syseleven/terraform-provider-metakube/metakube/common"
 	"k8s.io/utils/ptr"
 )
 
-func TestMetakubeNodeDeploymentFlatten(t *testing.T) {
-	cases := []struct {
-		Input          *models.NodeDeploymentSpec
-		ExpectedOutput []interface{}
+func TestFrameworkFlattenNodeDeploymentSpec(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name     string
+		input    *models.NodeDeploymentSpec
+		wantNull bool
 	}{
 		{
-			&models.NodeDeploymentSpec{
-				Replicas: common.Int32ToPtr(1),
-				Template: &models.NodeSpec{},
-			},
-			[]interface{}{
-				map[string]interface{}{
-					"replicas": int32(1),
-					"template": []interface{}{map[string]interface{}{}},
-				},
-			},
+			name:     "nil spec",
+			input:    nil,
+			wantNull: true,
 		},
 		{
-			&models.NodeDeploymentSpec{},
-			[]interface{}{
-				map[string]interface{}{},
+			name: "basic spec with replicas",
+			input: &models.NodeDeploymentSpec{
+				Replicas: ptr.To(int32(3)),
 			},
+			wantNull: false,
 		},
 		{
-			nil,
-			[]interface{}{},
+			name: "autoscaler spec",
+			input: &models.NodeDeploymentSpec{
+				MinReplicas: ptr.To(int32(1)),
+				MaxReplicas: ptr.To(int32(5)),
+			},
+			wantNull: false,
 		},
 	}
 
-	for _, tc := range cases {
-		output := metakubeNodeDeploymentFlattenSpec(tc.Input)
-		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
-			t.Fatalf("Unexpected output from flattener: mismatch (-want +got):\n%s", diff)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, diags := flattenNodeDeploymentSpec(ctx, tt.input)
+			if diags.HasError() {
+				t.Fatalf("unexpected errors: %v", diags)
+			}
+
+			if tt.wantNull {
+				if !result.IsNull() {
+					t.Errorf("expected null result, got non-null")
+				}
+				return
+			}
+
+			if result.IsNull() {
+				t.Error("expected non-null result, got null")
+			}
+		})
 	}
 }
 
-func TestMetakubeNodeDeploymentSpecFlatten(t *testing.T) {
-	cases := []struct {
-		Input          *models.NodeSpec
-		ExpectedOutput []interface{}
+func TestFrameworkExpandNodeDeploymentSpec(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name     string
+		replicas int64
+		isCreate bool
+		wantSpec *models.NodeDeploymentSpec
 	}{
 		{
-			&models.NodeSpec{
-				OperatingSystem: &models.OperatingSystemSpec{
-					Ubuntu: &models.UbuntuSpec{},
-				},
-				Taints: []*models.TaintSpec{
-					{
-						Key:    "key1",
-						Value:  "value1",
-						Effect: "NoSchedule",
-					},
-					{
-						Key:    "key2",
-						Value:  "value2",
-						Effect: "NoSchedule",
-					},
-				},
-				Cloud: &models.NodeCloudSpec{
-					Aws: &models.AWSNodeSpec{},
-				},
-				Labels: map[string]string{
-					"foo": "bar",
-				},
-				Versions: &models.NodeVersionInfo{
-					Kubelet: "1.18.8",
-				},
-			},
-			[]interface{}{
-				map[string]interface{}{
-					"operating_system": []interface{}{
-						map[string]interface{}{
-							"ubuntu": []interface{}{
-								map[string]interface{}{
-									"dist_upgrade_on_boot": false,
-								},
-							},
-						},
-					},
-					"taints": []interface{}{
-						map[string]interface{}{
-							"key":    "key1",
-							"value":  "value1",
-							"effect": "NoSchedule",
-						},
-						map[string]interface{}{
-							"key":    "key2",
-							"value":  "value2",
-							"effect": "NoSchedule",
-						},
-					},
-					"cloud": []interface{}{
-						map[string]interface{}{
-							"aws": []interface{}{
-								map[string]interface{}{
-									"assign_public_ip": false,
-								},
-							},
-						},
-					},
-					"labels": map[string]string{
-						"foo": "bar",
-					},
-					"versions": []interface{}{
-						map[string]interface{}{
-							"kubelet": "1.18.8",
-						},
-					},
-				},
+			name:     "basic replicas on create",
+			replicas: 3,
+			isCreate: true,
+			wantSpec: &models.NodeDeploymentSpec{
+				Replicas: ptr.To(int32(3)),
 			},
 		},
 		{
-			&models.NodeSpec{
-				Versions: &models.NodeVersionInfo{
-					Kubelet: "",
-				},
+			name:     "basic replicas on update",
+			replicas: 3,
+			isCreate: false,
+			wantSpec: &models.NodeDeploymentSpec{
+				Replicas: ptr.To(int32(3)),
 			},
-			[]interface{}{
-				map[string]interface{}{},
-			},
-		},
-		{
-			&models.NodeSpec{},
-			[]interface{}{
-				map[string]interface{}{},
-			},
-		},
-		{
-			nil,
-			[]interface{}{},
 		},
 	}
 
-	for _, tc := range cases {
-		output := metakubeNodeDeploymentFlattenNodeSpec(tc.Input)
-		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
-			t.Fatalf("Unexpected output from flattener: mismatch (-want +got):\n%s", diff)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Build a spec model
+			specModel := NodeDeploymentSpecModel{
+				Replicas:    types.Int64Value(tt.replicas),
+				MinReplicas: types.Int64Null(),
+				MaxReplicas: types.Int64Null(),
+				Template:    types.ListNull(types.ObjectType{AttrTypes: nodeSpecAttrTypes()}),
+			}
+
+			// Create list from model
+			specObjVal, diags := types.ObjectValueFrom(ctx, nodeDeploymentSpecAttrTypes(), specModel)
+			if diags.HasError() {
+				t.Fatalf("failed to create object: %v", diags)
+			}
+
+			specList, diags := types.ListValue(types.ObjectType{AttrTypes: nodeDeploymentSpecAttrTypes()}, []attr.Value{specObjVal})
+			if diags.HasError() {
+				t.Fatalf("failed to create list: %v", diags)
+			}
+
+			result, diags := expandNodeDeploymentSpec(ctx, specList, tt.isCreate)
+			if diags.HasError() {
+				t.Fatalf("unexpected errors: %v", diags)
+			}
+
+			if result == nil {
+				t.Fatal("expected non-nil result")
+			}
+
+			// Compare replicas
+			if result.Replicas == nil {
+				t.Error("expected non-nil replicas")
+			} else if *result.Replicas != *tt.wantSpec.Replicas {
+				t.Errorf("replicas mismatch: got %d, want %d", *result.Replicas, *tt.wantSpec.Replicas)
+			}
+		})
 	}
 }
 
-func TestMetakubeNodeDeploymentFlattenOperatingSystem(t *testing.T) {
-	cases := []struct {
-		Input          *models.OperatingSystemSpec
-		ExpectedOutput []interface{}
-	}{
-		{
-			&models.OperatingSystemSpec{
+func TestFlattenAndExpandRoundTrip(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a complete spec
+	originalSpec := &models.NodeDeploymentSpec{
+		Replicas: ptr.To(int32(2)),
+		Template: &models.NodeSpec{
+			Labels: map[string]string{
+				"env":  "test",
+				"team": "platform",
+			},
+			NodeAnnotations: map[string]string{
+				"node-anno-key": "node-anno-val",
+			},
+			MachineAnnotations: map[string]string{
+				"a": "b",
+			},
+			Cloud: &models.NodeCloudSpec{
+				Openstack: &models.OpenstackNodeSpec{
+					Flavor:                    ptr.To("m1.small"),
+					Image:                     ptr.To("Ubuntu 22.04"),
+					UseFloatingIP:             ptr.To(true),
+					InstanceReadyCheckPeriod:  "5s",
+					InstanceReadyCheckTimeout: "120s",
+				},
+			},
+			OperatingSystem: &models.OperatingSystemSpec{
 				Ubuntu: &models.UbuntuSpec{
-					DistUpgradeOnBoot: true,
+					DistUpgradeOnBoot: false,
 				},
 			},
-			[]interface{}{
-				map[string]interface{}{
-					"ubuntu": []interface{}{
-						map[string]interface{}{
-							"dist_upgrade_on_boot": true,
-						},
-					},
-				},
+			Versions: &models.NodeVersionInfo{
+				Kubelet: "1.28.0",
 			},
-		},
-		{
-			&models.OperatingSystemSpec{
-				Flatcar: &models.FlatcarSpec{
-					DisableAutoUpdate: true,
-				},
-			},
-			[]interface{}{
-				map[string]interface{}{
-					"flatcar": []interface{}{
-						map[string]interface{}{
-							"disable_auto_update": true,
-						},
-					},
-				},
-			},
-		},
-		{
-			&models.OperatingSystemSpec{},
-			[]interface{}{
-				map[string]interface{}{},
-			},
-		},
-		{
-			nil,
-			[]interface{}{},
 		},
 	}
 
-	for _, tc := range cases {
-		output := metakubeNodeDeploymentFlattenOperatingSystem(tc.Input)
-		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
-			t.Fatalf("Unexpected output from flattener: mismatch (-want +got):\n%s", diff)
-		}
+	// Flatten
+	flattenedList, diags := flattenNodeDeploymentSpec(ctx, originalSpec)
+	if diags.HasError() {
+		t.Fatalf("flatten failed: %v", diags)
+	}
+
+	// Expand
+	expandedSpec, diags := expandNodeDeploymentSpec(ctx, flattenedList, false)
+	if diags.HasError() {
+		t.Fatalf("expand failed: %v", diags)
+	}
+
+	// Compare
+	opts := []cmp.Option{
+		cmpopts.IgnoreUnexported(models.NodeDeploymentSpec{}),
+		cmpopts.IgnoreUnexported(models.NodeSpec{}),
+		cmpopts.IgnoreUnexported(models.NodeCloudSpec{}),
+		cmpopts.IgnoreUnexported(models.OpenstackNodeSpec{}),
+		cmpopts.IgnoreUnexported(models.OperatingSystemSpec{}),
+		cmpopts.IgnoreUnexported(models.UbuntuSpec{}),
+		cmpopts.IgnoreUnexported(models.NodeVersionInfo{}),
+	}
+
+	if diff := cmp.Diff(originalSpec, expandedSpec, opts...); diff != "" {
+		t.Errorf("round-trip mismatch (-original +expanded):\n%s", diff)
 	}
 }
 
-func TestMetakubeNodeDeploymentFlattenAWSSpec(t *testing.T) {
-	cases := []struct {
-		Input          *models.AWSNodeSpec
-		ExpectedOutput []interface{}
+func TestGetCloudProviderFromModel(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name         string
+		cloudModel   CloudSpecModel
+		wantProvider string
 	}{
 		{
-			&models.AWSNodeSpec{
-				AMI:              "ami-5731123e",
-				AssignPublicIP:   true,
-				AvailabilityZone: "eu-west-1",
-				InstanceType:     common.StrToPtr("t3.small"),
-				SubnetID:         "subnet-53485",
-				Tags: map[string]string{
-					"foo": "bar",
-				},
-				VolumeSize: common.IntToInt32Ptr(25),
-				VolumeType: common.StrToPtr("standard"),
+			name: "AWS",
+			cloudModel: CloudSpecModel{
+				AWS:       buildMockAWSList(ctx, t),
+				OpenStack: types.ListNull(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}),
 			},
-			[]interface{}{
-				map[string]interface{}{
-					"ami":               "ami-5731123e",
-					"assign_public_ip":  true,
-					"availability_zone": "eu-west-1",
-					"instance_type":     "t3.small",
-					"subnet_id":         "subnet-53485",
-					"tags": map[string]string{
-						"foo": "bar",
-					},
-					"disk_size":   int32(25),
-					"volume_type": "standard",
-				},
-			},
+			wantProvider: "aws",
 		},
 		{
-			&models.AWSNodeSpec{},
-			[]interface{}{
-				map[string]interface{}{
-					"assign_public_ip": false,
-				},
+			name: "OpenStack",
+			cloudModel: CloudSpecModel{
+				AWS:       types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}),
+				OpenStack: buildMockOpenStackList(ctx, t),
 			},
-		},
-		{
-			nil,
-			[]interface{}{},
+			wantProvider: "openstack",
 		},
 	}
 
-	for _, tc := range cases {
-		output := metakubeNodeDeploymentFlattenAWSSpec(tc.Input)
-		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
-			t.Fatalf("Unexpected output from flattener: mismatch (-want +got):\n%s", diff)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			model := buildMockNodeDeploymentModel(ctx, t, tt.cloudModel)
+			provider, diags := getCloudProviderFromModel(ctx, model)
+			if diags.HasError() {
+				t.Fatalf("unexpected errors: %v", diags)
+			}
+
+			if provider != tt.wantProvider {
+				t.Errorf("provider mismatch: got %s, want %s", provider, tt.wantProvider)
+			}
+		})
 	}
 }
 
-func TestFlattenAzureNodeSpec(t *testing.T) {
-	cases := []struct {
-		Input          *models.AzureNodeSpec
-		ExpectedOutput []interface{}
-	}{
-		{
-			&models.AzureNodeSpec{
-				ImageID:        "ImageID",
-				Size:           common.StrToPtr("Size"),
-				AssignPublicIP: false,
-				DataDiskSize:   1,
-				OSDiskSize:     2,
-				Tags: map[string]string{
-					"tag-k": "tag-v",
-				},
-				Zones: []string{"Zone-x"},
-			},
-			[]interface{}{
-				map[string]interface{}{
-					"image_id":         "ImageID",
-					"size":             "Size",
-					"assign_public_ip": false,
-					"disk_size_gb":     int32(1),
-					"os_disk_size_gb":  int32(2),
-					"tags": map[string]string{
-						"tag-k": "tag-v",
-					},
-					"zones": []string{"Zone-x"},
-				},
-			},
-		},
-		{
-			&models.AzureNodeSpec{},
-			[]interface{}{
-				map[string]interface{}{
-					"assign_public_ip": false,
-					"disk_size_gb":     int32(0),
-					"os_disk_size_gb":  int32(0),
-				},
-			},
-		},
-		{
-			nil,
-			[]interface{}{},
-		},
-	}
+// Helpers
 
-	for _, tc := range cases {
-		output := metakubeNodeDeploymentFlattenAzureSpec(tc.Input)
-		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
-			t.Fatalf("Unexpected output from flattener: mismatch (-want +got):\n%s", diff)
-		}
+func buildMockAWSList(ctx context.Context, t *testing.T) types.List {
+	t.Helper()
+	awsModel := AWSCloudSpecModel{
+		InstanceType:     types.StringValue("t3.medium"),
+		DiskSize:         types.Int64Value(50),
+		VolumeType:       types.StringValue("gp2"),
+		AvailabilityZone: types.StringValue("us-east-1a"),
+		SubnetID:         types.StringValue("subnet-123"),
+		AssignPublicIP:   types.BoolValue(true),
+		AMI:              types.StringNull(),
+		Tags:             types.MapNull(types.StringType),
 	}
+	objVal, diags := types.ObjectValueFrom(ctx, awsCloudSpecAttrTypes(), awsModel)
+	if diags.HasError() {
+		t.Fatalf("failed to build AWS object: %v", diags)
+	}
+	list, diags := types.ListValue(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}, []attr.Value{objVal})
+	if diags.HasError() {
+		t.Fatalf("failed to build AWS list: %v", diags)
+	}
+	return list
 }
 
-func TestFlattenOpenstackNodeSpec(t *testing.T) {
-	cases := []struct {
-		Input          *models.OpenstackNodeSpec
-		ExpectedOutput []interface{}
-	}{
-		{
-			&models.OpenstackNodeSpec{
-				Flavor:                    common.StrToPtr("big"),
-				Image:                     common.StrToPtr("Ubuntu"),
-				UseFloatingIP:             ptr.To(true),
-				InstanceReadyCheckPeriod:  "10s",
-				InstanceReadyCheckTimeout: "120s",
-				Tags: map[string]string{
-					"foo": "bar",
-				},
-				RootDiskSizeGB: ptr.To(int64(999)),
-			},
-			[]interface{}{
-				map[string]interface{}{
-					"flavor":                       "big",
-					"image":                        "Ubuntu",
-					"instance_ready_check_period":  "10s",
-					"instance_ready_check_timeout": "120s",
-					"use_floating_ip":              ptr.To(true),
-					"tags": map[string]string{
-						"foo": "bar",
-					},
-					"disk_size": int64(999),
-				},
-			},
-		},
-		{
-			&models.OpenstackNodeSpec{},
-			[]interface{}{
-				map[string]interface{}{
-					"use_floating_ip": (*bool)(nil),
-				},
-			},
-		},
-		{
-			nil,
-			[]interface{}{},
-		},
+func buildMockOpenStackList(ctx context.Context, t *testing.T) types.List {
+	t.Helper()
+	osModel := OpenStackCloudSpecModel{
+		Flavor:                    types.StringValue("m1.small"),
+		Image:                     types.StringValue("Ubuntu 22.04"),
+		DiskSize:                  types.Int64Null(),
+		Tags:                      types.MapNull(types.StringType),
+		UseFloatingIP:             types.BoolValue(true),
+		InstanceReadyCheckPeriod:  types.StringValue("5s"),
+		InstanceReadyCheckTimeout: types.StringValue("120s"),
+		ServerGroupID:             types.StringNull(),
 	}
-
-	for _, tc := range cases {
-		output := metakubeNodeDeploymentFlattenOpenstackSpec(tc.Input)
-		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
-			t.Fatalf("Unexpected output from flattener: mismatch (-want +got):\n%s", diff)
-		}
+	objVal, diags := types.ObjectValueFrom(ctx, openstackCloudSpecAttrTypes(), osModel)
+	if diags.HasError() {
+		t.Fatalf("failed to build OpenStack object: %v", diags)
 	}
+	list, diags := types.ListValue(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}, []attr.Value{objVal})
+	if diags.HasError() {
+		t.Fatalf("failed to build OpenStack list: %v", diags)
+	}
+	return list
 }
 
-func TestExpandNodeDeploymentSpec(t *testing.T) {
-	cases := []struct {
-		Input          []interface{}
-		ExpectedOutput *models.NodeDeploymentSpec
-	}{
-		{
-			[]interface{}{
-				map[string]interface{}{
-					"replicas": 1,
-					"template": []interface{}{map[string]interface{}{}},
-				},
-			},
-			&models.NodeDeploymentSpec{
-				Replicas: common.Int32ToPtr(1),
-				Template: &models.NodeSpec{},
-			},
-		},
-		{
+func buildMockNodeDeploymentModel(ctx context.Context, t *testing.T, cloudModel CloudSpecModel) *NodeDeploymentModel {
+	t.Helper()
 
-			[]interface{}{
-				map[string]interface{}{},
-			},
-			&models.NodeDeploymentSpec{},
-		},
-		{
-			[]interface{}{},
-			nil,
-		},
+	// Build cloud object
+	cloudObj, diags := types.ObjectValueFrom(ctx, cloudSpecAttrTypes(), cloudModel)
+	if diags.HasError() {
+		t.Fatalf("failed to build cloud object: %v", diags)
+	}
+	cloudList, diags := types.ListValue(types.ObjectType{AttrTypes: cloudSpecAttrTypes()}, []attr.Value{cloudObj})
+	if diags.HasError() {
+		t.Fatalf("failed to build cloud list: %v", diags)
 	}
 
-	for _, tc := range cases {
-		output := metakubeNodeDeploymentExpandSpec(tc.Input, false)
-		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
-			t.Fatalf("Unexpected output from expander: mismatch (-want +got):\n%s", diff)
-		}
+	// Build node spec
+	nodeSpecModel := NodeSpecModel{
+		Cloud:              cloudList,
+		OperatingSystem:    types.ListNull(types.ObjectType{AttrTypes: operatingSystemAttrTypes()}),
+		Versions:           types.ListNull(types.ObjectType{AttrTypes: versionsAttrTypes()}),
+		Labels:             types.MapNull(types.StringType),
+		AllLabels:          types.MapNull(types.StringType),
+		Taints:             types.ListNull(types.ObjectType{AttrTypes: taintAttrTypes()}),
+		NodeAnnotations:    types.MapNull(types.StringType),
+		MachineAnnotations: types.MapNull(types.StringType),
 	}
-}
-
-func TestExpandNodeSpec(t *testing.T) {
-	cases := []struct {
-		Input          []interface{}
-		ExpectedOutput *models.NodeSpec
-	}{
-		{
-			[]interface{}{
-				map[string]interface{}{
-					"operating_system": []interface{}{
-						map[string]interface{}{
-							"ubuntu": []interface{}{
-								map[string]interface{}{
-									"dist_upgrade_on_boot": false,
-								},
-							},
-						},
-					},
-					"taints": []interface{}{
-						map[string]interface{}{
-							"key":    "key1",
-							"value":  "value1",
-							"effect": "NoSchedule",
-						},
-						map[string]interface{}{
-							"key":    "key2",
-							"value":  "value2",
-							"effect": "NoSchedule",
-						},
-					},
-					"cloud": []interface{}{
-						map[string]interface{}{
-							"aws": []interface{}{
-								map[string]interface{}{
-									"assign_public_ip": false,
-								},
-							},
-						},
-					},
-					"labels": map[string]interface{}{
-						"foo": "bar",
-					},
-					"versions": []interface{}{
-						map[string]interface{}{
-							"kubelet": "1.18.8",
-						},
-					},
-				},
-			},
-			&models.NodeSpec{
-				OperatingSystem: &models.OperatingSystemSpec{
-					Ubuntu: &models.UbuntuSpec{},
-				},
-				Taints: []*models.TaintSpec{
-					{
-						Key:    "key1",
-						Value:  "value1",
-						Effect: "NoSchedule",
-					},
-					{
-						Key:    "key2",
-						Value:  "value2",
-						Effect: "NoSchedule",
-					},
-				},
-				Cloud: &models.NodeCloudSpec{
-					Aws: &models.AWSNodeSpec{},
-				},
-				Labels: map[string]string{
-					"foo": "bar",
-				},
-				Versions: &models.NodeVersionInfo{
-					Kubelet: "1.18.8",
-				},
-			},
-		},
-		{
-
-			[]interface{}{
-				map[string]interface{}{
-					"versions": []interface{}{
-						map[string]interface{}{
-							"kubelet": "",
-						},
-					},
-				},
-			},
-			&models.NodeSpec{},
-		},
-		{
-			[]interface{}{},
-			nil,
-		},
+	nodeSpecObj, diags := types.ObjectValueFrom(ctx, nodeSpecAttrTypes(), nodeSpecModel)
+	if diags.HasError() {
+		t.Fatalf("failed to build node spec object: %v", diags)
+	}
+	templateList, diags := types.ListValue(types.ObjectType{AttrTypes: nodeSpecAttrTypes()}, []attr.Value{nodeSpecObj})
+	if diags.HasError() {
+		t.Fatalf("failed to build template list: %v", diags)
 	}
 
-	for _, tc := range cases {
-		output := metakubeNodeDeploymentExpandNodeSpec(tc.Input)
-		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
-			t.Fatalf("Unexpected output from expander: mismatch (-want +got):\n%s", diff)
-		}
+	// Build spec
+	specModel := NodeDeploymentSpecModel{
+		Replicas:    types.Int64Value(2),
+		MinReplicas: types.Int64Null(),
+		MaxReplicas: types.Int64Null(),
+		Template:    templateList,
 	}
-}
-
-func TestExpandOperatingSystem(t *testing.T) {
-	cases := []struct {
-		Input          []interface{}
-		ExpectedOutput *models.OperatingSystemSpec
-	}{
-		{
-			[]interface{}{
-				map[string]interface{}{
-					"ubuntu": []interface{}{
-						map[string]interface{}{
-							"dist_upgrade_on_boot": true,
-						},
-					},
-				},
-			},
-			&models.OperatingSystemSpec{
-				Ubuntu: &models.UbuntuSpec{
-					DistUpgradeOnBoot: true,
-				},
-			},
-		},
-		{
-			[]interface{}{
-				map[string]interface{}{
-					"flatcar": []interface{}{
-						map[string]interface{}{
-							"disable_auto_update": true,
-						},
-					},
-				},
-			},
-			&models.OperatingSystemSpec{
-				Flatcar: &models.FlatcarSpec{
-					DisableAutoUpdate: true,
-				},
-			},
-		},
-		{
-			[]interface{}{
-				map[string]interface{}{},
-			},
-			&models.OperatingSystemSpec{},
-		},
-		{
-			[]interface{}{},
-			nil,
-		},
+	specObj, diags := types.ObjectValueFrom(ctx, nodeDeploymentSpecAttrTypes(), specModel)
+	if diags.HasError() {
+		t.Fatalf("failed to build spec object: %v", diags)
+	}
+	specList, diags := types.ListValue(types.ObjectType{AttrTypes: nodeDeploymentSpecAttrTypes()}, []attr.Value{specObj})
+	if diags.HasError() {
+		t.Fatalf("failed to build spec list: %v", diags)
 	}
 
-	for _, tc := range cases {
-		output := metakubeNodeDeploymentExpandOS(tc.Input)
-		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
-			t.Fatalf("Unexpected output from expander: mismatch (-want +got):\n%s", diff)
-		}
-	}
-}
-
-func TestExpandAWSNodeSpec(t *testing.T) {
-	cases := []struct {
-		Input          []interface{}
-		ExpectedOutput *models.AWSNodeSpec
-	}{
-		{
-			[]interface{}{
-				map[string]interface{}{
-					"ami":               "ami-5731123e",
-					"assign_public_ip":  true,
-					"availability_zone": "eu-west-1",
-					"instance_type":     "t3.small",
-					"subnet_id":         "subnet-53485",
-					"tags": map[string]interface{}{
-						"foo": "bar",
-					},
-					"disk_size":   25,
-					"volume_type": "standard",
-				},
-			},
-			&models.AWSNodeSpec{
-				AMI:              "ami-5731123e",
-				AssignPublicIP:   true,
-				AvailabilityZone: "eu-west-1",
-				InstanceType:     common.StrToPtr("t3.small"),
-				SubnetID:         "subnet-53485",
-				Tags: map[string]string{
-					"foo": "bar",
-				},
-				VolumeSize: common.IntToInt32Ptr(25),
-				VolumeType: common.StrToPtr("standard"),
-			},
-		},
-		{
-
-			[]interface{}{
-				map[string]interface{}{},
-			},
-			&models.AWSNodeSpec{},
-		},
-		{
-			[]interface{}{},
-			nil,
-		},
-	}
-
-	for _, tc := range cases {
-		output := metakubeNodeDeploymentExpandAWSSpec(tc.Input)
-		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
-			t.Fatalf("Unexpected output from expander: mismatch (-want +got):\n%s", diff)
-		}
-	}
-}
-
-func TestExpandOpenstackNodeSpec(t *testing.T) {
-	cases := []struct {
-		Input          []interface{}
-		ExpectedOutput *models.OpenstackNodeSpec
-	}{
-		{
-			[]interface{}{
-				map[string]interface{}{
-					"flavor":          "tiny",
-					"image":           "Ubuntu",
-					"use_floating_ip": false,
-					"tags": map[string]interface{}{
-						"foo": "bar",
-					},
-					"disk_size": 999,
-				},
-			},
-			&models.OpenstackNodeSpec{
-				Flavor:        common.StrToPtr("tiny"),
-				Image:         common.StrToPtr("Ubuntu"),
-				UseFloatingIP: ptr.To(false),
-				Tags: map[string]string{
-					"foo": "bar",
-				},
-				RootDiskSizeGB: ptr.To(int64(999)),
-			},
-		},
-		{
-
-			[]interface{}{
-				map[string]interface{}{},
-			},
-			&models.OpenstackNodeSpec{},
-		},
-		{
-			[]interface{}{},
-			nil,
-		},
-	}
-
-	for _, tc := range cases {
-		output := metakubeNodeDeploymentExpandOpenstackSpec(tc.Input)
-		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
-			t.Fatalf("Unexpected output from expander: mismatch (-want +got):\n%s", diff)
-		}
-	}
-}
-
-func TestExpandAzureNodeSpec(t *testing.T) {
-	cases := []struct {
-		Input          []interface{}
-		ExpectedOutput *models.AzureNodeSpec
-	}{
-		{
-			[]interface{}{
-				map[string]interface{}{
-					"image_id":         "ImageID",
-					"size":             "Size",
-					"assign_public_ip": false,
-					"disk_size_gb":     int32(1),
-					"os_disk_size_gb":  int32(2),
-					"tags": map[string]string{
-						"tag-k": "tag-v",
-					},
-					"zones": []string{"Zone-x"},
-				},
-			},
-			&models.AzureNodeSpec{
-				ImageID:        "ImageID",
-				Size:           common.StrToPtr("Size"),
-				AssignPublicIP: false,
-				DataDiskSize:   1,
-				OSDiskSize:     2,
-				Tags: map[string]string{
-					"tag-k": "tag-v",
-				},
-				Zones: []string{"Zone-x"},
-			},
-		},
-		{
-
-			[]interface{}{
-				map[string]interface{}{},
-			},
-			&models.AzureNodeSpec{},
-		},
-		{
-			[]interface{}{},
-			nil,
-		},
-	}
-
-	for _, tc := range cases {
-		output := metakubeNodeDeploymentExpandAzureSpec(tc.Input)
-		if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
-			t.Fatalf("Unexpected output from expander: mismatch (-want +got):\n%s", diff)
-		}
+	return &NodeDeploymentModel{
+		ID:                types.StringValue("test-id"),
+		ProjectID:         types.StringValue("test-project"),
+		ClusterID:         types.StringValue("test-cluster"),
+		Name:              types.StringValue("test-nd"),
+		Spec:              specList,
+		CreationTimestamp: types.StringNull(),
+		DeletionTimestamp: types.StringNull(),
 	}
 }
