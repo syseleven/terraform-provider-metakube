@@ -65,12 +65,10 @@ The following arguments are supported:
 * `enable_ssh_agent` - (Optional) User SSH Agent runs on each node and manages ssh keys. You can disable it if you prefer to manage ssh keys manually.
 * `cloud` - (Required) Cloud provider specification.
 * `update_window` - (Optional) Node reboot window. Currently used only for Flatcar node deployments.
-* `machine_networks` - (Optional) Machine networks, optionally specifies the parameters for IPAM.
-* `audit_logging` - (Optional) Audit logging settings.
-* `pod_security_policy` - (Optional) Pod security policies allow detailed authorization of pod creation and updates.
-* `pod_node_selector` - (Optional) Configure PodNodeSelector admission plugin at the apiserver
+* `audit_logging` - (Optional) Whether to enable audit logging or not. Defaults to `false`.
+* `pod_security_policy` - (Optional, Deprecated) Pod security policies allow detailed authorization of pod creation and updates. Deprecated by Kubernetes since version 1.21 and removed in version 1.25.
+* `pod_node_selector` - (Optional) Configure PodNodeSelector admission plugin at the apiserver.
 * `syseleven_auth` - (Optional) Useful for authenticating against [SysEleven Login](https://docs.syseleven.de/metakube/en/tutorials/external-authentication).
-* `iam_authentication` - (Optional) Authenticate against Syseleven IAM.
 * `services_cidr` - (Optional) Internal IP range for ClusterIP Services.
 * `pods_cidr` - (Optional) Internal IP range for Pods.
 * `cni_plugin` - (Optional) CNI plugin used by the Cluster.
@@ -98,8 +96,15 @@ When set, start time and length must be configured.
 
 When set, type must be configured. Currently, can be configured as `cilium`, `canal`, `none`.
 
+> `cni_plugin` is a single nested attribute and requires `=` syntax:
+> ```hcl
+> cni_plugin = {
+>   type = "cilium"
+> }
+> ```
+
 #### Arguments
-* `type` - (Required) Define the type of CNI plugin. Example: `canal`.
+* `type` - (Optional) Define the type of CNI plugin. Example: `canal`.
 
 ### `ip_family`
 
@@ -155,4 +160,5 @@ Openstack Application Credentials.
 Configure [SysEleven Login](https://docs.syseleven.de/metakube/en/tutorials/external-authentication) Realm to use.
 
 #### Arguments
-* `realm` - (Required) The name of the realm.
+* `realm` - (Optional) The name of the realm.
+* `iam_authentication` - (Optional) Enable authentication against SysEleven IAM system. Defaults to `false`.
