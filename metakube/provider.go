@@ -83,7 +83,6 @@ func Provider() *pluginSchema.Provider {
 
 		ResourcesMap: map[string]*pluginSchema.Resource{
 			"metakube_cluster":              resource_cluster.MetakubeResourceCluster(),
-			"metakube_node_deployment":      resource_node_deployment.MetakubeResourceNodeDeployment(),
 			"metakube_sshkey":               resource_sshkey.MetakubeResourceSSHKey(),
 			"metakube_maintenance_cron_job": resource_maintenance_cronjob.MetakubeResourceMaintenanceCronJob(),
 		},
@@ -377,7 +376,7 @@ func (p *metakubeProvider) Resources(ctx context.Context) []func() resource.Reso
 		// metakubeResourceCluster,
 		resource_cluster_role_binding.NewClusterRoleBinding,
 		resource_role_binding.NewRoleBinding,
-		// metakubeResourceNodeDeployment,
+		resource_node_deployment.NewNodeDeployment,
 		// metakubeResourceSSHKey,
 		// metakubeResourceMaintenanceCronJob,
 	}
