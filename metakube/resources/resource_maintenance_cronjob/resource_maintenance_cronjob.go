@@ -7,104 +7,96 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/syseleven/go-metakube/client/project"
 	"github.com/syseleven/go-metakube/models"
 	"github.com/syseleven/terraform-provider-metakube/metakube/common"
 )
 
-func MetakubeResourceMaintenanceCronJob() *schema.Resource {
-	return &schema.Resource{
-		CreateContext: metakubeResourceMaintenanceCronJobCreate,
-		ReadContext:   metakubeResourceMaintenanceCronJobRead,
-		UpdateContext: metakubeResourceMaintenanceCronJobUpdate,
-		DeleteContext: metakubeResourceMaintenanceCronJobDelete,
+var (
+	_ resource.Resource                = &metakubeMaintenanceCronJob{}
+	_ resource.ResourceWithConfigure   = &metakubeMaintenanceCronJob{}
+	_ resource.ResourceWithImportState = &metakubeMaintenanceCronJob{}
+)
 
-		Importer: &schema.ResourceImporter{
-			StateContext: common.ImportResourceWithOptionalProject("maintenance_cronjob_id"),
-		},
-
-		Timeouts: &schema.ResourceTimeout{
-			Create: schema.DefaultTimeout(20 * time.Minute),
-			Update: schema.DefaultTimeout(20 * time.Minute),
-			Delete: schema.DefaultTimeout(20 * time.Minute),
-		},
-
-		Schema: map[string]*schema.Schema{
-			"project_id": {
-				Type:        schema.TypeString,
-				Computed:    true,
-				Optional:    true,
-				Description: "Reference project identifier",
-			},
-
-			"cluster_id": {
-				Type:     schema.TypeString,
-				Required: true,
-				ForceNew: true,
-				// TODO: update descriptions
-				Description: "Cluster that maintenance cron job belongs to",
-			},
-
-			"name": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Computed:    true,
-				ForceNew:    true,
-				Description: "Maintenance cron job name",
-			},
-
-			"spec": {
-				Type:        schema.TypeList,
-				MaxItems:    1,
-				Required:    true,
-				Description: "Maintenance cron job specification",
-				Elem: &schema.Resource{
-					Schema: metakubeResourceMaintenanceCronJobSpecFields(),
-				},
-			},
-
-			"creation_timestamp": {
-				Type:        schema.TypeString,
-				Computed:    true,
-				Description: "Creation timestamp",
-			},
-
-			"deletion_timestamp": {
-				Type:        schema.TypeString,
-				Computed:    true,
-				Description: "Deletion timestamp",
-			},
-		},
-	}
+func NewMaintenanceCronJob() resource.Resource {
+	return &metakubeMaintenanceCronJob{}
 }
 
-func metakubeResourceMaintenanceCronJobCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	k := m.(*common.MetaKubeProviderMeta)
-	clusterID := d.Get("cluster_id").(string)
-	projectID := d.Get("project_id").(string)
+type metakubeMaintenanceCronJob struct {
+	meta *common.MetaKubeProviderMeta
+}
+
+func (r *metakubeMaintenanceCronJob) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_maintenance_cron_job"
+}
+
+func (r *metakubeMaintenanceCronJob) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = MaintenanceCronJobSchema(ctx)
+}
+
+func (r *metakubeMaintenanceCronJob) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+
+	meta, ok := req.ProviderData.(*common.MetaKubeProviderMeta)
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Unexpected Resource Configure Type",
+			fmt.Sprintf("Expected *common.MetaKubeProviderMeta, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+		)
+		return
+	}
+
+	r.meta = meta
+}
+
+func (r *metakubeMaintenanceCronJob) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan MaintenanceCronJobModel
+
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	createTimeout, diags := plan.Timeouts.Create(ctx, 20*time.Minute)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	projectID := plan.ProjectID.ValueString()
+	clusterID := plan.ClusterID.ValueString()
+
 	if projectID == "" {
 		var err error
-		projectID, err = common.MetakubeResourceClusterFindProjectID(ctx, clusterID, k)
+		projectID, err = common.MetakubeResourceClusterFindProjectID(ctx, clusterID, r.meta)
 		if err != nil {
-			return diag.FromErr(err)
+			resp.Diagnostics.AddError("Error finding project", err.Error())
+			return
 		}
 		if projectID == "" {
-			k.Log.Infof("owner project for cluster '%s' is not found", clusterID)
-			return diag.Errorf("could not find owner project for cluster with id '%s'", clusterID)
+			r.meta.Log.Infof("owner project for cluster '%s' is not found", clusterID)
+			resp.Diagnostics.AddError(
+				"Project not found",
+				fmt.Sprintf("could not find owner project for cluster with id '%s'", clusterID),
+			)
+			return
 		}
 	}
 
 	maintenanceCronJob := &models.MaintenanceCronJob{
-		Name: d.Get("name").(string),
-		Spec: metakubeMaintenanceCronJobExpandSpec(d.Get("spec").([]interface{})),
+		Name: plan.Name.ValueString(),
+		Spec: metakubeMaintenanceCronJobExpandSpec(ctx, plan.Spec),
 	}
 
-	// TODO not sure to remove this
-	if err := common.MetakubeResourceClusterWaitForReady(ctx, k, d.Timeout(schema.TimeoutCreate), projectID, clusterID, ""); err != nil {
-		return diag.Errorf("cluster is not ready: %v", err)
+	if err := common.MetakubeResourceClusterWaitForReady(ctx, r.meta, createTimeout, projectID, clusterID, ""); err != nil {
+		resp.Diagnostics.AddError("Cluster not ready", fmt.Sprintf("cluster is not ready: %v", err))
+		return
 	}
 
 	p := project.NewCreateMaintenanceCronJobParams().
@@ -113,156 +105,263 @@ func metakubeResourceMaintenanceCronJobCreate(ctx context.Context, d *schema.Res
 		WithClusterID(clusterID).
 		WithBody(maintenanceCronJob)
 
-	var id models.UID
-	err := retry.RetryContext(ctx, d.Timeout(schema.TimeoutCreate), func() *retry.RetryError {
-		r, err := k.Client.Project.CreateMaintenanceCronJob(p, k.Auth)
+	var id string
+	err := common.RetryContext(ctx, createTimeout, func() *common.RetryError {
+		result, err := r.meta.Client.Project.CreateMaintenanceCronJob(p, r.meta.Auth)
 		if err != nil {
 			e := common.StringifyResponseError(err)
 			if strings.Contains(e, "failed calling webhook") || strings.Contains(e, "Cluster components are not ready yet") {
-				return retry.RetryableError(fmt.Errorf("%v", e))
+				return common.RetryableError(fmt.Errorf("%v", e))
 			}
-			return retry.NonRetryableError(fmt.Errorf("%v", e))
+			return common.NonRetryableError(fmt.Errorf("%v", e))
 		}
-		id = models.UID(r.Payload.Name)
+		id = result.Payload.Name
 		return nil
 	})
 	if err != nil {
-		return diag.Errorf("create a maintenance cron job: %v", err)
-	}
-	d.SetId(string(id))
-	d.Set("project_id", projectID)
-
-	if err := metakubeResourceMaintenanceCronJobWaitForReady(ctx, k, d.Timeout(schema.TimeoutCreate), projectID, clusterID, string(id)); err != nil {
-		return diag.FromErr(err)
+		resp.Diagnostics.AddError("Create failed", fmt.Sprintf("create a maintenance cron job: %v", err))
+		return
 	}
 
-	return metakubeResourceMaintenanceCronJobRead(ctx, d, m)
-}
+	plan.ID = types.StringValue(id)
+	plan.ProjectID = types.StringValue(projectID)
 
-func metakubeResourceMaintenanceCronJobUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	k := m.(*common.MetaKubeProviderMeta)
-	projectID := d.Get("project_id").(string)
-	clusterID := d.Get("cluster_id").(string)
-
-	maintenanceCronJob := &models.MaintenanceCronJob{
-		Spec: metakubeMaintenanceCronJobExpandSpec(d.Get("spec").([]interface{})),
+	if err := metakubeResourceMaintenanceCronJobWaitForReady(ctx, r.meta, createTimeout, projectID, clusterID, id); err != nil {
+		resp.Diagnostics.AddError("Wait for ready failed", err.Error())
+		return
 	}
 
-	p := project.NewPatchMaintenanceCronJobParams()
-	p.SetContext(ctx)
-	p.SetProjectID(projectID)
-	p.SetClusterID(clusterID)
-	p.SetMaintenanceCronJobID(d.Id())
-	p.SetPatch(maintenanceCronJob)
-	_, err := k.Client.Project.PatchMaintenanceCronJob(p, k.Auth)
+	// Read back the resource
+	readP := project.NewGetMaintenanceCronJobParams().
+		WithContext(ctx).
+		WithProjectID(projectID).
+		WithClusterID(clusterID).
+		WithMaintenanceCronJobID(id)
+
+	readResult, err := r.meta.Client.Project.GetMaintenanceCronJob(readP, r.meta.Auth)
 	if err != nil {
-		return diag.Errorf("unable to update a maintenance cron job: %v", common.StringifyResponseError(err))
+		resp.Diagnostics.AddError("Read failed", fmt.Sprintf("unable to read maintenance cron job after creation: %s", common.StringifyResponseError(err)))
+		return
 	}
 
-	if err := metakubeResourceMaintenanceCronJobWaitForReady(ctx, k, d.Timeout(schema.TimeoutUpdate), projectID, clusterID, d.Id()); err != nil {
-		return diag.FromErr(err)
+	plan.Name = types.StringValue(readResult.Payload.Name)
+	plan.CreationTimestamp = types.StringValue(readResult.Payload.CreationTimestamp.String())
+	plan.DeletionTimestamp = types.StringValue(readResult.Payload.DeletionTimestamp.String())
+
+	resp.Diagnostics.Append(metakubeMaintenanceCronJobFlattenSpec(ctx, &plan, readResult.Payload.Spec)...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
-	return metakubeResourceMaintenanceCronJobRead(ctx, d, m)
+	diags = resp.State.Set(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
 }
 
-func metakubeResourceMaintenanceCronJobRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	k := m.(*common.MetaKubeProviderMeta)
-	projectID := d.Get("project_id").(string)
-	clusterID := d.Get("cluster_id").(string)
+func (r *metakubeMaintenanceCronJob) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var data MaintenanceCronJobModel
+
+	diags := req.State.Get(ctx, &data)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	projectID := data.ProjectID.ValueString()
+	clusterID := data.ClusterID.ValueString()
+
 	p := project.NewGetMaintenanceCronJobParams().
 		WithContext(ctx).
 		WithProjectID(projectID).
 		WithClusterID(clusterID).
-		WithMaintenanceCronJobID(d.Id())
+		WithMaintenanceCronJobID(data.ID.ValueString())
 
-	r, err := k.Client.Project.GetMaintenanceCronJob(p, k.Auth)
+	result, err := r.meta.Client.Project.GetMaintenanceCronJob(p, r.meta.Auth)
 	if err != nil {
 		if e, ok := err.(*project.GetMaintenanceCronJobDefault); ok && e.Code() == http.StatusNotFound {
-			k.Log.Infof("removing maintenance cron job '%s' from terraform state file, could not find the resource", d.Id())
-			d.SetId("")
-			return nil
+			r.meta.Log.Infof("removing maintenance cron job '%s' from terraform state file, could not find the resource", data.ID.ValueString())
+			resp.State.RemoveResource(ctx)
+			return
 		}
 		if _, ok := err.(*project.GetMaintenanceCronJobForbidden); ok {
-			k.Log.Infof("removing maintenance cron job '%s' from terraform state file, access forbidden", d.Id())
-			d.SetId("")
-			return nil
+			r.meta.Log.Infof("removing maintenance cron job '%s' from terraform state file, access forbidden", data.ID.ValueString())
+			resp.State.RemoveResource(ctx)
+			return
 		}
-		return diag.Errorf("unable to get maintenance cron job '%s/%s/%s': %s", projectID, clusterID, d.Id(), common.StringifyResponseError(err))
+		resp.Diagnostics.AddError("API Error", fmt.Sprintf(
+			"unable to get maintenance cron job '%s/%s/%s': %s", projectID, clusterID, data.ID.ValueString(), common.StringifyResponseError(err)))
+		return
 	}
 
-	_ = d.Set("name", r.Payload.Name)
+	data.Name = types.StringValue(result.Payload.Name)
+	data.CreationTimestamp = types.StringValue(result.Payload.CreationTimestamp.String())
+	data.DeletionTimestamp = types.StringValue(result.Payload.DeletionTimestamp.String())
 
-	_ = d.Set("spec", metakubeMaintenanceCronJobFlattenSpec(r.Payload.Spec))
+	resp.Diagnostics.Append(metakubeMaintenanceCronJobFlattenSpec(ctx, &data, result.Payload.Spec)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	_ = d.Set("creation_timestamp", r.Payload.CreationTimestamp.String())
-
-	_ = d.Set("deletion_timestamp", r.Payload.DeletionTimestamp.String())
-
-	return nil
+	diags = resp.State.Set(ctx, &data)
+	resp.Diagnostics.Append(diags...)
 }
 
-func metakubeResourceMaintenanceCronJobDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	k := m.(*common.MetaKubeProviderMeta)
-	projectID := d.Get("project_id").(string)
-	clusterID := d.Get("cluster_id").(string)
+func (r *metakubeMaintenanceCronJob) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan MaintenanceCronJobModel
+
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	updateTimeout, diags := plan.Timeouts.Update(ctx, 20*time.Minute)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	projectID := plan.ProjectID.ValueString()
+	clusterID := plan.ClusterID.ValueString()
+	cronJobID := plan.ID.ValueString()
+
+	maintenanceCronJob := &models.MaintenanceCronJob{
+		Spec: metakubeMaintenanceCronJobExpandSpec(ctx, plan.Spec),
+	}
+
+	p := project.NewPatchMaintenanceCronJobParams().
+		WithContext(ctx).
+		WithProjectID(projectID).
+		WithClusterID(clusterID).
+		WithMaintenanceCronJobID(cronJobID).
+		WithPatch(maintenanceCronJob)
+
+	_, err := r.meta.Client.Project.PatchMaintenanceCronJob(p, r.meta.Auth)
+	if err != nil {
+		resp.Diagnostics.AddError("API Error", fmt.Sprintf("unable to update a maintenance cron job: %v", common.StringifyResponseError(err)))
+		return
+	}
+
+	if err := metakubeResourceMaintenanceCronJobWaitForReady(ctx, r.meta, updateTimeout, projectID, clusterID, cronJobID); err != nil {
+		resp.Diagnostics.AddError("Wait for ready failed", err.Error())
+		return
+	}
+
+	// Read back the resource
+	readP := project.NewGetMaintenanceCronJobParams().
+		WithContext(ctx).
+		WithProjectID(projectID).
+		WithClusterID(clusterID).
+		WithMaintenanceCronJobID(cronJobID)
+
+	readResult, err := r.meta.Client.Project.GetMaintenanceCronJob(readP, r.meta.Auth)
+	if err != nil {
+		resp.Diagnostics.AddError("Read failed", fmt.Sprintf("unable to read maintenance cron job after update: %s", common.StringifyResponseError(err)))
+		return
+	}
+
+	plan.Name = types.StringValue(readResult.Payload.Name)
+	plan.CreationTimestamp = types.StringValue(readResult.Payload.CreationTimestamp.String())
+	plan.DeletionTimestamp = types.StringValue(readResult.Payload.DeletionTimestamp.String())
+
+	resp.Diagnostics.Append(metakubeMaintenanceCronJobFlattenSpec(ctx, &plan, readResult.Payload.Spec)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	diags = resp.State.Set(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+}
+
+func (r *metakubeMaintenanceCronJob) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state MaintenanceCronJobModel
+
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	deleteTimeout, diags := state.Timeouts.Delete(ctx, 20*time.Minute)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	projectID := state.ProjectID.ValueString()
+	clusterID := state.ClusterID.ValueString()
+	cronJobID := state.ID.ValueString()
+
 	p := project.NewDeleteMaintenanceCronJobParams().
 		WithProjectID(projectID).
 		WithClusterID(clusterID).
-		WithMaintenanceCronJobID(d.Id())
+		WithMaintenanceCronJobID(cronJobID)
 
-	_, err := k.Client.Project.DeleteMaintenanceCronJob(p, k.Auth)
+	_, err := r.meta.Client.Project.DeleteMaintenanceCronJob(p, r.meta.Auth)
 	if err != nil {
 		if e, ok := err.(*project.DeleteMaintenanceCronJobDefault); ok && e.Code() == http.StatusNotFound {
-			k.Log.Infof("removing maintenance cron job '%s' from terraform state file, could not find the resource", d.Id())
-			d.SetId("")
-			return nil
+			r.meta.Log.Infof("maintenance cron job '%s' already deleted", cronJobID)
+			return
 		}
-		return diag.Errorf("unable to delete maintenance cron job '%s': %s", d.Id(), common.StringifyResponseError(err))
+		resp.Diagnostics.AddError("API Error", fmt.Sprintf("unable to delete maintenance cron job '%s': %s", cronJobID, common.StringifyResponseError(err)))
+		return
 	}
 
-	err = retry.RetryContext(ctx, d.Timeout(schema.TimeoutDelete), func() *retry.RetryError {
-		p := project.NewGetMaintenanceCronJobParams().
+	err = common.RetryContext(ctx, deleteTimeout, func() *common.RetryError {
+		getP := project.NewGetMaintenanceCronJobParams().
 			WithContext(ctx).
 			WithProjectID(projectID).
 			WithClusterID(clusterID).
-			WithMaintenanceCronJobID(d.Id())
+			WithMaintenanceCronJobID(cronJobID)
 
-		r, err := k.Client.Project.GetMaintenanceCronJob(p, k.Auth)
+		result, err := r.meta.Client.Project.GetMaintenanceCronJob(getP, r.meta.Auth)
 		if err != nil {
 			if e, ok := err.(*project.GetMaintenanceCronJobDefault); ok && e.Code() == http.StatusNotFound {
-				k.Log.Debugf("maintenance cron job '%s' has been destroyed, returned http code: %d", d.Id(), e.Code())
-				d.SetId("")
+				r.meta.Log.Debugf("maintenance cron job '%s' has been destroyed, returned http code: %d", cronJobID, e.Code())
 				return nil
 			}
-			return retry.NonRetryableError(fmt.Errorf("unable to get maintenance cron job '%s': %s", d.Id(), common.StringifyResponseError(err)))
+			return common.NonRetryableError(fmt.Errorf("unable to get maintenance cron job '%s': %s", cronJobID, common.StringifyResponseError(err)))
 		}
 
-		k.Log.Debugf("maintenance cron job '%s' deletion in progress, deletionTimestamp: %s",
-			d.Id(), r.Payload.DeletionTimestamp)
-		return retry.RetryableError(fmt.Errorf("maintenance cron job '%s' deletion in progress", d.Id()))
+		r.meta.Log.Debugf("maintenance cron job '%s' deletion in progress, deletionTimestamp: %s",
+			cronJobID, result.Payload.DeletionTimestamp)
+		return common.RetryableError(fmt.Errorf("maintenance cron job '%s' deletion in progress", cronJobID))
 	})
 	if err != nil {
-		return diag.FromErr(err)
+		resp.Diagnostics.AddError("Delete failed", err.Error())
 	}
-	return nil
+}
+
+func (r *metakubeMaintenanceCronJob) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	parts := strings.Split(req.ID, ":")
+
+	if len(parts) != 3 {
+		resp.Diagnostics.AddError(
+			"Invalid import ID",
+			"please provide resource identifier in format 'project_id:cluster_id:maintenance_cronjob_id'",
+		)
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("project_id"), parts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("cluster_id"), parts[1])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[2])...)
 }
 
 func metakubeResourceMaintenanceCronJobWaitForReady(ctx context.Context, k *common.MetaKubeProviderMeta, timeout time.Duration, projectID, clusterID, id string) error {
-	return retry.RetryContext(ctx, timeout, func() *retry.RetryError {
+	return common.RetryContext(ctx, timeout, func() *common.RetryError {
 		p := project.NewGetMaintenanceCronJobParams().
 			WithContext(ctx).
 			WithProjectID(projectID).
 			WithClusterID(clusterID).
 			WithMaintenanceCronJobID(id)
 
-		r, err := k.Client.Project.GetMaintenanceCronJob(p, k.Auth)
+		result, err := k.Client.Project.GetMaintenanceCronJob(p, k.Auth)
 		if err != nil {
-			return retry.RetryableError(fmt.Errorf("unable to get maintenance cron job %s", common.StringifyResponseError(err)))
+			return common.RetryableError(fmt.Errorf("unable to get maintenance cron job %s", common.StringifyResponseError(err)))
 		}
 
-		if r.Payload.Name == "" || r.Payload.Spec.MaintenanceJobTemplate == nil || r.Payload.Spec.MaintenanceJobTemplate.Type == "" {
-			return retry.RetryableError(fmt.Errorf("waiting for maintenance cron job '%s' to be ready", id))
+		if result.Payload.Name == "" || result.Payload.Spec.MaintenanceJobTemplate == nil || result.Payload.Spec.MaintenanceJobTemplate.Type == "" {
+			return common.RetryableError(fmt.Errorf("waiting for maintenance cron job '%s' to be ready", id))
 		}
 
 		return nil
