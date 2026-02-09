@@ -148,7 +148,7 @@ func (r *metakubeMaintenanceCronJob) Create(ctx context.Context, req resource.Cr
 	plan.CreationTimestamp = types.StringValue(readResult.Payload.CreationTimestamp.String())
 	plan.DeletionTimestamp = types.StringValue(readResult.Payload.DeletionTimestamp.String())
 
-	resp.Diagnostics.Append(metakubeMaintenanceCronJobFlattenSpec(ctx, &plan, readResult.Payload.Spec)...)
+	resp.Diagnostics.Append(metakubeMaintenanceCronJobFlattenSpec(ctx, &plan, readResult.Payload.Spec, types.BoolNull())...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -196,7 +196,10 @@ func (r *metakubeMaintenanceCronJob) Read(ctx context.Context, req resource.Read
 	data.CreationTimestamp = types.StringValue(result.Payload.CreationTimestamp.String())
 	data.DeletionTimestamp = types.StringValue(result.Payload.DeletionTimestamp.String())
 
-	resp.Diagnostics.Append(metakubeMaintenanceCronJobFlattenSpec(ctx, &data, result.Payload.Spec)...)
+	// Extract prior rollback for diff suppression before flattening overwrites it.
+	priorRollback := extractRollbackFromSpec(ctx, data.Spec)
+
+	resp.Diagnostics.Append(metakubeMaintenanceCronJobFlattenSpec(ctx, &data, result.Payload.Spec, priorRollback)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -224,16 +227,14 @@ func (r *metakubeMaintenanceCronJob) Update(ctx context.Context, req resource.Up
 	clusterID := plan.ClusterID.ValueString()
 	cronJobID := plan.ID.ValueString()
 
-	maintenanceCronJob := &models.MaintenanceCronJob{
-		Spec: metakubeMaintenanceCronJobExpandSpec(ctx, plan.Spec),
-	}
+	patchBody := metakubeMaintenanceCronJobBuildPatch(ctx, plan.Spec)
 
 	p := project.NewPatchMaintenanceCronJobParams().
 		WithContext(ctx).
 		WithProjectID(projectID).
 		WithClusterID(clusterID).
 		WithMaintenanceCronJobID(cronJobID).
-		WithPatch(maintenanceCronJob)
+		WithPatch(patchBody)
 
 	_, err := r.meta.Client.Project.PatchMaintenanceCronJob(p, r.meta.Auth)
 	if err != nil {
@@ -262,11 +263,6 @@ func (r *metakubeMaintenanceCronJob) Update(ctx context.Context, req resource.Up
 	plan.Name = types.StringValue(readResult.Payload.Name)
 	plan.CreationTimestamp = types.StringValue(readResult.Payload.CreationTimestamp.String())
 	plan.DeletionTimestamp = types.StringValue(readResult.Payload.DeletionTimestamp.String())
-
-	resp.Diagnostics.Append(metakubeMaintenanceCronJobFlattenSpec(ctx, &plan, readResult.Payload.Spec)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)

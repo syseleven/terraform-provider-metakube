@@ -91,11 +91,17 @@ func maintenanceCronJobAttributes() map[string]schema.Attribute {
 		"id": schema.StringAttribute{
 			Computed:    true,
 			Description: "The id of the maintenance cron job resource",
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"project_id": schema.StringAttribute{
 			Optional:    true,
 			Computed:    true,
 			Description: "Reference project identifier",
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"cluster_id": schema.StringAttribute{
 			Required:    true,
@@ -115,10 +121,16 @@ func maintenanceCronJobAttributes() map[string]schema.Attribute {
 		"creation_timestamp": schema.StringAttribute{
 			Computed:    true,
 			Description: "Creation timestamp",
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"deletion_timestamp": schema.StringAttribute{
 			Computed:    true,
 			Description: "Deletion timestamp",
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
 		},
 	}
 }
@@ -147,12 +159,12 @@ func maintenanceCronJobBlocks() map[string]schema.Block {
 						Description: "MaintenanceJob template specification",
 						NestedObject: schema.NestedBlockObject{
 							Attributes: map[string]schema.Attribute{
-								"rollback": schema.BoolAttribute{
-									Optional:    true,
-									Computed:    true,
-									Default:     booldefault.StaticBool(false),
-									Description: "Indicates whether the maintenance done should be rolled back",
-								},
+							"rollback": schema.BoolAttribute{
+								Optional:    true,
+								Computed:    true,
+								Default:     booldefault.StaticBool(false),
+								Description: "Indicates whether the maintenance done should be rolled back",
+							},
 								"type": schema.StringAttribute{
 									Required:    true,
 									Description: "Defines the type of maintenance that should be run",
