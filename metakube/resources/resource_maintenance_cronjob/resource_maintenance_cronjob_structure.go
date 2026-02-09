@@ -11,26 +11,7 @@ import (
 
 // flatteners
 
-func extractRollbackFromSpec(ctx context.Context, specList types.List) types.Bool {
-	if specList.IsNull() || specList.IsUnknown() || len(specList.Elements()) == 0 {
-		return types.BoolNull()
-	}
-	var specModels []SpecModel
-	if diags := specList.ElementsAs(ctx, &specModels, false); diags.HasError() || len(specModels) == 0 {
-		return types.BoolNull()
-	}
-	tmplList := specModels[0].MaintenanceJobTemplate
-	if tmplList.IsNull() || tmplList.IsUnknown() || len(tmplList.Elements()) == 0 {
-		return types.BoolNull()
-	}
-	var tmplModels []MaintenanceJobTemplateModel
-	if diags := tmplList.ElementsAs(ctx, &tmplModels, false); diags.HasError() || len(tmplModels) == 0 {
-		return types.BoolNull()
-	}
-	return tmplModels[0].Rollback
-}
-
-func metakubeMaintenanceCronJobFlattenSpec(ctx context.Context, model *MaintenanceCronJobModel, in *models.MaintenanceCronJobSpec, priorRollback types.Bool) diag.Diagnostics {
+func metakubeMaintenanceCronJobFlattenSpec(ctx context.Context, model *MaintenanceCronJobModel, in *models.MaintenanceCronJobSpec) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	if in == nil {
@@ -42,7 +23,7 @@ func metakubeMaintenanceCronJobFlattenSpec(ctx context.Context, model *Maintenan
 		Schedule: types.StringValue(in.Schedule),
 	}
 
-	diags.Append(metakubeMaintenanceCronJobFlattenMaintenanceJobTemplate(ctx, &specModel, in.MaintenanceJobTemplate, priorRollback)...)
+	diags.Append(metakubeMaintenanceCronJobFlattenMaintenanceJobTemplate(ctx, &specModel, in.MaintenanceJobTemplate)...)
 	if diags.HasError() {
 		return diags
 	}
@@ -60,7 +41,7 @@ func metakubeMaintenanceCronJobFlattenSpec(ctx context.Context, model *Maintenan
 	return diags
 }
 
-func metakubeMaintenanceCronJobFlattenMaintenanceJobTemplate(ctx context.Context, specModel *SpecModel, in *models.MaintenanceJobTemplate, priorRollback types.Bool) diag.Diagnostics {
+func metakubeMaintenanceCronJobFlattenMaintenanceJobTemplate(ctx context.Context, specModel *SpecModel, in *models.MaintenanceJobTemplate) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	if in == nil {
@@ -68,13 +49,8 @@ func metakubeMaintenanceCronJobFlattenMaintenanceJobTemplate(ctx context.Context
 		return diags
 	}
 
-	rollbackVal := types.BoolValue(in.Rollback)
-	if !in.Rollback && !priorRollback.IsNull() && !priorRollback.IsUnknown() && priorRollback.ValueBool() {
-		rollbackVal = priorRollback
-	}
-
 	tmplModel := MaintenanceJobTemplateModel{
-		Rollback: rollbackVal,
+		Rollback: types.BoolValue(in.Rollback),
 		Type:     types.StringValue(in.Type),
 	}
 

@@ -110,10 +110,10 @@ func TestAccMetakubeCluster_MaintenanceCronJob_Basic(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("creation_timestamp"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("deletion_timestamp"), knownvalue.NotNull()),
-					statecheck.ExpectKnownValue(resourceName,
-						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("maintenance_job_template").AtSliceIndex(0).AtMapKey("rollback"),
-						knownvalue.Bool(true),
-					),
+				statecheck.ExpectKnownValue(resourceName,
+					tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("maintenance_job_template").AtSliceIndex(0).AtMapKey("rollback"),
+					knownvalue.Bool(false),
+				),
 				},
 			},
 			// Import
@@ -121,7 +121,7 @@ func TestAccMetakubeCluster_MaintenanceCronJob_Basic(t *testing.T) {
 				ResourceName:            resourceName,
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"timeouts", "spec.0.maintenance_job_template.0.rollback"},
+				ImportStateVerifyIgnore: []string{"timeouts"},
 				ImportStateIdFunc: func(s *terraform.State) (string, error) {
 					for _, rs := range s.RootModule().Resources {
 						if rs.Type == "metakube_maintenance_cron_job" {

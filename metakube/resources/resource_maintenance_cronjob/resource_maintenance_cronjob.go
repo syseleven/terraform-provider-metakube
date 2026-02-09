@@ -148,7 +148,7 @@ func (r *metakubeMaintenanceCronJob) Create(ctx context.Context, req resource.Cr
 	plan.CreationTimestamp = types.StringValue(readResult.Payload.CreationTimestamp.String())
 	plan.DeletionTimestamp = types.StringValue(readResult.Payload.DeletionTimestamp.String())
 
-	resp.Diagnostics.Append(metakubeMaintenanceCronJobFlattenSpec(ctx, &plan, readResult.Payload.Spec, types.BoolNull())...)
+	resp.Diagnostics.Append(metakubeMaintenanceCronJobFlattenSpec(ctx, &plan, readResult.Payload.Spec)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -196,10 +196,7 @@ func (r *metakubeMaintenanceCronJob) Read(ctx context.Context, req resource.Read
 	data.CreationTimestamp = types.StringValue(result.Payload.CreationTimestamp.String())
 	data.DeletionTimestamp = types.StringValue(result.Payload.DeletionTimestamp.String())
 
-	// Extract prior rollback for diff suppression before flattening overwrites it.
-	priorRollback := extractRollbackFromSpec(ctx, data.Spec)
-
-	resp.Diagnostics.Append(metakubeMaintenanceCronJobFlattenSpec(ctx, &data, result.Payload.Spec, priorRollback)...)
+	resp.Diagnostics.Append(metakubeMaintenanceCronJobFlattenSpec(ctx, &data, result.Payload.Spec)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -263,6 +260,11 @@ func (r *metakubeMaintenanceCronJob) Update(ctx context.Context, req resource.Up
 	plan.Name = types.StringValue(readResult.Payload.Name)
 	plan.CreationTimestamp = types.StringValue(readResult.Payload.CreationTimestamp.String())
 	plan.DeletionTimestamp = types.StringValue(readResult.Payload.DeletionTimestamp.String())
+
+	resp.Diagnostics.Append(metakubeMaintenanceCronJobFlattenSpec(ctx, &plan, readResult.Payload.Spec)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)

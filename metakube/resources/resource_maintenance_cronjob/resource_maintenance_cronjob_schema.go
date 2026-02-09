@@ -86,6 +86,23 @@ func optionsBlockAttrTypes() map[string]attr.Type {
 	}
 }
 
+type rollbackUseAPIValue struct{}
+
+func (m rollbackUseAPIValue) Description(_ context.Context) string {
+	return "Uses the prior state value of rollback (which comes from the API) for the plan during updates"
+}
+
+func (m rollbackUseAPIValue) MarkdownDescription(ctx context.Context) string {
+	return m.Description(ctx)
+}
+
+func (m rollbackUseAPIValue) PlanModifyBool(_ context.Context, req planmodifier.BoolRequest, resp *planmodifier.BoolResponse) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+	resp.PlanValue = req.StateValue
+}
+
 func maintenanceCronJobAttributes() map[string]schema.Attribute {
 	return map[string]schema.Attribute{
 		"id": schema.StringAttribute{
@@ -164,6 +181,9 @@ func maintenanceCronJobBlocks() map[string]schema.Block {
 								Computed:    true,
 								Default:     booldefault.StaticBool(false),
 								Description: "Indicates whether the maintenance done should be rolled back",
+								PlanModifiers: []planmodifier.Bool{
+									rollbackUseAPIValue{},
+								},
 							},
 								"type": schema.StringAttribute{
 									Required:    true,

@@ -23,7 +23,7 @@ func TestMetakubeMaintenanceCronJobFlattenSpec(t *testing.T) {
 			},
 		}
 
-		diags := metakubeMaintenanceCronJobFlattenSpec(ctx, model, input, types.BoolNull())
+		diags := metakubeMaintenanceCronJobFlattenSpec(ctx, model, input)
 		if diags.HasError() {
 			t.Fatalf("unexpected error: %v", diags.Errors())
 		}
@@ -64,7 +64,7 @@ func TestMetakubeMaintenanceCronJobFlattenSpec(t *testing.T) {
 		model := &MaintenanceCronJobModel{}
 		input := &models.MaintenanceCronJobSpec{}
 
-		diags := metakubeMaintenanceCronJobFlattenSpec(ctx, model, input, types.BoolNull())
+		diags := metakubeMaintenanceCronJobFlattenSpec(ctx, model, input)
 		if diags.HasError() {
 			t.Fatalf("unexpected error: %v", diags.Errors())
 		}
@@ -85,7 +85,7 @@ func TestMetakubeMaintenanceCronJobFlattenSpec(t *testing.T) {
 
 	t.Run("nil spec", func(t *testing.T) {
 		model := &MaintenanceCronJobModel{}
-		diags := metakubeMaintenanceCronJobFlattenSpec(ctx, model, nil, types.BoolNull())
+		diags := metakubeMaintenanceCronJobFlattenSpec(ctx, model, nil)
 		if diags.HasError() {
 			t.Fatalf("unexpected error: %v", diags.Errors())
 		}
@@ -108,7 +108,7 @@ func TestMetakubeMaintenanceCronJobFlattenMaintenanceJobTemplate(t *testing.T) {
 			Type:     "maintenance_job_type",
 		}
 
-		diags := metakubeMaintenanceCronJobFlattenMaintenanceJobTemplate(ctx, specModel, input, types.BoolNull())
+		diags := metakubeMaintenanceCronJobFlattenMaintenanceJobTemplate(ctx, specModel, input)
 		if diags.HasError() {
 			t.Fatalf("unexpected error: %v", diags.Errors())
 		}
@@ -140,7 +140,7 @@ func TestMetakubeMaintenanceCronJobFlattenMaintenanceJobTemplate(t *testing.T) {
 		specModel := &SpecModel{}
 		input := &models.MaintenanceJobTemplate{}
 
-		diags := metakubeMaintenanceCronJobFlattenMaintenanceJobTemplate(ctx, specModel, input, types.BoolNull())
+		diags := metakubeMaintenanceCronJobFlattenMaintenanceJobTemplate(ctx, specModel, input)
 		if diags.HasError() {
 			t.Fatalf("unexpected error: %v", diags.Errors())
 		}
@@ -152,7 +152,7 @@ func TestMetakubeMaintenanceCronJobFlattenMaintenanceJobTemplate(t *testing.T) {
 
 	t.Run("nil template", func(t *testing.T) {
 		specModel := &SpecModel{}
-		diags := metakubeMaintenanceCronJobFlattenMaintenanceJobTemplate(ctx, specModel, nil, types.BoolNull())
+		diags := metakubeMaintenanceCronJobFlattenMaintenanceJobTemplate(ctx, specModel, nil)
 		if diags.HasError() {
 			t.Fatalf("unexpected error: %v", diags.Errors())
 		}
