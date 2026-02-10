@@ -512,7 +512,7 @@ func TestAccMetakubeCluster_SSHKeys(t *testing.T) {
 	}
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testutil.TestAccPreCheckForOpenstack(t) },
-		Providers:    provider_testutil.TestAccProviders,
+		ProtoV6ProviderFactories: testutil.TestAccProtoV6ProviderFactories,
 		CheckDestroy: testutil.TestAccCheckMetaKubeClusterDestroy,
 		Steps: []resource.TestStep{
 			{
