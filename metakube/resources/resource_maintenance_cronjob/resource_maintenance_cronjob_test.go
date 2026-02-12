@@ -8,7 +8,11 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
+	"github.com/hashicorp/terraform-plugin-testing/statecheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
+	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
 	"github.com/syseleven/go-metakube/client/project"
 	"github.com/syseleven/go-metakube/models"
 	"github.com/syseleven/terraform-provider-metakube/metakube"
@@ -42,6 +46,7 @@ func TestAccMetakubeCluster_MaintenanceCronJob_Basic(t *testing.T) {
 		MaintenanceJobTemplateName: testutil.RandomName("test-maintenancecronjob-template", 5),
 		MaintenanceJobType:         "kubernetesPatchUpdate",
 		Schedule:                   "5 4 * * *",
+		UpdatedSchedule:            "0 2 * * *",
 	}
 
 	resource.Test(t, resource.TestCase{
@@ -51,25 +56,82 @@ func TestAccMetakubeCluster_MaintenanceCronJob_Basic(t *testing.T) {
 		ProtoV6ProviderFactories: testutil.TestAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckMetaKubeMaintenanceCronJobDestroy,
 		Steps: []resource.TestStep{
+			// Create
 			{
 				Config: testAccCheckMetaKubeMaintenanceCronJobBasicConfig(t, params),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionCreate),
+					},
+					PostApplyPreRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeMaintenanceCronJobExists(&maintenanceCronJob),
 					testAccCheckMetaKubeMaintenanceCronJobFields(&maintenanceCronJob, params.MaintenanceCronJobName, params.Schedule, params.MaintenanceJobType),
-					resource.TestCheckResourceAttr(resourceName, "name", params.MaintenanceCronJobName),
-					resource.TestCheckResourceAttr(resourceName, "spec.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.schedule", params.Schedule),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.maintenance_job_template.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.maintenance_job_template.0.rollback", "false"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.maintenance_job_template.0.type", params.MaintenanceJobType),
-					resource.TestCheckResourceAttrSet(resourceName, "creation_timestamp"),
-					resource.TestCheckResourceAttrSet(resourceName, "deletion_timestamp"),
 				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("project_id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("creation_timestamp"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("deletion_timestamp"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName,
+						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("maintenance_job_template").AtSliceIndex(0).AtMapKey("rollback"),
+						knownvalue.Bool(false),
+					),
+				},
 			},
+		// Update
+		{
+			Config: testAccCheckMetaKubeMaintenanceCronJobUpdateConfig(t, params),
+			ConfigPlanChecks: resource.ConfigPlanChecks{
+				PreApply: []plancheck.PlanCheck{
+					plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionUpdate),
+				},
+					PostApplyPreRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testAccCheckMetaKubeMaintenanceCronJobExists(&maintenanceCronJob),
+					testAccCheckMetaKubeMaintenanceCronJobFields(&maintenanceCronJob, params.MaintenanceCronJobName, params.UpdatedSchedule, params.MaintenanceJobType),
+				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("project_id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("creation_timestamp"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("deletion_timestamp"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName,
+					tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("maintenance_job_template").AtSliceIndex(0).AtMapKey("rollback"),
+					knownvalue.Bool(false),
+				),
+				},
+			},
+			// Import
 			{
-				Config:   testAccCheckMetaKubeMaintenanceCronJobBasicConfig(t, params),
-				PlanOnly: true,
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"timeouts"},
+				ImportStateIdFunc: func(s *terraform.State) (string, error) {
+					for _, rs := range s.RootModule().Resources {
+						if rs.Type == "metakube_maintenance_cron_job" {
+							return fmt.Sprintf("%s:%s:%s", rs.Primary.Attributes["project_id"], rs.Primary.Attributes["cluster_id"], rs.Primary.ID), nil
+						}
+					}
+					return "", fmt.Errorf("not found")
+				},
 			},
+
 		},
 	})
 }
@@ -86,6 +148,7 @@ type testAccCheckMetaKubeMaintenanceCronJobBasicParams struct {
 	MaintenanceJobTemplateName string
 	MaintenanceJobType         string
 	Schedule                   string
+	UpdatedSchedule            string
 }
 
 func testAccCheckMetaKubeMaintenanceCronJobBasicConfig(t *testing.T, params *testAccCheckMetaKubeMaintenanceCronJobBasicParams) string {
@@ -120,6 +183,49 @@ func testAccCheckMetaKubeMaintenanceCronJobBasicConfig(t *testing.T, params *tes
 			schedule		= "{{ .Schedule }}"
 			maintenance_job_template {
 				rollback 	= false
+				type		= "{{ .MaintenanceJobType }}"
+			}
+		}
+	}
+`).Execute(&result, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return result.String()
+}
+
+func testAccCheckMetaKubeMaintenanceCronJobUpdateConfig(t *testing.T, params *testAccCheckMetaKubeMaintenanceCronJobBasicParams) string {
+	t.Helper()
+
+	var result strings.Builder
+	err := testutil.MustParseTemplate("metakube maintenance cron job update template", `
+	resource "metakube_cluster" "acctest" {
+		name = "{{ .ClusterName }}"
+		dc_name = "{{ .DatacenterName }}"
+		project_id = "{{ .ProjectID }}"
+	
+		spec {
+			version = "{{ .Version }}"
+			cloud {
+				openstack {
+					application_credentials {
+						id = "{{ .OpenstackApplicationCredentialID }}"
+						secret ="{{ .OpenstackApplicationCredentialSecret }}"
+					}
+				}
+			}
+		}
+	}
+
+	resource "metakube_maintenance_cron_job" "acctest" {
+		cluster_id = metakube_cluster.acctest.id
+		name = "{{ .MaintenanceCronJobName }}"
+		project_id = "{{ .ProjectID }}"
+
+		spec {
+			schedule		= "{{ .UpdatedSchedule }}"
+			maintenance_job_template {
+				rollback 	= true
 				type		= "{{ .MaintenanceJobType }}"
 			}
 		}
