@@ -3,16 +3,89 @@ package common
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/syseleven/go-metakube/client/project"
 	"github.com/syseleven/go-metakube/models"
 )
+
+type RetryError struct {
+	Err       error
+	Retryable bool
+}
+
+func (e *RetryError) Error() string {
+	if e.Err != nil {
+		return e.Err.Error()
+	}
+	return ""
+}
+
+func (e *RetryError) Unwrap() error {
+	return e.Err
+}
+
+func RetryableError(err error) *RetryError {
+	return &RetryError{Err: err, Retryable: true}
+}
+
+func NonRetryableError(err error) *RetryError {
+	return &RetryError{Err: err, Retryable: false}
+}
+
+type RetryFunc func() *RetryError
+
+// RetryContext retries the given function until it succeeds, returns a non-retryable error,
+// or the context deadline/timeout is exceeded.
+// The polling interval starts at 500ms and uses exponential backoff with a max of 10s.
+func RetryContext(ctx context.Context, timeout time.Duration, f RetryFunc) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	backoffPolicy := backoff.NewExponentialBackOff()
+	backoffPolicy.InitialInterval = 500 * time.Millisecond
+	backoffPolicy.MaxInterval = 10 * time.Second
+
+	var lastErr error
+	_, err := backoff.Retry(ctx, func() (struct{}, error) {
+		retryErr := f()
+		if retryErr == nil {
+			return struct{}{}, nil
+		}
+
+		lastErr = retryErr.Err
+		if !retryErr.Retryable {
+			return struct{}{}, backoff.Permanent(retryErr.Err)
+		}
+
+		return struct{}{}, retryErr.Err
+	}, backoff.WithBackOff(backoffPolicy))
+	if err == nil {
+		return nil
+	}
+
+	if errors.Is(err, context.DeadlineExceeded) {
+		if lastErr != nil {
+			return fmt.Errorf("timeout while waiting: %w", lastErr)
+		}
+		return err
+	}
+	if errors.Is(err, context.Canceled) {
+		if lastErr != nil {
+			return fmt.Errorf("context canceled: %w", lastErr)
+		}
+		return err
+	}
+
+	return err
+}
+
 
 const (
 	// wait this time before starting resource checks
@@ -151,7 +224,7 @@ func metakubeResourceClusterBelongsToProject(ctx context.Context, prj, id string
 }
 
 func MetakubeResourceClusterWaitForReady(ctx context.Context, k *MetaKubeProviderMeta, timeout time.Duration, projectID, clusterID, configuredVersion string) error {
-	return retry.RetryContext(ctx, timeout, func() *retry.RetryError {
+	return RetryContext(ctx, timeout, func() *RetryError {
 
 		p := project.NewGetClusterV2Params()
 		p.SetContext(ctx)
@@ -160,7 +233,7 @@ func MetakubeResourceClusterWaitForReady(ctx context.Context, k *MetaKubeProvide
 
 		cluster, err := k.Client.Project.GetClusterV2(p, k.Auth)
 		if err != nil {
-			return retry.RetryableError(fmt.Errorf("unable to get cluster '%s': %s", clusterID, StringifyResponseError(err)))
+			return RetryableError(fmt.Errorf("unable to get cluster '%s': %s", clusterID, StringifyResponseError(err)))
 		}
 
 		p1 := project.NewGetClusterHealthV2Params()
@@ -170,7 +243,7 @@ func MetakubeResourceClusterWaitForReady(ctx context.Context, k *MetaKubeProvide
 
 		clusterHealth, err := k.Client.Project.GetClusterHealthV2(p1, k.Auth)
 		if err != nil {
-			return retry.RetryableError(fmt.Errorf("unable to get cluster '%s' health: %s", clusterID, StringifyResponseError(err)))
+			return RetryableError(fmt.Errorf("unable to get cluster '%s' health: %s", clusterID, StringifyResponseError(err)))
 		}
 
 		const up models.HealthStatus = 1
@@ -189,6 +262,6 @@ func MetakubeResourceClusterWaitForReady(ctx context.Context, k *MetaKubeProvide
 		}
 
 		k.Log.Debugf("waiting for cluster '%s' to be ready, %+v", clusterID, clusterHealth.Payload)
-		return retry.RetryableError(fmt.Errorf("waiting for cluster '%s' to be ready", clusterID))
+		return RetryableError(fmt.Errorf("waiting for cluster '%s' to be ready", clusterID))
 	})
 }
