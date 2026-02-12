@@ -51,6 +51,7 @@ require (
 require (
 	github.com/agext/levenshtein v1.2.2 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
+	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/fatih/color v1.16.0 // indirect
 	github.com/go-openapi/analysis v0.23.0 // indirect
 	github.com/go-openapi/errors v0.22.2 // indirect
