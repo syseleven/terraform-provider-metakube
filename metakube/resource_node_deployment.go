@@ -439,7 +439,7 @@ func metakubeResourceNodeDeploymentDelete(ctx context.Context, d *schema.Resourc
 				d.SetId("")
 				return nil
 			}
-			return retry.NonRetryableError(fmt.Errorf("unable to get node deployment '%s': %s", d.Id(), stringifyResponseError(err)))
+			return retry.RetryableError(fmt.Errorf("unable to get node deployment '%s': %s", d.Id(), stringifyResponseError(err)))
 		}
 
 		k.log.Debugf("node deployment '%s' deletion in progress, deletionTimestamp: %s",
