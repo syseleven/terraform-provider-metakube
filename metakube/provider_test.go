@@ -93,15 +93,15 @@ func testSweepSSHKeys(region string) error {
 
 func SharedConfigForRegion(_ string) (*common.MetaKubeProviderMeta, error) {
 	host := os.Getenv("METAKUBE_HOST")
-	client, err := common.NewClient(host)
-	if err != nil {
-		return nil, fmt.Errorf("create client %v", err)
+	client, diags := common.NewClient(host)
+	if diags.HasError() {
+		return nil, fmt.Errorf("create client %v", diags.Errors())
 	}
 
 	token := os.Getenv("METAKUBE_TOKEN")
-	auth, errr := common.NewAuth(token, "", "")
-	if errr != nil {
-		return nil, fmt.Errorf("auth api %v", common.ToFrameworkDiagnostics(errr))
+	auth, err := common.NewAuth(token, "", "")
+	if err != nil {
+		return nil, fmt.Errorf("auth api %v", err)
 	}
 	log := zap.NewNop().Sugar()
 	return &common.MetaKubeProviderMeta{

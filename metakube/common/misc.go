@@ -86,7 +86,6 @@ func RetryContext(ctx context.Context, timeout time.Duration, f RetryFunc) error
 	return err
 }
 
-
 const (
 	// wait this time before starting resource checks
 	RequestDelay = time.Second
