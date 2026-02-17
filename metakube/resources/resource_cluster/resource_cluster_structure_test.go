@@ -1755,3 +1755,31 @@ func TestUpgradeClusterLegacyCNIPluginState_EmptyListToNull(t *testing.T) {
 		t.Fatalf("expected cni_plugin to be null after upgrade, got: %#v", specMap["cni_plugin"])
 	}
 }
+
+func TestUpgradeClusterLegacyCNIPluginState_RemovesLegacyAzureCloud(t *testing.T) {
+	rawState := map[string]any{
+		"spec": []any{
+			map[string]any{
+				"cloud": []any{
+					map[string]any{
+						"openstack": []any{},
+						"azure": []any{
+							map[string]any{
+								"tenant_id": "legacy-tenant",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	upgradeClusterLegacyCNIPluginState(rawState)
+
+	specMap := rawState["spec"].([]any)[0].(map[string]any)
+	cloudMap := specMap["cloud"].([]any)[0].(map[string]any)
+
+	if _, ok := cloudMap["azure"]; ok {
+		t.Fatalf("expected legacy cloud.azure to be removed, got: %#v", cloudMap["azure"])
+	}
+}

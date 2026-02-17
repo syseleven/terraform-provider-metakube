@@ -199,6 +199,7 @@ func NodeDeploymentSchema(ctx context.Context) schema.Schema {
 
 	return schema.Schema{
 		Description: "Node deployment resource for MetaKube clusters",
+		Version:     1,
 		Attributes:  nodeDeploymentAttributes(),
 		Blocks:      blocks,
 	}

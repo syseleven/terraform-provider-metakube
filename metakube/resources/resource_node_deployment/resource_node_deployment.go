@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/syseleven/go-metakube/client/project"
 	"github.com/syseleven/go-metakube/client/versions"
 	"github.com/syseleven/go-metakube/models"
@@ -22,9 +23,10 @@ import (
 )
 
 var (
-	_ resource.Resource                = &nodeDeploymentResource{}
-	_ resource.ResourceWithConfigure   = &nodeDeploymentResource{}
-	_ resource.ResourceWithImportState = &nodeDeploymentResource{}
+	_ resource.Resource                 = &nodeDeploymentResource{}
+	_ resource.ResourceWithConfigure    = &nodeDeploymentResource{}
+	_ resource.ResourceWithImportState  = &nodeDeploymentResource{}
+	_ resource.ResourceWithUpgradeState = &nodeDeploymentResource{}
 )
 
 // NewNodeDeployment returns a new node deployment resource for the framework provider
@@ -411,6 +413,42 @@ func (r *nodeDeploymentResource) ImportState(ctx context.Context, req resource.I
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("project_id"), parts[0])...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("cluster_id"), parts[1])...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[2])...)
+}
+
+func (r *nodeDeploymentResource) UpgradeState(_ context.Context) map[int64]resource.StateUpgrader {
+	return map[int64]resource.StateUpgrader{
+		0: {
+			StateUpgrader: upgradeNodeDeploymentStateV0ToV1,
+		},
+	}
+}
+
+func upgradeNodeDeploymentStateV0ToV1(_ context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
+	if req.RawState == nil || len(req.RawState.JSON) == 0 {
+		return
+	}
+
+	var rawState map[string]any
+	if err := json.Unmarshal(req.RawState.JSON, &rawState); err != nil {
+		resp.Diagnostics.AddError(
+			"Failed to unmarshal legacy node deployment state",
+			fmt.Sprintf("Unable to unmarshal existing metakube_node_deployment state for upgrade: %v", err),
+		)
+		return
+	}
+
+	upgradeNodeDeploymentLegacyAzureState(rawState)
+
+	upgradedJSON, err := json.Marshal(rawState)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Failed to marshal upgraded node deployment state",
+			fmt.Sprintf("Unable to marshal upgraded metakube_node_deployment state: %v", err),
+		)
+		return
+	}
+
+	resp.DynamicValue = &tfprotov6.DynamicValue{JSON: upgradedJSON}
 }
 
 // readIntoModel reads the node deployment from the API and updates the model
