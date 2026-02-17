@@ -52,6 +52,21 @@ func (data *metakubeResourceClusterOpenstackValidationData) setParams(ctx contex
 	p.SetContext(ctx)
 }
 
+func (data *metakubeResourceClusterOpenstackValidationData) canValidateAgainstOpenstack() bool {
+	if data.dcName == nil || *data.dcName == "" {
+		return false
+	}
+
+	hasUserCredentials := data.username != nil && *data.username != "" &&
+	data.password != nil && *data.password != "" &&
+	data.projectID != nil && *data.projectID != ""
+
+	hasApplicationCredentials := data.applicationCredentialsID != nil && *data.applicationCredentialsID != "" &&
+		data.applicationCredentialsSecret != nil && *data.applicationCredentialsSecret != ""
+
+	return hasUserCredentials || hasApplicationCredentials
+}
+
 func newOpenstackValidationData(ctx context.Context, model *ClusterModel) metakubeResourceClusterOpenstackValidationData {
 	data := metakubeResourceClusterOpenstackValidationData{
 		domain: common.StrToPtr("Default"),
@@ -135,8 +150,7 @@ func metakubeResourceClusterValidateClusterFields(ctx context.Context, model *Cl
 	}
 
 	data := newOpenstackValidationData(ctx, model)
-	hasAuthData := (data.username == nil || *data.username != "") && (data.applicationCredentialsID == nil || *data.applicationCredentialsSecret != "")
-	if hasAuthData {
+	if data.canValidateAgainstOpenstack() {
 		ret.Append(metakubeResourceClusterValidateFloatingIPPool(ctx, model, k)...)
 		ret.Append(metakubeResourceClusterValidateOpenstackNetwork(ctx, model, k)...)
 		ret.Append(diagnoseOpenstackSubnetWithIDExistsIfSet(ctx, model, k)...)
