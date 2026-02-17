@@ -176,15 +176,15 @@ func maintenanceCronJobBlocks() map[string]schema.Block {
 						Description: "MaintenanceJob template specification",
 						NestedObject: schema.NestedBlockObject{
 							Attributes: map[string]schema.Attribute{
-							"rollback": schema.BoolAttribute{
-								Optional:    true,
-								Computed:    true,
-								Default:     booldefault.StaticBool(false),
-								Description: "Indicates whether the maintenance done should be rolled back",
-								PlanModifiers: []planmodifier.Bool{
-									rollbackUseAPIValue{},
+								"rollback": schema.BoolAttribute{
+									Optional:    true,
+									Computed:    true,
+									Default:     booldefault.StaticBool(false),
+									Description: "Indicates whether the maintenance done should be rolled back",
+									PlanModifiers: []planmodifier.Bool{
+										rollbackUseAPIValue{},
+									},
 								},
-							},
 								"type": schema.StringAttribute{
 									Required:    true,
 									Description: "Defines the type of maintenance that should be run",

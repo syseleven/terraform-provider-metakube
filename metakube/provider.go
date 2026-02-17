@@ -82,7 +82,7 @@ func Provider() *pluginSchema.Provider {
 		},
 
 		ResourcesMap: map[string]*pluginSchema.Resource{
-			"metakube_sshkey":               resource_sshkey.MetakubeResourceSSHKey(),
+			"metakube_sshkey": resource_sshkey.MetakubeResourceSSHKey(),
 		},
 	}
 
