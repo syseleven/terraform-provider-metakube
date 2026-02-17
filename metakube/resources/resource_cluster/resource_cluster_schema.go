@@ -139,6 +139,7 @@ func CNIPluginDiffSuppress() planmodifier.Object {
 func ClusterResourceSchema(ctx context.Context) schema.Schema {
 	return schema.Schema{
 		Description: "Cluster resource in MetaKube",
+		Version:     1,
 		Blocks: map[string]schema.Block{
 			"timeouts": timeouts.Block(ctx, timeouts.Opts{
 				Create: true,

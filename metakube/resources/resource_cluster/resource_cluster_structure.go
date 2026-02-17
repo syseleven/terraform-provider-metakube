@@ -853,3 +853,41 @@ func expandOpenstackCloudSpec(ctx context.Context, list types.List, include func
 
 	return obj
 }
+
+func upgradeClusterLegacyCNIPluginState(rawState map[string]any) {
+	spec, ok := rawState["spec"]
+	if !ok {
+		return
+	}
+
+	specList, ok := spec.([]any)
+	if !ok {
+		return
+	}
+
+	for _, specElem := range specList {
+		specMap, ok := specElem.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		cni, ok := specMap["cni_plugin"]
+		if !ok {
+			continue
+		}
+
+		cniList, ok := cni.([]any)
+		if !ok {
+			continue
+		}
+
+		switch len(cniList) {
+		case 0:
+			specMap["cni_plugin"] = nil
+		default:
+			if cniMap, ok := cniList[0].(map[string]any); ok {
+				specMap["cni_plugin"] = cniMap
+			}
+		}
+	}
+}

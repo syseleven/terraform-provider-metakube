@@ -2,6 +2,7 @@ package resource_cluster
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/syseleven/go-metakube/client/datacenter"
 	"github.com/syseleven/go-metakube/client/project"
 	"github.com/syseleven/go-metakube/models"
@@ -19,9 +21,10 @@ import (
 )
 
 var (
-	_ resource.Resource                = &clusterResource{}
-	_ resource.ResourceWithConfigure   = &clusterResource{}
-	_ resource.ResourceWithImportState = &clusterResource{}
+	_ resource.Resource                 = &clusterResource{}
+	_ resource.ResourceWithConfigure    = &clusterResource{}
+	_ resource.ResourceWithImportState  = &clusterResource{}
+	_ resource.ResourceWithUpgradeState = &clusterResource{}
 )
 
 func NewClusterResource() resource.Resource {
@@ -403,6 +406,42 @@ func (r *clusterResource) ImportState(ctx context.Context, req resource.ImportSt
 			"Please provide resource identifier in format 'project_id:cluster_id' or 'cluster_id'",
 		)
 	}
+}
+
+func (r *clusterResource) UpgradeState(_ context.Context) map[int64]resource.StateUpgrader {
+	return map[int64]resource.StateUpgrader{
+		0: {
+			StateUpgrader: upgradeClusterStateV0ToV1,
+		},
+	}
+}
+
+func upgradeClusterStateV0ToV1(_ context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
+	if req.RawState == nil || len(req.RawState.JSON) == 0 {
+		return
+	}
+
+	var rawState map[string]any
+	if err := json.Unmarshal(req.RawState.JSON, &rawState); err != nil {
+		resp.Diagnostics.AddError(
+			"Failed to unmarshal legacy cluster state",
+			fmt.Sprintf("Unable to unmarshal existing metakube_cluster state for upgrade: %v", err),
+		)
+		return
+	}
+
+	upgradeClusterLegacyCNIPluginState(rawState)
+
+	upgradedJSON, err := json.Marshal(rawState)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Failed to marshal upgraded cluster state",
+			fmt.Sprintf("Unable to marshal upgraded metakube_cluster state: %v", err),
+		)
+		return
+	}
+
+	resp.DynamicValue = &tfprotov6.DynamicValue{JSON: upgradedJSON}
 }
 
 func (r *clusterResource) readClusterIntoModel(ctx context.Context, model *ClusterModel) diag.Diagnostics {
