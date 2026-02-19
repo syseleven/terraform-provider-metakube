@@ -411,12 +411,12 @@ func (r *clusterResource) ImportState(ctx context.Context, req resource.ImportSt
 func (r *clusterResource) UpgradeState(_ context.Context) map[int64]resource.StateUpgrader {
 	return map[int64]resource.StateUpgrader{
 		0: {
-			StateUpgrader: upgradeClusterStateV0ToV1,
+			StateUpgrader: upgradeClusterStateToV1,
 		},
 	}
 }
 
-func upgradeClusterStateV0ToV1(_ context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
+func upgradeClusterStateToV1(_ context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
 	if req.RawState == nil || len(req.RawState.JSON) == 0 {
 		return
 	}

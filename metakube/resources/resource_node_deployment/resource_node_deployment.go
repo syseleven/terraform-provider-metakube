@@ -418,12 +418,12 @@ func (r *nodeDeploymentResource) ImportState(ctx context.Context, req resource.I
 func (r *nodeDeploymentResource) UpgradeState(_ context.Context) map[int64]resource.StateUpgrader {
 	return map[int64]resource.StateUpgrader{
 		0: {
-			StateUpgrader: upgradeNodeDeploymentStateV0ToV1,
+			StateUpgrader: upgradeNodeDeploymentStateToV1,
 		},
 	}
 }
 
-func upgradeNodeDeploymentStateV0ToV1(_ context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
+func upgradeNodeDeploymentStateToV1(_ context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
 	if req.RawState == nil || len(req.RawState.JSON) == 0 {
 		return
 	}
