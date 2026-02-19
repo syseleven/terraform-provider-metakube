@@ -8,11 +8,11 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/statecheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
-	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
 	"github.com/syseleven/go-metakube/client/project"
 	"github.com/syseleven/go-metakube/models"
 	"github.com/syseleven/terraform-provider-metakube/metakube"
@@ -86,13 +86,13 @@ func TestAccMetakubeCluster_MaintenanceCronJob_Basic(t *testing.T) {
 					),
 				},
 			},
-		// Update
-		{
-			Config: testAccCheckMetaKubeMaintenanceCronJobUpdateConfig(t, params),
-			ConfigPlanChecks: resource.ConfigPlanChecks{
-				PreApply: []plancheck.PlanCheck{
-					plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionUpdate),
-				},
+			// Update
+			{
+				Config: testAccCheckMetaKubeMaintenanceCronJobUpdateConfig(t, params),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionUpdate),
+					},
 					PostApplyPreRefresh: []plancheck.PlanCheck{
 						plancheck.ExpectEmptyPlan(),
 					},
@@ -110,10 +110,10 @@ func TestAccMetakubeCluster_MaintenanceCronJob_Basic(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("creation_timestamp"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("deletion_timestamp"), knownvalue.NotNull()),
-				statecheck.ExpectKnownValue(resourceName,
-					tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("maintenance_job_template").AtSliceIndex(0).AtMapKey("rollback"),
-					knownvalue.Bool(false),
-				),
+					statecheck.ExpectKnownValue(resourceName,
+						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("maintenance_job_template").AtSliceIndex(0).AtMapKey("rollback"),
+						knownvalue.Bool(false),
+					),
 				},
 			},
 			// Import
@@ -131,7 +131,6 @@ func TestAccMetakubeCluster_MaintenanceCronJob_Basic(t *testing.T) {
 					return "", fmt.Errorf("not found")
 				},
 			},
-
 		},
 	})
 }

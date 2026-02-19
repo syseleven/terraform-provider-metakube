@@ -343,3 +343,35 @@ func buildMockNodeDeploymentModel(ctx context.Context, t *testing.T, cloudModel 
 		DeletionTimestamp: types.StringNull(),
 	}
 }
+
+func TestUpgradeNodeDeploymentLegacyAzureState_RemovesAzureCloud(t *testing.T) {
+	rawState := map[string]any{
+		"spec": []any{
+			map[string]any{
+				"template": []any{
+					map[string]any{
+						"cloud": []any{
+							map[string]any{
+								"openstack": []any{},
+								"azure": []any{
+									map[string]any{
+										"size": "legacy",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	upgradeNodeDeploymentLegacyAzureState(rawState)
+
+	specMap := rawState["spec"].([]any)[0].(map[string]any)
+	templateMap := specMap["template"].([]any)[0].(map[string]any)
+	cloudMap := templateMap["cloud"].([]any)[0].(map[string]any)
+	if _, ok := cloudMap["azure"]; ok {
+		t.Fatalf("expected legacy cloud.azure to be removed, got: %#v", cloudMap["azure"])
+	}
+}

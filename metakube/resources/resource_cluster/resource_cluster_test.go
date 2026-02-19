@@ -483,6 +483,8 @@ func TestAccMetakubeCluster_SSHKeys(t *testing.T) {
 
 	data := &clusterOpenstackWithSSHKeyData{
 		Name:                                  testutil.MakeRandomName() + "-sshkeys",
+		SSHKey1Name:                           testutil.MakeRandomName() + "-sshkey1",
+		SSHKey2Name:                           testutil.MakeRandomName() + "-sshkey2",
 		OpenstackApplicationCredentialsID:     common.GetSACredentialId(),
 		OpenstackApplicationCredentialsSecret: os.Getenv(common.TestEnvServiceAccountCredential),
 		OpenstackProjectID:                    os.Getenv(common.TestEnvProjectID),
@@ -502,9 +504,9 @@ func TestAccMetakubeCluster_SSHKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 	resource.Test(t, resource.TestCase{
-		PreCheck:     func() { testutil.TestAccPreCheckForOpenstack(t) },
+		PreCheck:                 func() { testutil.TestAccPreCheckForOpenstack(t) },
 		ProtoV6ProviderFactories: testutil.TestAccProtoV6ProviderFactories,
-		CheckDestroy: testutil.TestAccCheckMetaKubeClusterDestroy,
+		CheckDestroy:             testutil.TestAccCheckMetaKubeClusterDestroy,
 		Steps: []resource.TestStep{
 			{
 				Config: config1.String(),
@@ -530,6 +532,8 @@ func TestAccMetakubeCluster_SSHKeys(t *testing.T) {
 
 type clusterOpenstackWithSSHKeyData struct {
 	Name                                  string
+	SSHKey1Name                           string
+	SSHKey2Name                           string
 	DatacenterName                        string
 	ProjectID                             string
 	Version                               string
@@ -565,7 +569,7 @@ resource "metakube_cluster" "acctest_cluster" {
 
 resource "metakube_sshkey" "acctest_sshkey1" {
 	project_id = "{{ .ProjectID }}"
-	name = "tf-acc-test-sshkey-1"
+	name = "{{ .SSHKey1Name }}"
 	public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCut5oRyqeqYci3E9m6Z6mtxfqkiyb+xNFJM6+/sllhnMDX0vzrNj8PuIFfGkgtowKY//QWLgoB+RpvXqcD4bb4zPkLdXdJPtUf1eAoMh/qgyThUjBs3n7BXvXMDg1Wdj0gq/sTnPLvXsfrSVPjiZvWN4h0JdID2NLnwYuKIiltIn+IbUa6OnyFfOEpqb5XJ7H7LK1mUKTlQ/9CFROxSQf3YQrR9UdtASIeyIZL53WgYgU31Yqy7MQaY1y0fGmHsFwpCK6qFZj1DNruKl/IR1lLx/Bg3z9sDcoBnHKnzSzVels9EVlDOG6bW738ho269QAIrWQYBtznsvWKu5xZPuuj user@machine"
 	}`)
 
@@ -596,7 +600,7 @@ resource "metakube_cluster" "acctest_cluster" {
 
 resource "metakube_sshkey" "acctest_sshkey2" {
 	project_id = "{{ .ProjectID }}"
-	name = "tf-acc-sshkey-2"
+	name = "{{ .SSHKey2Name }}"
 	public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCut5oRyqeqYci3E9m6Z6mtxfqkiyb+xNFJM6+/sllhnMDX0vzrNj8PuIFfGkgtowKY//QWLgoB+RpvXqcD4bb4zPkLdXdJPtUf1eAoMh/qgyThUjBs3n7BXvXMDg1Wdj0gq/sTnPLvXsfrSVPjiZvWN4h0JdID2NLnwYuKIiltIn+IbUa6OnyFfOEpqb5XJ7H7LK1mUKTlQ/9CFROxSQf3YQrR9UdtASIeyIZL53WgYgU31Yqy7MQaY1y0fGmHsFwpCK6qFZj1DNruKl/IR1lLx/Bg3z9sDcoBnHKnzSzVels9EVlDOG6bW738ho269QAIrWQYBtznsvWKu5xZPuuj user@machine"
 }`)
 

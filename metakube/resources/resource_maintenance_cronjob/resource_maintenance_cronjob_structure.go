@@ -138,7 +138,7 @@ func metakubeMaintenanceCronJobBuildPatch(ctx context.Context, specList types.Li
 
 	return map[string]any{
 		"spec": map[string]any{
-			"schedule":                spec.Schedule.ValueString(),
+			"schedule":               spec.Schedule.ValueString(),
 			"maintenanceJobTemplate": tmpl,
 		},
 	}

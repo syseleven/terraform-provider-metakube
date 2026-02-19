@@ -3,9 +3,9 @@ package resource_cluster_role_binding
 import (
 	"context"
 
+	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
-	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -26,11 +26,11 @@ func ClusterRoleBindingSchema(ctx context.Context) schema.Schema {
 
 // ClusterRoleBindingModel represents the Terraform resource model for a cluster role binding.
 type ClusterRoleBindingModel struct {
-	ID              types.String `tfsdk:"id"`
-	ProjectID       types.String `tfsdk:"project_id"`
-	ClusterID       types.String `tfsdk:"cluster_id"`
-	ClusterRoleName types.String `tfsdk:"cluster_role_name"`
-	Subject         types.List   `tfsdk:"subject"`
+	ID              types.String   `tfsdk:"id"`
+	ProjectID       types.String   `tfsdk:"project_id"`
+	ClusterID       types.String   `tfsdk:"cluster_id"`
+	ClusterRoleName types.String   `tfsdk:"cluster_role_name"`
+	Subject         types.List     `tfsdk:"subject"`
 	Timeouts        timeouts.Value `tfsdk:"timeouts"`
 }
 

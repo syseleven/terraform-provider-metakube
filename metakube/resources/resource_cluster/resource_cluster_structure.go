@@ -853,3 +853,55 @@ func expandOpenstackCloudSpec(ctx context.Context, list types.List, include func
 
 	return obj
 }
+
+func upgradeClusterLegacyCNIPluginState(rawState map[string]any) {
+	spec, ok := rawState["spec"]
+	if !ok {
+		return
+	}
+
+	specList, ok := spec.([]any)
+	if !ok {
+		return
+	}
+
+	for _, specElem := range specList {
+		specMap, ok := specElem.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		if cni, ok := specMap["cni_plugin"]; ok {
+			if cniList, ok := cni.([]any); ok {
+				switch len(cniList) {
+				case 0:
+					specMap["cni_plugin"] = nil
+				default:
+					if cniMap, ok := cniList[0].(map[string]any); ok {
+						specMap["cni_plugin"] = cniMap
+					}
+				}
+			}
+		}
+
+		cloud, ok := specMap["cloud"]
+		if !ok {
+			continue
+		}
+
+		cloudList, ok := cloud.([]any)
+		if !ok {
+			continue
+		}
+
+		for _, cloudElem := range cloudList {
+			cloudMap, ok := cloudElem.(map[string]any)
+			if !ok {
+				continue
+			}
+
+			// Legacy SDK state may contain a now-unsupported cloud.azure block.
+			delete(cloudMap, "azure")
+		}
+	}
+}

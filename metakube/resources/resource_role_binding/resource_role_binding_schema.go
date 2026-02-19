@@ -3,9 +3,9 @@ package resource_role_binding
 import (
 	"context"
 
+	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
-	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -26,12 +26,12 @@ func RoleBindingSchema(ctx context.Context) schema.Schema {
 
 // RoleBindingModel represents the Terraform resource model for a role binding.
 type RoleBindingModel struct {
-	ID        types.String `tfsdk:"id"`
-	ProjectID types.String `tfsdk:"project_id"`
-	ClusterID types.String `tfsdk:"cluster_id"`
-	Namespace types.String `tfsdk:"namespace"`
-	RoleName  types.String `tfsdk:"role_name"`
-	Subject   types.List   `tfsdk:"subject"`
+	ID        types.String   `tfsdk:"id"`
+	ProjectID types.String   `tfsdk:"project_id"`
+	ClusterID types.String   `tfsdk:"cluster_id"`
+	Namespace types.String   `tfsdk:"namespace"`
+	RoleName  types.String   `tfsdk:"role_name"`
+	Subject   types.List     `tfsdk:"subject"`
 	Timeouts  timeouts.Value `tfsdk:"timeouts"`
 }
 

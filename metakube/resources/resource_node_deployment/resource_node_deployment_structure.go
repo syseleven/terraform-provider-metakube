@@ -946,3 +946,59 @@ func getCloudProviderFromModel(ctx context.Context, model *NodeDeploymentModel) 
 
 	return "", diags
 }
+
+func upgradeNodeDeploymentLegacyAzureState(rawState map[string]any) {
+	spec, ok := rawState["spec"]
+	if !ok {
+		return
+	}
+
+	specList, ok := spec.([]any)
+	if !ok {
+		return
+	}
+
+	for _, specElem := range specList {
+		specMap, ok := specElem.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		template, ok := specMap["template"]
+		if !ok {
+			continue
+		}
+
+		templateList, ok := template.([]any)
+		if !ok {
+			continue
+		}
+
+		for _, templateElem := range templateList {
+			templateMap, ok := templateElem.(map[string]any)
+			if !ok {
+				continue
+			}
+
+			cloud, ok := templateMap["cloud"]
+			if !ok {
+				continue
+			}
+
+			cloudList, ok := cloud.([]any)
+			if !ok {
+				continue
+			}
+
+			for _, cloudElem := range cloudList {
+				cloudMap, ok := cloudElem.(map[string]any)
+				if !ok {
+					continue
+				}
+
+				// Legacy SDK state may contain a now-unsupported cloud.azure block.
+				delete(cloudMap, "azure")
+			}
+		}
+	}
+}

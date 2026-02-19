@@ -139,6 +139,7 @@ func CNIPluginDiffSuppress() planmodifier.Object {
 func ClusterResourceSchema(ctx context.Context) schema.Schema {
 	return schema.Schema{
 		Description: "Cluster resource in MetaKube",
+		Version:     1,
 		Blocks: map[string]schema.Block{
 			"timeouts": timeouts.Block(ctx, timeouts.Opts{
 				Create: true,
@@ -257,17 +258,11 @@ func metakubeResourceClusterSpecAttributes() map[string]schema.Attribute {
 			Optional:    true,
 			Computed:    true,
 			Description: "Internal IP range for ClusterIP Services",
-			PlanModifiers: []planmodifier.String{
-				stringplanmodifier.RequiresReplace(),
-			},
 		},
 		"pods_cidr": schema.StringAttribute{
 			Optional:    true,
 			Computed:    true,
 			Description: "Internal IP range for Pods",
-			PlanModifiers: []planmodifier.String{
-				stringplanmodifier.RequiresReplace(),
-			},
 		},
 		"ip_family": schema.StringAttribute{
 			Optional:    true,
@@ -396,9 +391,6 @@ func metakubeResourceClusterAWSCloudSpecFields() schema.NestedBlockObject {
 					stringvalidator.LengthAtLeast(1),
 				},
 				Description: "Access key identifier",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"secret_access_key": schema.StringAttribute{
 				Required:  true,
@@ -407,9 +399,6 @@ func metakubeResourceClusterAWSCloudSpecFields() schema.NestedBlockObject {
 					stringvalidator.LengthAtLeast(1),
 				},
 				Description: "Secret access key",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"vpc_id": schema.StringAttribute{
 				Required: true,
@@ -417,37 +406,22 @@ func metakubeResourceClusterAWSCloudSpecFields() schema.NestedBlockObject {
 					stringvalidator.LengthAtLeast(1),
 				},
 				Description: "Virtual private cloud identifier",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"security_group_id": schema.StringAttribute{
 				Optional:    true,
 				Description: "Security group identifier",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"route_table_id": schema.StringAttribute{
 				Optional:    true,
 				Description: "Route table identifier",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"instance_profile_name": schema.StringAttribute{
 				Optional:    true,
 				Description: "Instance profile name",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"role_arn": schema.StringAttribute{
 				Optional:    true,
 				Description: "The IAM role the control plane will use over assume-role",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"openstack_billing_tenant": schema.StringAttribute{
 				Required: true,
@@ -470,43 +444,28 @@ func metakubeResourceClusterOpenstackCloudSpecFields() schema.NestedBlockObject 
 				Computed:    true,
 				Optional:    true,
 				Description: "The floating ip pool used by all worker nodes to receive a public ip",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"security_group": schema.StringAttribute{
 				Computed:    true,
 				Optional:    true,
 				Description: "When specified, all worker nodes will be attached to this security group. If not specified, a security group will be created",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"network": schema.StringAttribute{
 				Computed:    true,
 				Optional:    true,
 				Description: "When specified, all worker nodes will be attached to this network. If not specified, a network, subnet & router will be created.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"subnet_id": schema.StringAttribute{
 				Computed:    true,
 				Optional:    true,
 				Description: "When specified, all worker nodes will be attached to this subnet of specified network. If not specified, a network, subnet & router will be created.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 				Validators: []validator.String{
 					stringvalidator.AlsoRequires(fwpath.MatchRoot("spec").AtListIndex(0).AtName("cloud").AtListIndex(0).AtName("openstack").AtListIndex(0).AtName("network")),
 				},
 			},
 			"subnet_cidr": schema.StringAttribute{
-				Computed: true,
-				Optional: true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
+				Computed:    true,
+				Optional:    true,
 				Description: "Change this to configure a different internal IP range for Nodes. Default: 192.168.1.0/24",
 			},
 			"server_group_id": schema.StringAttribute{

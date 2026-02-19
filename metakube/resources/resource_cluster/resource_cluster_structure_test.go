@@ -829,10 +829,10 @@ func TestGetPreservedValuesFromModel(t *testing.T) {
 	ctx := context.Background()
 
 	cases := []struct {
-		name        string
-		setupModel  func() *ClusterModel
-		expectAWS   *models.AWSCloudSpec
-		expectOS    *clusterOpenstackPreservedValues
+		name       string
+		setupModel func() *ClusterModel
+		expectAWS  *models.AWSCloudSpec
+		expectOS   *clusterOpenstackPreservedValues
 	}{
 		{
 			name: "null spec returns empty values",
@@ -841,8 +841,8 @@ func TestGetPreservedValuesFromModel(t *testing.T) {
 					Spec: types.ListNull(types.ObjectType{AttrTypes: clusterSpecAttrTypes()}),
 				}
 			},
-			expectAWS:   nil,
-			expectOS:    nil,
+			expectAWS: nil,
+			expectOS:  nil,
 		},
 		{
 			name: "model with AWS credentials preserves them",
@@ -855,7 +855,7 @@ func TestGetPreservedValuesFromModel(t *testing.T) {
 				VPCID:           "vpc-123",
 				SecurityGroupID: "sg-456",
 			},
-			expectOS:    nil,
+			expectOS: nil,
 		},
 		{
 			name: "model with OpenStack user credentials preserves them",
@@ -893,8 +893,8 @@ func TestGetPreservedValuesFromModel(t *testing.T) {
 				}
 				return createTestClusterModel(ctx, t, specModel)
 			},
-			expectAWS:   nil,
-			expectOS:    nil,
+			expectAWS: nil,
+			expectOS:  nil,
 		},
 	}
 
@@ -1701,4 +1701,85 @@ func createModelWithOpenstackAppCredentials(ctx context.Context, t *testing.T, a
 		SyselevenAuth:     types.ListNull(types.ObjectType{AttrTypes: syselevenAuthAttrTypes()}),
 	}
 	return createTestClusterModel(ctx, t, specModel)
+}
+
+func TestUpgradeClusterLegacyCNIPluginState_ListToObject(t *testing.T) {
+	rawState := map[string]any{
+		"spec": []any{
+			map[string]any{
+				"version": "1.31.4",
+				"cni_plugin": []any{
+					map[string]any{
+						"type": "cilium",
+					},
+				},
+			},
+		},
+	}
+
+	upgradeClusterLegacyCNIPluginState(rawState)
+
+	specList, ok := rawState["spec"].([]any)
+	if !ok || len(specList) != 1 {
+		t.Fatalf("unexpected spec value after upgrade: %#v", rawState["spec"])
+	}
+
+	specMap, ok := specList[0].(map[string]any)
+	if !ok {
+		t.Fatalf("unexpected spec element type after upgrade: %#v", specList[0])
+	}
+
+	cniPlugin, ok := specMap["cni_plugin"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected cni_plugin object after upgrade, got: %#v", specMap["cni_plugin"])
+	}
+
+	if got, want := cniPlugin["type"], "cilium"; got != want {
+		t.Fatalf("unexpected cni_plugin.type after upgrade: got %v, want %v", got, want)
+	}
+}
+
+func TestUpgradeClusterLegacyCNIPluginState_EmptyListToNull(t *testing.T) {
+	rawState := map[string]any{
+		"spec": []any{
+			map[string]any{
+				"cni_plugin": []any{},
+			},
+		},
+	}
+
+	upgradeClusterLegacyCNIPluginState(rawState)
+
+	specMap := rawState["spec"].([]any)[0].(map[string]any)
+	if val, ok := specMap["cni_plugin"]; !ok || val != nil {
+		t.Fatalf("expected cni_plugin to be null after upgrade, got: %#v", specMap["cni_plugin"])
+	}
+}
+
+func TestUpgradeClusterLegacyCNIPluginState_RemovesLegacyAzureCloud(t *testing.T) {
+	rawState := map[string]any{
+		"spec": []any{
+			map[string]any{
+				"cloud": []any{
+					map[string]any{
+						"openstack": []any{},
+						"azure": []any{
+							map[string]any{
+								"tenant_id": "legacy-tenant",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	upgradeClusterLegacyCNIPluginState(rawState)
+
+	specMap := rawState["spec"].([]any)[0].(map[string]any)
+	cloudMap := specMap["cloud"].([]any)[0].(map[string]any)
+
+	if _, ok := cloudMap["azure"]; ok {
+		t.Fatalf("expected legacy cloud.azure to be removed, got: %#v", cloudMap["azure"])
+	}
 }

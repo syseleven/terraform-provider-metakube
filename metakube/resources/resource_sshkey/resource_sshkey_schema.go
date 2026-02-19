@@ -59,7 +59,7 @@ type SSHKeyModel struct {
 	ID        types.String `tfsdk:"id"`
 	ProjectID types.String `tfsdk:"project_id"`
 	Name      types.String `tfsdk:"name"`
-	PublicKey  types.String `tfsdk:"public_key"`
+	PublicKey types.String `tfsdk:"public_key"`
 }
 
 type publicKeyNormalizePlanModifier struct{}

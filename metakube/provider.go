@@ -81,8 +81,7 @@ func Provider() *pluginSchema.Provider {
 			},
 		},
 
-		ResourcesMap: map[string]*pluginSchema.Resource{
-		},
+		ResourcesMap: map[string]*pluginSchema.Resource{},
 	}
 
 	// copying stderr because of https://github.com/hashicorp/go-plugin/issues/93
