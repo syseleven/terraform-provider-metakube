@@ -497,6 +497,9 @@ func (r *clusterResource) readClusterIntoModel(ctx context.Context, model *Clust
 	}
 
 	diags.Append(metakubeResourceClusterFlattenSpec(ctx, model, result.Payload.Spec)...)
+	if diags.HasError() {
+		return diags
+	}
 
 	model.CreationTimestamp = types.StringValue(result.Payload.CreationTimestamp.String())
 	model.DeletionTimestamp = types.StringValue(result.Payload.DeletionTimestamp.String())

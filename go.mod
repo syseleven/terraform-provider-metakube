@@ -10,6 +10,7 @@ replace (
 )
 
 require (
+	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/go-openapi/runtime v0.28.0
 	github.com/go-openapi/strfmt v0.23.0
 	github.com/google/go-cmp v0.7.0
@@ -22,7 +23,7 @@ require (
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.38.1
 	github.com/hashicorp/terraform-plugin-testing v1.14.0
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/syseleven/go-metakube v0.0.0-20260121125850-22994dc8f62e
+	github.com/syseleven/go-metakube v0.0.0-20260309164901-be722e0abfab
 	go.uber.org/zap v1.19.0
 	golang.org/x/mod v0.29.0
 	k8s.io/utils v0.0.0-20241104163129-6fe5fd82f078
@@ -31,7 +32,6 @@ require (
 require (
 	github.com/ProtonMail/go-crypto v1.1.6 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
-	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -51,7 +51,6 @@ require (
 require (
 	github.com/agext/levenshtein v1.2.2 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
-	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/fatih/color v1.16.0 // indirect
 	github.com/go-openapi/analysis v0.23.0 // indirect
 	github.com/go-openapi/errors v0.22.2 // indirect

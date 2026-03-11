@@ -13,7 +13,8 @@ if [[ "${DEBUG}" == "true" ]]; then
     echo "$(date) env variables were:" >>"$logfile"
     set >>"$logfile"
 else
-    "$(dirname $0)/../terraform-provider-metakube" "$@"
+    cd "$(dirname $0)/../"
+    go run main.go -- "$@"
     ec=$?
 fi
 

@@ -15,7 +15,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
@@ -273,30 +272,38 @@ func metakubeResourceClusterSpecAttributes() map[string]schema.Attribute {
 				stringvalidator.OneOf("IPv4", "IPv4+IPv6"),
 			},
 		},
-		"cni_plugin": schema.SingleNestedAttribute{
-			Optional:    true,
-			Computed:    true,
-			Description: "Contains the spec of the CNI plugin used by the Cluster. Defaults to canal if not specified.",
-			Attributes: map[string]schema.Attribute{
-				"type": schema.StringAttribute{
-					Optional:    true,
-					Computed:    true,
-					Description: "Define the type of CNI plugin",
-					Validators: []validator.String{
-						stringvalidator.OneOf("cilium", "canal", "none"),
-					},
-				},
-			},
-			PlanModifiers: []planmodifier.Object{
-				objectplanmodifier.UseStateForUnknown(),
-				CNIPluginDiffSuppress(),
-			},
-		},
 	}
 }
 
 func metakubeResourceClusterSpecBlocks() map[string]schema.Block {
 	return map[string]schema.Block{
+		"cni_plugin": schema.ListNestedBlock{
+			Description: "Contains the spec of the CNI plugin used by the Cluster. Defaults to canal if not specified.",
+			Validators: []validator.List{
+				listvalidator.SizeAtMost(2),
+			},
+			NestedObject: schema.NestedBlockObject{
+				Attributes: map[string]schema.Attribute{
+					"type": schema.StringAttribute{
+						Optional:    true,
+						Computed:    true,
+						Description: "Define the type of CNI plugin. Defaults to canal if not specified.",
+						Validators: []validator.String{
+							stringvalidator.OneOf("cilium", "canal", "none"),
+						},
+					},
+				},
+				Blocks: map[string]schema.Block{
+					"cilium": schema.ListNestedBlock{
+						Description: "Cilium clustermesh",
+						Validators: []validator.List{
+							listvalidator.SizeAtMost(1),
+						},
+						NestedObject: metakubeResourceClusterCNICiliumFields(),
+					},
+				},
+			},
+		},
 		"update_window": schema.ListNestedBlock{
 			Description: "Flatcar nodes reboot window",
 			Validators: []validator.List{
@@ -557,6 +564,22 @@ func metakubeResourceClusterOpenstackCloudSpecApplicationCredentialsFields() map
 	}
 }
 
+func metakubeResourceClusterCNICiliumFields() schema.NestedBlockObject {
+	return schema.NestedBlockObject{
+		Attributes: map[string]schema.Attribute{},
+		Blocks: map[string]schema.Block{
+			"clustermesh": schema.SingleNestedBlock{
+				Attributes: map[string]schema.Attribute{
+					"enabled": schema.BoolAttribute{
+						Optional:    true,
+						Description: "Enale clustermesh",
+					},
+				},
+			},
+		},
+	}
+}
+
 // ClusterModel represents the Terraform resource model for a cluster.
 type ClusterModel struct {
 	ID                  types.String   `tfsdk:"id"`
@@ -585,7 +608,7 @@ type ClusterSpecModel struct {
 	PodsCIDR          types.String `tfsdk:"pods_cidr"`
 	IPFamily          types.String `tfsdk:"ip_family"`
 	UpdateWindow      types.List   `tfsdk:"update_window"`  // []UpdateWindowModel
-	CNIPlugin         types.Object `tfsdk:"cni_plugin"`     // CNIPluginModel
+	CNIPlugin         types.List   `tfsdk:"cni_plugin"`     // CNIPluginModel
 	Cloud             types.List   `tfsdk:"cloud"`          // []ClusterCloudSpecModel
 	SyselevenAuth     types.List   `tfsdk:"syseleven_auth"` // []SyselevenAuthModel
 }
@@ -598,7 +621,18 @@ type UpdateWindowModel struct {
 
 // CNIPluginModel represents the cni_plugin block.
 type CNIPluginModel struct {
-	Type types.String `tfsdk:"type"`
+	Type   types.String `tfsdk:"type"`
+	Cilium types.Object `tfsdk:"cilium"` // CiliumSpecModel
+}
+
+// CiliumSpecModel
+type CiliumSpecModel struct {
+	Clustermesh types.Object `tfsdk:"clustermesh"` // CiliumClustermeshSpecModel
+}
+
+// CiliumSpecModel
+type CiliumClustermeshSpecModel struct {
+	Enabled types.Bool `tfsdk:"enabled"`
 }
 
 // SyselevenAuthModel represents the syseleven_auth block.
@@ -664,7 +698,7 @@ func clusterSpecAttrTypes() map[string]attr.Type {
 		"pods_cidr":           types.StringType,
 		"ip_family":           types.StringType,
 		"update_window":       types.ListType{ElemType: types.ObjectType{AttrTypes: updateWindowAttrTypes()}},
-		"cni_plugin":          types.ObjectType{AttrTypes: cniPluginAttrTypes()},
+		"cni_plugin":          types.ListType{ElemType: types.ObjectType{AttrTypes: cniPluginAttrTypes()}},
 		"cloud":               types.ListType{ElemType: types.ObjectType{AttrTypes: clusterCloudSpecAttrTypes()}},
 		"syseleven_auth":      types.ListType{ElemType: types.ObjectType{AttrTypes: syselevenAuthAttrTypes()}},
 	}
@@ -680,6 +714,18 @@ func updateWindowAttrTypes() map[string]attr.Type {
 func cniPluginAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"type": types.StringType,
+		"cilium": types.ObjectType{
+			AttrTypes: ciliumAttrTypes()},
+	}
+}
+
+func ciliumAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"clustermesh": types.ObjectType{
+			AttrTypes: map[string]attr.Type{
+				"enabled": types.BoolType,
+			},
+		},
 	}
 }
 
