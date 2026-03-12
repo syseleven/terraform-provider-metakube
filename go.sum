@@ -196,6 +196,8 @@ github.com/syseleven/go-metakube v0.0.0-20260121125850-22994dc8f62e h1:ZLnE+t2jh
 github.com/syseleven/go-metakube v0.0.0-20260121125850-22994dc8f62e/go.mod h1:CIdx+n4KCHzWNA/NxC588chVRFxzmMKr4fbk5+q4u+Q=
 github.com/syseleven/go-metakube v0.0.0-20260309164901-be722e0abfab h1:w5lzmt+WqxMPaX9qajivIpF8anKYprejVzz8cQ4Ci6Q=
 github.com/syseleven/go-metakube v0.0.0-20260309164901-be722e0abfab/go.mod h1:CIdx+n4KCHzWNA/NxC588chVRFxzmMKr4fbk5+q4u+Q=
+github.com/syseleven/go-metakube v0.0.0-20260310123738-80750715f6fa h1:1bmafzUfcxtkxEH3FtZpdFEPEWtJWjag/uREh52RXmE=
+github.com/syseleven/go-metakube v0.0.0-20260310123738-80750715f6fa/go.mod h1:CIdx+n4KCHzWNA/NxC588chVRFxzmMKr4fbk5+q4u+Q=
 github.com/syseleven/terraform-plugin-sdk/v2 v2.38.1-sys11-1 h1:WQENg3wXwErE81Jju0JXPSfpATYglb86qWuobLwjgoA=
 github.com/syseleven/terraform-plugin-sdk/v2 v2.38.1-sys11-1/go.mod h1:GQhpKVvvuwzD79e8/NZ+xzj+ZpWovdPAe8nfV/skwNU=
 github.com/vmihailenco/msgpack v3.3.3+incompatible/go.mod h1:fy3FlTQTDXWkZ7Bh6AcGMlsjHatGryHQYUTf1ShIgkk=

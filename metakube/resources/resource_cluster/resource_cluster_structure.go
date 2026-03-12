@@ -94,7 +94,7 @@ func metakubeResourceClusterFlattenSpec(ctx context.Context, model *ClusterModel
 			return diags
 		}
 	} else {
-		specModel.CNIPlugin = types.ListNull(types.ObjectType{AttrTypes: cniPluginAttrTypes()})
+		specModel.CNIPlugin = types.ObjectNull(cniPluginAttrTypes())
 	}
 
 	if in.Cloud != nil {
@@ -228,7 +228,7 @@ func flattenCniPlugin(ctx context.Context, specModel *ClusterSpecModel, in *mode
 	var diags diag.Diagnostics
 
 	if in == nil || in.Type == "" || in.Type == "none" {
-		specModel.CNIPlugin = types.ListNull(types.ObjectType{AttrTypes: cniPluginAttrTypes()})
+		specModel.CNIPlugin = types.ObjectNull(cniPluginAttrTypes())
 		return diags
 	}
 
@@ -237,19 +237,48 @@ func flattenCniPlugin(ctx context.Context, specModel *ClusterSpecModel, in *mode
 		Cilium: types.ObjectNull(ciliumAttrTypes()),
 	}
 
+	if in.Cilium != nil {
+		if diags.Append(flattenCniPluginCilium(ctx, &cniModel, in.Cilium)...); diags.HasError() {
+			return diags
+		}
+	}
 	objVal, d := types.ObjectValueFrom(ctx, cniPluginAttrTypes(), cniModel)
 	diags.Append(d...)
 	if diags.HasError() {
 		return diags
 	}
 
-	listVal, d := types.ListValue(types.ObjectType{AttrTypes: cniPluginAttrTypes()}, []attr.Value{objVal})
+	specModel.CNIPlugin = objVal
+
+	return diags
+}
+
+func flattenCniPluginCilium(ctx context.Context, cniModel *CNIPluginModel, in *models.CiliumCNISettings) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	if in.Clustermesh == nil || in.Clustermesh.Enable == nil {
+		return nil
+	}
+
+	clustermeshModel := CiliumClustermeshModel{
+		Enabled: types.BoolValue(*in.Clustermesh.Enable),
+	}
+	objVal, d := types.ObjectValueFrom(ctx, ciliumClustermeshAttrTypes(), clustermeshModel)
 	diags.Append(d...)
 	if diags.HasError() {
 		return diags
 	}
-	specModel.CNIPlugin = listVal
 
+	ciliumModel := CiliumModel{
+		Clustermesh: types.ObjectNull(ciliumClustermeshAttrTypes()),
+	}
+	ciliumModel.Clustermesh = objVal
+	objVal, d = types.ObjectValueFrom(ctx, ciliumAttrTypes(), ciliumModel)
+	diags.Append(d...)
+	if diags.HasError() {
+		return diags
+	}
+	cniModel.Cilium = objVal
 	return diags
 }
 
@@ -625,13 +654,13 @@ func expandAuditLogging(enabled bool) *models.AuditLoggingSettings {
 	}
 }
 
-func expandCniPlugin(ctx context.Context, obj types.List) *models.CNIPluginSettings {
+func expandCniPlugin(ctx context.Context, obj types.Object) *models.CNIPluginSettings {
 	if obj.IsNull() || obj.IsUnknown() {
 		return nil
 	}
 
 	var plugin []CNIPluginModel
-	if diags := obj.ElementsAs(ctx, &plugin, false); diags.HasError() {
+	if diags := obj.As(ctx, &plugin, basetypes.ObjectAsOptions{}); diags.HasError() {
 		return nil
 	}
 
@@ -649,10 +678,10 @@ func expandCniPlugin(ctx context.Context, obj types.List) *models.CNIPluginSetti
 	}
 
 	if !plugin[0].Cilium.IsNull() {
-		var cilium CiliumSpecModel
+		var cilium CiliumModel
 		if diags := plugin[0].Cilium.As(ctx, &cilium, basetypes.ObjectAsOptions{}); !diags.HasError() {
 			if !cilium.Clustermesh.IsNull() {
-				var clustermesh CiliumClustermeshSpecModel
+				var clustermesh CiliumClustermeshModel
 				if diags := cilium.Clustermesh.As(ctx, &clustermesh, basetypes.ObjectAsOptions{}); !diags.HasError() {
 					cniPlugin.Cilium = &models.CiliumCNISettings{
 						Clustermesh: &models.CiliumClustermesh{
@@ -916,18 +945,18 @@ func upgradeClusterLegacyCNIPluginState(rawState map[string]any) {
 			continue
 		}
 
-		// if cni, ok := specMap["cni_plugin"]; ok {
-		// 	if cniList, ok := cni.([]any); ok {
-		// 		switch len(cniList) {
-		// 		case 0:
-		// 			specMap["cni_plugin"] = nil
-		// 		default:
-		// 			if cniMap, ok := cniList[0].(map[string]any); ok {
-		// 				specMap["cni_plugin"] = cniMap
-		// 			}
-		// 		}
-		// 	}
-		// }
+		if cni, ok := specMap["cni_plugin"]; ok {
+			if cniList, ok := cni.([]any); ok {
+				switch len(cniList) {
+				case 0:
+					specMap["cni_plugin"] = nil
+				default:
+					if cniMap, ok := cniList[0].(map[string]any); ok {
+						specMap["cni_plugin"] = cniMap
+					}
+				}
+			}
+		}
 
 		cloud, ok := specMap["cloud"]
 		if !ok {

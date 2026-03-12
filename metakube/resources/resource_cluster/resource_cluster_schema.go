@@ -277,30 +277,23 @@ func metakubeResourceClusterSpecAttributes() map[string]schema.Attribute {
 
 func metakubeResourceClusterSpecBlocks() map[string]schema.Block {
 	return map[string]schema.Block{
-		"cni_plugin": schema.ListNestedBlock{
+		"cni_plugin": schema.SingleNestedBlock{
 			Description: "Contains the spec of the CNI plugin used by the Cluster. Defaults to canal if not specified.",
-			Validators: []validator.List{
-				listvalidator.SizeAtMost(2),
-			},
-			NestedObject: schema.NestedBlockObject{
-				Attributes: map[string]schema.Attribute{
-					"type": schema.StringAttribute{
-						Optional:    true,
-						Computed:    true,
-						Description: "Define the type of CNI plugin. Defaults to canal if not specified.",
-						Validators: []validator.String{
-							stringvalidator.OneOf("cilium", "canal", "none"),
-						},
+			Attributes: map[string]schema.Attribute{
+				"type": schema.StringAttribute{
+					Optional:    true,
+					Computed:    true,
+					Description: "Define the type of CNI plugin. Defaults to canal if not specified.",
+					Validators: []validator.String{
+						stringvalidator.OneOf("cilium", "canal", "none"),
 					},
 				},
-				Blocks: map[string]schema.Block{
-					"cilium": schema.ListNestedBlock{
-						Description: "Cilium clustermesh",
-						Validators: []validator.List{
-							listvalidator.SizeAtMost(1),
-						},
-						NestedObject: metakubeResourceClusterCNICiliumFields(),
-					},
+			},
+			Blocks: map[string]schema.Block{
+				"cilium": schema.SingleNestedBlock{
+					Description: "Cilium clustermesh",
+					Attributes:  map[string]schema.Attribute{},
+					Blocks:      metakubeResourceClusterCNICiliumBlocks(),
 				},
 			},
 		},
@@ -564,16 +557,13 @@ func metakubeResourceClusterOpenstackCloudSpecApplicationCredentialsFields() map
 	}
 }
 
-func metakubeResourceClusterCNICiliumFields() schema.NestedBlockObject {
-	return schema.NestedBlockObject{
-		Attributes: map[string]schema.Attribute{},
-		Blocks: map[string]schema.Block{
-			"clustermesh": schema.SingleNestedBlock{
-				Attributes: map[string]schema.Attribute{
-					"enabled": schema.BoolAttribute{
-						Optional:    true,
-						Description: "Enale clustermesh",
-					},
+func metakubeResourceClusterCNICiliumBlocks() map[string]schema.Block {
+	return map[string]schema.Block{
+		"clustermesh": schema.SingleNestedBlock{
+			Attributes: map[string]schema.Attribute{
+				"enabled": schema.BoolAttribute{
+					Optional:    true,
+					Description: "Enale clustermesh",
 				},
 			},
 		},
@@ -608,7 +598,7 @@ type ClusterSpecModel struct {
 	PodsCIDR          types.String `tfsdk:"pods_cidr"`
 	IPFamily          types.String `tfsdk:"ip_family"`
 	UpdateWindow      types.List   `tfsdk:"update_window"`  // []UpdateWindowModel
-	CNIPlugin         types.List   `tfsdk:"cni_plugin"`     // CNIPluginModel
+	CNIPlugin         types.Object `tfsdk:"cni_plugin"`     // CNIPluginModel
 	Cloud             types.List   `tfsdk:"cloud"`          // []ClusterCloudSpecModel
 	SyselevenAuth     types.List   `tfsdk:"syseleven_auth"` // []SyselevenAuthModel
 }
@@ -625,13 +615,13 @@ type CNIPluginModel struct {
 	Cilium types.Object `tfsdk:"cilium"` // CiliumSpecModel
 }
 
-// CiliumSpecModel
-type CiliumSpecModel struct {
+// CiliumModel
+type CiliumModel struct {
 	Clustermesh types.Object `tfsdk:"clustermesh"` // CiliumClustermeshSpecModel
 }
 
 // CiliumSpecModel
-type CiliumClustermeshSpecModel struct {
+type CiliumClustermeshModel struct {
 	Enabled types.Bool `tfsdk:"enabled"`
 }
 
@@ -698,7 +688,7 @@ func clusterSpecAttrTypes() map[string]attr.Type {
 		"pods_cidr":           types.StringType,
 		"ip_family":           types.StringType,
 		"update_window":       types.ListType{ElemType: types.ObjectType{AttrTypes: updateWindowAttrTypes()}},
-		"cni_plugin":          types.ListType{ElemType: types.ObjectType{AttrTypes: cniPluginAttrTypes()}},
+		"cni_plugin":          types.ObjectType{AttrTypes: cniPluginAttrTypes()},
 		"cloud":               types.ListType{ElemType: types.ObjectType{AttrTypes: clusterCloudSpecAttrTypes()}},
 		"syseleven_auth":      types.ListType{ElemType: types.ObjectType{AttrTypes: syselevenAuthAttrTypes()}},
 	}
@@ -715,17 +705,22 @@ func cniPluginAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"type": types.StringType,
 		"cilium": types.ObjectType{
-			AttrTypes: ciliumAttrTypes()},
+			AttrTypes: ciliumAttrTypes(),
+		},
 	}
 }
 
 func ciliumAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"clustermesh": types.ObjectType{
-			AttrTypes: map[string]attr.Type{
-				"enabled": types.BoolType,
-			},
+			AttrTypes: ciliumClustermeshAttrTypes(),
 		},
+	}
+}
+
+func ciliumClustermeshAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"enabled": types.BoolType,
 	}
 }
 
