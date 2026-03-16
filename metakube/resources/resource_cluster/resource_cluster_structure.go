@@ -261,7 +261,7 @@ func flattenCniPluginCilium(ctx context.Context, cniModel *CNIPluginModel, in *m
 	}
 
 	clustermeshModel := CiliumClustermeshModel{
-		Enabled: types.BoolValue(*in.Clustermesh.Enable),
+		Enable: types.BoolValue(*in.Clustermesh.Enable),
 	}
 	objVal, d := types.ObjectValueFrom(ctx, ciliumClustermeshAttrTypes(), clustermeshModel)
 	diags.Append(d...)
@@ -685,7 +685,7 @@ func expandCniPlugin(ctx context.Context, obj types.Object) *models.CNIPluginSet
 				if diags := cilium.Clustermesh.As(ctx, &clustermesh, basetypes.ObjectAsOptions{}); !diags.HasError() {
 					cniPlugin.Cilium = &models.CiliumCNISettings{
 						Clustermesh: &models.CiliumClustermesh{
-							Enable: ptr.To(clustermesh.Enabled.ValueBool()),
+							Enable: ptr.To(clustermesh.Enable.ValueBool()),
 						},
 					}
 				}

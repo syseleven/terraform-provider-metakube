@@ -183,7 +183,7 @@ func TestFlattenCniPlugin(t *testing.T) {
 			}
 
 			var plugin CNIPluginModel
-			if d := specModel.CNIPlugin.ElementsAs(ctx, &plugin, false); d.HasError() {
+			if d := specModel.CNIPlugin.As(ctx, &plugin, basetypes.ObjectAsOptions{}); d.HasError() {
 				t.Fatalf("Failed to get CNI plugin: %v", d)
 			}
 			if plugin.Type.ValueString() != tc.ExpectedType {
@@ -1500,12 +1500,12 @@ func createUpdateWindowList(ctx context.Context, t *testing.T, start, length str
 	return listVal
 }
 
-func createCNIPluginObject(ctx context.Context, t *testing.T, pluginType string) types.List {
+func createCNIPluginObject(ctx context.Context, t *testing.T, pluginType string) types.Object {
 	t.Helper()
 	cniModel := CNIPluginModel{
 		Type: types.StringValue(pluginType),
 	}
-	objVal, _ := types.ListValueFrom(ctx, cniPluginAttrTypes(), cniModel)
+	objVal, _ := types.ObjectValueFrom(ctx, cniPluginAttrTypes(), cniModel)
 	return objVal
 }
 

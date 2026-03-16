@@ -561,7 +561,7 @@ func metakubeResourceClusterCNICiliumBlocks() map[string]schema.Block {
 	return map[string]schema.Block{
 		"clustermesh": schema.SingleNestedBlock{
 			Attributes: map[string]schema.Attribute{
-				"enabled": schema.BoolAttribute{
+				"enable": schema.BoolAttribute{
 					Optional:    true,
 					Description: "Enale clustermesh",
 				},
@@ -622,7 +622,7 @@ type CiliumModel struct {
 
 // CiliumSpecModel
 type CiliumClustermeshModel struct {
-	Enabled types.Bool `tfsdk:"enabled"`
+	Enable types.Bool `tfsdk:"enable"`
 }
 
 // SyselevenAuthModel represents the syseleven_auth block.
@@ -720,7 +720,7 @@ func ciliumAttrTypes() map[string]attr.Type {
 
 func ciliumClustermeshAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"enabled": types.BoolType,
+		"enable": types.BoolType,
 	}
 }
 
