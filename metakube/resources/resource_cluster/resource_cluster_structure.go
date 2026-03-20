@@ -261,7 +261,9 @@ func flattenCniPluginCilium(ctx context.Context, cniModel *CNIPluginModel, in *m
 	}
 
 	clustermeshModel := CiliumClustermeshModel{
-		Enable: types.BoolValue(*in.Clustermesh.Enable),
+		Enable:                types.BoolValue(*in.Clustermesh.Enable),
+		ClusterID:             types.Int32Value(int32(in.Clustermesh.ClusterID)),
+		IPv4NativeRoutingCIDR: types.StringValue(in.Clustermesh.IPV4NativeRoutingCIDR),
 	}
 	objVal, d := types.ObjectValueFrom(ctx, ciliumClustermeshAttrTypes(), clustermeshModel)
 	diags.Append(d...)
@@ -659,16 +661,16 @@ func expandCniPlugin(ctx context.Context, obj types.Object) *models.CNIPluginSet
 		return nil
 	}
 
-	var plugin []CNIPluginModel
+	var plugin CNIPluginModel
 	if diags := obj.As(ctx, &plugin, basetypes.ObjectAsOptions{}); diags.HasError() {
 		return nil
 	}
 
-	if plugin[0].Type.IsNull() || plugin[0].Type.IsUnknown() {
+	if plugin.Type.IsNull() || plugin.Type.IsUnknown() {
 		return nil
 	}
 
-	v := plugin[0].Type.ValueString()
+	v := plugin.Type.ValueString()
 	if v == "" {
 		return nil
 	}
@@ -677,19 +679,25 @@ func expandCniPlugin(ctx context.Context, obj types.Object) *models.CNIPluginSet
 		Type: models.CNIPluginType(v),
 	}
 
-	if !plugin[0].Cilium.IsNull() {
+	if !plugin.Cilium.IsNull() {
 		var cilium CiliumModel
-		if diags := plugin[0].Cilium.As(ctx, &cilium, basetypes.ObjectAsOptions{}); !diags.HasError() {
+		if diags := plugin.Cilium.As(ctx, &cilium, basetypes.ObjectAsOptions{}); !diags.HasError() {
 			if !cilium.Clustermesh.IsNull() {
 				var clustermesh CiliumClustermeshModel
 				if diags := cilium.Clustermesh.As(ctx, &clustermesh, basetypes.ObjectAsOptions{}); !diags.HasError() {
 					cniPlugin.Cilium = &models.CiliumCNISettings{
 						Clustermesh: &models.CiliumClustermesh{
-							Enable: ptr.To(clustermesh.Enable.ValueBool()),
+							Enable:                ptr.To(clustermesh.Enable.ValueBool()),
+							ClusterID:             int64(clustermesh.ClusterID.ValueInt32()),
+							IPV4NativeRoutingCIDR: clustermesh.IPv4NativeRoutingCIDR.ValueString(),
 						},
 					}
+				} else {
+					return nil
 				}
 			}
+		} else {
+			return nil
 		}
 	}
 	return &cniPlugin

@@ -198,6 +198,10 @@ github.com/syseleven/go-metakube v0.0.0-20260309164901-be722e0abfab h1:w5lzmt+Wq
 github.com/syseleven/go-metakube v0.0.0-20260309164901-be722e0abfab/go.mod h1:CIdx+n4KCHzWNA/NxC588chVRFxzmMKr4fbk5+q4u+Q=
 github.com/syseleven/go-metakube v0.0.0-20260310123738-80750715f6fa h1:1bmafzUfcxtkxEH3FtZpdFEPEWtJWjag/uREh52RXmE=
 github.com/syseleven/go-metakube v0.0.0-20260310123738-80750715f6fa/go.mod h1:CIdx+n4KCHzWNA/NxC588chVRFxzmMKr4fbk5+q4u+Q=
+github.com/syseleven/go-metakube v0.0.0-20260320155422-323ea4547c03 h1:oyNIzVgiDrarJvPYuMQYK/EiOpd/Y52HXPweMcgSz2I=
+github.com/syseleven/go-metakube v0.0.0-20260320155422-323ea4547c03/go.mod h1:CIdx+n4KCHzWNA/NxC588chVRFxzmMKr4fbk5+q4u+Q=
+github.com/syseleven/go-metakube v0.0.0-20260320160825-8a9d4b5297b8 h1:EPjnGGIZQ2o0w5yQwIkO9ERYNEtBPokl5oftJtrKLkw=
+github.com/syseleven/go-metakube v0.0.0-20260320160825-8a9d4b5297b8/go.mod h1:CIdx+n4KCHzWNA/NxC588chVRFxzmMKr4fbk5+q4u+Q=
 github.com/syseleven/terraform-plugin-sdk/v2 v2.38.1-sys11-1 h1:WQENg3wXwErE81Jju0JXPSfpATYglb86qWuobLwjgoA=
 github.com/syseleven/terraform-plugin-sdk/v2 v2.38.1-sys11-1/go.mod h1:GQhpKVvvuwzD79e8/NZ+xzj+ZpWovdPAe8nfV/skwNU=
 github.com/vmihailenco/msgpack v3.3.3+incompatible/go.mod h1:fy3FlTQTDXWkZ7Bh6AcGMlsjHatGryHQYUTf1ShIgkk=

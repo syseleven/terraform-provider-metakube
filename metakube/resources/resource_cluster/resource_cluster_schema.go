@@ -565,6 +565,14 @@ func metakubeResourceClusterCNICiliumBlocks() map[string]schema.Block {
 					Optional:    true,
 					Description: "Enale clustermesh",
 				},
+				"cluster_id": schema.Int32Attribute{
+					Optional:    true,
+					Description: "Set cilium cluster ID",
+				},
+				"ipv4_native_routing_cidr": schema.StringAttribute{
+					Optional:    true,
+					Description: "Set ipv4 native routing cidr",
+				},
 			},
 		},
 	}
@@ -622,7 +630,9 @@ type CiliumModel struct {
 
 // CiliumSpecModel
 type CiliumClustermeshModel struct {
-	Enable types.Bool `tfsdk:"enable"`
+	Enable                types.Bool   `tfsdk:"enable"`
+	ClusterID             types.Int32  `tfsdk:"cluster_id"`
+	IPv4NativeRoutingCIDR types.String `tfsdk:"ipv4_native_routing_cidr"`
 }
 
 // SyselevenAuthModel represents the syseleven_auth block.
@@ -720,7 +730,9 @@ func ciliumAttrTypes() map[string]attr.Type {
 
 func ciliumClustermeshAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"enable": types.BoolType,
+		"enable":                   types.BoolType,
+		"cluster_id":               types.Int32Type,
+		"ipv4_native_routing_cidr": types.StringType,
 	}
 }
 
