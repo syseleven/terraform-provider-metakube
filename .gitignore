@@ -32,3 +32,5 @@ vendor
 /terraform-provider-metakube
 
 website/vendor
+
+provider-debug/debug-log*

@@ -163,6 +163,26 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 				Config:   config2.String(),
 				PlanOnly: true,
 			},
+			{
+				Config: config.String(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("metakube_cluster.acctest_cluster", plancheck.ResourceActionUpdate),
+					},
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testAccCheckMetaKubeClusterExists(&cluster),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.syseleven_auth.#", "0"),
+				),
+			},
+			{
+				Config: config.String(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("metakube_cluster.acctest_cluster", plancheck.ResourceActionNoop),
+					},
+				},
+			},
 			// Test importing non-existent resource provides expected error.
 			{
 				ResourceName:      resourceName,

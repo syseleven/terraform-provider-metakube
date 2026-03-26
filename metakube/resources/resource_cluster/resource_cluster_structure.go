@@ -479,16 +479,14 @@ func flattenOpenstackSpec(ctx context.Context, cloudModel *ClusterCloudSpecModel
 // expanders
 
 func metakubeResourceClusterExpandSpec(ctx context.Context, model *ClusterModel, dcName string, include func(string) bool) *models.ClusterSpec {
-	if model.Spec.IsNull() || model.Spec.IsUnknown() {
+	spec := clusterSpecFromModel(ctx, model)
+	return metakubeResourceClusterExpandSpecModel(ctx, spec, dcName, include)
+}
+
+func metakubeResourceClusterExpandSpecModel(ctx context.Context, spec *ClusterSpecModel, dcName string, include func(string) bool) *models.ClusterSpec {
+	if spec == nil {
 		return nil
 	}
-
-	var specs []ClusterSpecModel
-	if diags := model.Spec.ElementsAs(ctx, &specs, false); diags.HasError() || len(specs) == 0 {
-		return nil
-	}
-
-	spec := specs[0]
 	obj := &models.ClusterSpec{}
 
 	if !spec.Version.IsNull() && !spec.Version.IsUnknown() && include("version") {
