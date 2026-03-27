@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
@@ -128,6 +129,7 @@ func (m cniPluginPlanModifier) MarkdownDescription(ctx context.Context) string {
 
 func (m cniPluginPlanModifier) PlanModifyObject(ctx context.Context, req planmodifier.ObjectRequest, resp *planmodifier.ObjectResponse) {
 	if req.StateValue.IsNull() || req.StateValue.IsUnknown() {
+		resp.PlanValue = types.ObjectUnknown(cniPluginAttrTypes())
 		return
 	}
 	resp.PlanValue = req.StateValue
@@ -274,13 +276,10 @@ func metakubeResourceClusterSpecAttributes() map[string]schema.Attribute {
 				stringvalidator.OneOf("IPv4", "IPv4+IPv6"),
 			},
 		},
-	}
-}
-
-func metakubeResourceClusterSpecBlocks() map[string]schema.Block {
-	return map[string]schema.Block{
-		"cni_plugin": schema.SingleNestedBlock{
+		"cni_plugin": schema.SingleNestedAttribute{
 			Description: "Contains the spec of the CNI plugin used by the Cluster. Defaults to canal if not specified.",
+			Optional:    true,
+			Computed:    true,
 			Attributes: map[string]schema.Attribute{
 				"type": schema.StringAttribute{
 					Optional:    true,
@@ -290,15 +289,22 @@ func metakubeResourceClusterSpecBlocks() map[string]schema.Block {
 						stringvalidator.OneOf("cilium", "canal", "none"),
 					},
 				},
-			},
-			Blocks: map[string]schema.Block{
-				"cilium": schema.SingleNestedBlock{
+				"cilium": schema.SingleNestedAttribute{
+					Optional:    true,
 					Description: "Cilium clustermesh",
-					Attributes:  map[string]schema.Attribute{},
-					Blocks:      metakubeResourceClusterCNICiliumBlocks(),
+					Attributes:  metakubeResourceClusterCNICiliumAttributes(),
 				},
 			},
+			PlanModifiers: []planmodifier.Object{
+				objectplanmodifier.UseStateForUnknown(),
+				CNIPluginDiffSuppress(),
+			},
 		},
+	}
+}
+
+func metakubeResourceClusterSpecBlocks() map[string]schema.Block {
+	return map[string]schema.Block{
 		"update_window": schema.ListNestedBlock{
 			Description: "Flatcar nodes reboot window",
 			Validators: []validator.List{
@@ -559,9 +565,10 @@ func metakubeResourceClusterOpenstackCloudSpecApplicationCredentialsFields() map
 	}
 }
 
-func metakubeResourceClusterCNICiliumBlocks() map[string]schema.Block {
-	return map[string]schema.Block{
-		"clustermesh": schema.SingleNestedBlock{
+func metakubeResourceClusterCNICiliumAttributes() map[string]schema.Attribute {
+	return map[string]schema.Attribute{
+		"clustermesh": schema.SingleNestedAttribute{
+			Optional: true,
 			Attributes: map[string]schema.Attribute{
 				"enable": schema.BoolAttribute{
 					Optional:    true,

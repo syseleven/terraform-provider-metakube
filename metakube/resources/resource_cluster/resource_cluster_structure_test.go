@@ -1503,7 +1503,8 @@ func createUpdateWindowList(ctx context.Context, t *testing.T, start, length str
 func createCNIPluginObject(ctx context.Context, t *testing.T, pluginType string) types.Object {
 	t.Helper()
 	cniModel := CNIPluginModel{
-		Type: types.StringValue(pluginType),
+		Type:   types.StringValue(pluginType),
+		Cilium: types.ObjectNull(ciliumAttrTypes()),
 	}
 	objVal, _ := types.ObjectValueFrom(ctx, cniPluginAttrTypes(), cniModel)
 	return objVal
