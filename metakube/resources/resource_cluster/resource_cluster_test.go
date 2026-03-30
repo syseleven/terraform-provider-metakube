@@ -9,8 +9,10 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 	"github.com/syseleven/go-metakube/client/project"
 	"github.com/syseleven/go-metakube/models"
 	"github.com/syseleven/terraform-provider-metakube/metakube/common"
@@ -25,7 +27,12 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 	t.Parallel()
 	var cluster models.Cluster
 
+	networkResourceName := "openstack_networking_network_v2.network_tf_test"
 	resourceName := "metakube_cluster.acctest_cluster"
+	securityGroupResourceName := "openstack_networking_secgroup_v2.cluster-net"
+	subnetResourceName := "openstack_networking_subnet_v2.subnet_tf_test"
+	auditLoggingPath := tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("audit_logging")
+	podNodeSelectorPath := tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("pod_node_selector")
 	data := &clusterOpenstackBasicData{
 		Name:                                  testutil.MakeRandomName() + "-cluster-os-basic",
 		OpenstackAuthURL:                      os.Getenv(common.TestEnvOpenstackAuthURL),
@@ -70,7 +77,18 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 				Config: config.String(),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(networkResourceName, plancheck.ResourceActionCreate),
+						plancheck.ExpectResourceAction(securityGroupResourceName, plancheck.ResourceActionCreate),
+						plancheck.ExpectResourceAction(subnetResourceName, plancheck.ResourceActionCreate),
 						plancheck.ExpectResourceAction("metakube_cluster.acctest_cluster", plancheck.ResourceActionCreate),
+						plancheck.ExpectKnownValue(resourceName, auditLoggingPath, knownvalue.Bool(false)),
+						plancheck.ExpectKnownValue(resourceName, podNodeSelectorPath, knownvalue.Bool(false)),
+					},
+					PostApplyPreRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
 					},
 				},
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -106,7 +124,18 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 				Config: config2.String(),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(networkResourceName, plancheck.ResourceActionNoop),
+						plancheck.ExpectResourceAction(securityGroupResourceName, plancheck.ResourceActionNoop),
+						plancheck.ExpectResourceAction(subnetResourceName, plancheck.ResourceActionNoop),
 						plancheck.ExpectResourceAction("metakube_cluster.acctest_cluster", plancheck.ResourceActionUpdate),
+						plancheck.ExpectKnownValue(resourceName, auditLoggingPath, knownvalue.Bool(true)),
+						plancheck.ExpectKnownValue(resourceName, podNodeSelectorPath, knownvalue.Bool(true)),
+					},
+					PostApplyPreRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
 					},
 				},
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -146,7 +175,18 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 				Config: config2.String(),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(networkResourceName, plancheck.ResourceActionNoop),
+						plancheck.ExpectResourceAction(securityGroupResourceName, plancheck.ResourceActionNoop),
+						plancheck.ExpectResourceAction(subnetResourceName, plancheck.ResourceActionNoop),
 						plancheck.ExpectResourceAction("metakube_cluster.acctest_cluster", plancheck.ResourceActionNoop),
+						plancheck.ExpectKnownValue(resourceName, auditLoggingPath, knownvalue.Bool(true)),
+						plancheck.ExpectKnownValue(resourceName, podNodeSelectorPath, knownvalue.Bool(true)),
+					},
+					PostApplyPreRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
 					},
 				},
 			},
@@ -167,7 +207,18 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 				Config: config.String(),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(networkResourceName, plancheck.ResourceActionNoop),
+						plancheck.ExpectResourceAction(securityGroupResourceName, plancheck.ResourceActionNoop),
+						plancheck.ExpectResourceAction(subnetResourceName, plancheck.ResourceActionNoop),
 						plancheck.ExpectResourceAction("metakube_cluster.acctest_cluster", plancheck.ResourceActionUpdate),
+						plancheck.ExpectKnownValue(resourceName, auditLoggingPath, knownvalue.Bool(false)),
+						plancheck.ExpectKnownValue(resourceName, podNodeSelectorPath, knownvalue.Bool(false)),
+					},
+					PostApplyPreRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
 					},
 				},
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -179,7 +230,18 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 				Config: config.String(),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(networkResourceName, plancheck.ResourceActionNoop),
+						plancheck.ExpectResourceAction(securityGroupResourceName, plancheck.ResourceActionNoop),
+						plancheck.ExpectResourceAction(subnetResourceName, plancheck.ResourceActionNoop),
 						plancheck.ExpectResourceAction("metakube_cluster.acctest_cluster", plancheck.ResourceActionNoop),
+						plancheck.ExpectKnownValue(resourceName, auditLoggingPath, knownvalue.Bool(false)),
+						plancheck.ExpectKnownValue(resourceName, podNodeSelectorPath, knownvalue.Bool(false)),
+					},
+					PostApplyPreRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
 					},
 				},
 			},
@@ -224,6 +286,17 @@ func TestAccMetakubeCluster_Openstack_ApplicationCredentials(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: config.String(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionCreate),
+					},
+					PostApplyPreRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeClusterExists(&cluster),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.0.application_credentials.0.id", data.OpenstackApplicationCredentialID),
@@ -271,6 +344,17 @@ func TestAccMetakubeCluster_Openstack_UpgradeVersion(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: versionedConfig(versionK8s1),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionCreate),
+					},
+					PostApplyPreRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeClusterExists(&cluster),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.version", versionK8s1),
@@ -278,6 +362,17 @@ func TestAccMetakubeCluster_Openstack_UpgradeVersion(t *testing.T) {
 			},
 			{
 				Config: versionedConfig(versionK8s2),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionUpdate),
+					},
+					PostApplyPreRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeClusterExists(&cluster),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.version", versionK8s2),
@@ -500,6 +595,8 @@ func TestAccMetakubeCluster_SSHKeys(t *testing.T) {
 	var cluster models.Cluster
 	var sshkey models.SSHKey
 	resourceName := "metakube_cluster.acctest_cluster"
+	sshKey1ResourceName := "metakube_sshkey.acctest_sshkey1"
+	sshKey2ResourceName := "metakube_sshkey.acctest_sshkey2"
 
 	data := &clusterOpenstackWithSSHKeyData{
 		Name:                                  testutil.MakeRandomName() + "-sshkeys",
@@ -530,6 +627,18 @@ func TestAccMetakubeCluster_SSHKeys(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: config1.String(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionCreate),
+						plancheck.ExpectResourceAction(sshKey1ResourceName, plancheck.ResourceActionCreate),
+					},
+					PostApplyPreRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeClusterExists(&cluster),
 					testutil.TestAccCheckMetaKubeSSHKeyExists("metakube_sshkey.acctest_sshkey1", &sshkey),
@@ -539,6 +648,19 @@ func TestAccMetakubeCluster_SSHKeys(t *testing.T) {
 			},
 			{
 				Config: config2.String(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionUpdate),
+						plancheck.ExpectResourceAction(sshKey1ResourceName, plancheck.ResourceActionDestroy),
+						plancheck.ExpectResourceAction(sshKey2ResourceName, plancheck.ResourceActionCreate),
+					},
+					PostApplyPreRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeClusterExists(&cluster),
 					testutil.TestAccCheckMetaKubeSSHKeyExists("metakube_sshkey.acctest_sshkey2", &sshkey),

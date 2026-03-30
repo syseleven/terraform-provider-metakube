@@ -33,6 +33,8 @@ func TestAccMetakubeCluster_MaintenanceCronJob_Basic(t *testing.T) {
 	t.Parallel()
 	var maintenanceCronJob models.MaintenanceCronJob
 
+	clusterResourceName := "metakube_cluster.acctest"
+	rollbackPath := tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("maintenance_job_template").AtSliceIndex(0).AtMapKey("rollback")
 	resourceName := "metakube_maintenance_cron_job.acctest"
 	params := &testAccCheckMetaKubeMaintenanceCronJobBasicParams{
 		ClusterName:                          testutil.MakeRandomName() + "-maint-cron-job",
@@ -61,13 +63,17 @@ func TestAccMetakubeCluster_MaintenanceCronJob_Basic(t *testing.T) {
 				Config: testAccCheckMetaKubeMaintenanceCronJobBasicConfig(t, params),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(clusterResourceName, plancheck.ResourceActionCreate),
 						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionCreate),
+						plancheck.ExpectKnownValue(resourceName, rollbackPath, knownvalue.Bool(false)),
 					},
 					PostApplyPreRefresh: []plancheck.PlanCheck{
 						plancheck.ExpectEmptyPlan(),
+						plancheck.ExpectKnownValue(resourceName, rollbackPath, knownvalue.Bool(false)),
 					},
 					PostApplyPostRefresh: []plancheck.PlanCheck{
 						plancheck.ExpectEmptyPlan(),
+						plancheck.ExpectKnownValue(resourceName, rollbackPath, knownvalue.Bool(false)),
 					},
 				},
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -91,13 +97,17 @@ func TestAccMetakubeCluster_MaintenanceCronJob_Basic(t *testing.T) {
 				Config: testAccCheckMetaKubeMaintenanceCronJobUpdateConfig(t, params),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(clusterResourceName, plancheck.ResourceActionNoop),
 						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionUpdate),
+						plancheck.ExpectKnownValue(resourceName, rollbackPath, knownvalue.Bool(false)),
 					},
 					PostApplyPreRefresh: []plancheck.PlanCheck{
 						plancheck.ExpectEmptyPlan(),
+						plancheck.ExpectKnownValue(resourceName, rollbackPath, knownvalue.Bool(false)),
 					},
 					PostApplyPostRefresh: []plancheck.PlanCheck{
 						plancheck.ExpectEmptyPlan(),
+						plancheck.ExpectKnownValue(resourceName, rollbackPath, knownvalue.Bool(false)),
 					},
 				},
 				Check: resource.ComposeAggregateTestCheckFunc(
