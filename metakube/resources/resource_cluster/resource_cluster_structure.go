@@ -256,26 +256,27 @@ func flattenCniPlugin(ctx context.Context, specModel *ClusterSpecModel, in *mode
 func flattenCniPluginCilium(ctx context.Context, cniModel *CNIPluginModel, in *models.CiliumCNISettings) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	if in.Clustermesh == nil || in.Clustermesh.Enable == nil {
-		return nil
-	}
-
-	clustermeshModel := CiliumClustermeshModel{
-		Enable:                types.BoolValue(*in.Clustermesh.Enable),
-		ClusterID:             types.Int32Value(int32(in.Clustermesh.ClusterID)),
-		IPv4NativeRoutingCIDR: types.StringValue(in.Clustermesh.IPV4NativeRoutingCIDR),
-	}
-	objVal, d := types.ObjectValueFrom(ctx, ciliumClustermeshAttrTypes(), clustermeshModel)
-	diags.Append(d...)
-	if diags.HasError() {
-		return diags
-	}
-
 	ciliumModel := CiliumModel{
-		Clustermesh: types.ObjectNull(ciliumClustermeshAttrTypes()),
+		EnableHubble:  types.BoolValue(in.EnableHubble),
+		EnableL7Proxy: types.BoolValue(in.EnableL7Proxy),
+		Clustermesh:   types.ObjectNull(ciliumClustermeshAttrTypes()),
 	}
-	ciliumModel.Clustermesh = objVal
-	objVal, d = types.ObjectValueFrom(ctx, ciliumAttrTypes(), ciliumModel)
+
+	if in.Clustermesh != nil {
+		clustermeshModel := CiliumClustermeshModel{
+			Enable:                types.BoolValue(*in.Clustermesh.Enable),
+			ClusterID:             types.Int32Value(int32(in.Clustermesh.ClusterID)),
+			IPv4NativeRoutingCIDR: types.StringValue(in.Clustermesh.IPV4NativeRoutingCIDR),
+		}
+		objVal, d := types.ObjectValueFrom(ctx, ciliumClustermeshAttrTypes(), clustermeshModel)
+		diags.Append(d...)
+		if diags.HasError() {
+			return diags
+		}
+
+		ciliumModel.Clustermesh = objVal
+	}
+	objVal, d := types.ObjectValueFrom(ctx, ciliumAttrTypes(), ciliumModel)
 	diags.Append(d...)
 	if diags.HasError() {
 		return diags
@@ -676,25 +677,28 @@ func expandCniPlugin(ctx context.Context, obj types.Object) *models.CNIPluginSet
 	}
 
 	var cniPlugin = models.CNIPluginSettings{
-		Type: models.CNIPluginType(v),
+		Type:   models.CNIPluginType(v),
+		Cilium: &models.CiliumCNISettings{},
 	}
 
 	if !plugin.Cilium.IsNull() {
 		var cilium CiliumModel
 		if diags := plugin.Cilium.As(ctx, &cilium, basetypes.ObjectAsOptions{}); !diags.HasError() {
-			if !cilium.Clustermesh.IsNull() {
-				var clustermesh CiliumClustermeshModel
-				if diags := cilium.Clustermesh.As(ctx, &clustermesh, basetypes.ObjectAsOptions{}); !diags.HasError() {
-					cniPlugin.Cilium = &models.CiliumCNISettings{
-						Clustermesh: &models.CiliumClustermesh{
-							Enable:                ptr.To(clustermesh.Enable.ValueBool()),
-							ClusterID:             int64(clustermesh.ClusterID.ValueInt32()),
-							IPV4NativeRoutingCIDR: clustermesh.IPv4NativeRoutingCIDR.ValueString(),
-						},
-					}
-				} else {
-					return nil
+			if !cilium.EnableHubble.IsNull() && !cilium.EnableHubble.IsUnknown() {
+				cniPlugin.Cilium.EnableHubble = cilium.EnableHubble.ValueBool()
+			}
+			if !cilium.EnableL7Proxy.IsNull() && !cilium.EnableL7Proxy.IsUnknown() {
+				cniPlugin.Cilium.EnableL7Proxy = cilium.EnableL7Proxy.ValueBool()
+			}
+			var clustermesh CiliumClustermeshModel
+			if diags := cilium.Clustermesh.As(ctx, &clustermesh, basetypes.ObjectAsOptions{}); !diags.HasError() {
+				cniPlugin.Cilium.Clustermesh = &models.CiliumClustermesh{
+					Enable:                ptr.To(clustermesh.Enable.ValueBool()),
+					ClusterID:             int64(clustermesh.ClusterID.ValueInt32()),
+					IPV4NativeRoutingCIDR: clustermesh.IPv4NativeRoutingCIDR.ValueString(),
 				}
+			} else {
+				return nil
 			}
 		} else {
 			return nil

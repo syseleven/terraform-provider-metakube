@@ -16,6 +16,7 @@ import (
 	fwpath "github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -115,28 +116,6 @@ func (m boolDiffSuppressPlanModifier) PlanModifyBool(ctx context.Context, req pl
 
 func BoolDiffSuppress() planmodifier.Bool {
 	return boolDiffSuppressPlanModifier{}
-}
-
-type cniPluginPlanModifier struct{}
-
-func (m cniPluginPlanModifier) Description(ctx context.Context) string {
-	return "Preserves CNI plugin value from state (CNI type cannot be changed after cluster creation)"
-}
-
-func (m cniPluginPlanModifier) MarkdownDescription(ctx context.Context) string {
-	return m.Description(ctx)
-}
-
-func (m cniPluginPlanModifier) PlanModifyObject(ctx context.Context, req planmodifier.ObjectRequest, resp *planmodifier.ObjectResponse) {
-	if req.StateValue.IsNull() || req.StateValue.IsUnknown() {
-		resp.PlanValue = types.ObjectUnknown(cniPluginAttrTypes())
-		return
-	}
-	resp.PlanValue = req.StateValue
-}
-
-func CNIPluginDiffSuppress() planmodifier.Object {
-	return cniPluginPlanModifier{}
 }
 
 func ClusterResourceSchema(ctx context.Context) schema.Schema {
@@ -288,16 +267,19 @@ func metakubeResourceClusterSpecAttributes() map[string]schema.Attribute {
 					Validators: []validator.String{
 						stringvalidator.OneOf("cilium", "canal", "none"),
 					},
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
 				},
 				"cilium": schema.SingleNestedAttribute{
 					Optional:    true,
+					Computed:    true,
 					Description: "Cilium clustermesh",
 					Attributes:  metakubeResourceClusterCNICiliumAttributes(),
+					PlanModifiers: []planmodifier.Object{
+						objectplanmodifier.UseStateForUnknown(),
+					},
 				},
-			},
-			PlanModifiers: []planmodifier.Object{
-				objectplanmodifier.UseStateForUnknown(),
-				CNIPluginDiffSuppress(),
 			},
 		},
 	}
@@ -567,6 +549,22 @@ func metakubeResourceClusterOpenstackCloudSpecApplicationCredentialsFields() map
 
 func metakubeResourceClusterCNICiliumAttributes() map[string]schema.Attribute {
 	return map[string]schema.Attribute{
+		"enable_hubble": schema.BoolAttribute{
+			Optional:    true,
+			Computed:    true,
+			Description: "Enable Hubble relay",
+			PlanModifiers: []planmodifier.Bool{
+				boolplanmodifier.UseNonNullStateForUnknown(),
+			},
+		},
+		"enable_l7_proxy": schema.BoolAttribute{
+			Optional:    true,
+			Computed:    true,
+			Description: "Enable L7 Proxy",
+			PlanModifiers: []planmodifier.Bool{
+				boolplanmodifier.UseNonNullStateForUnknown(),
+			},
+		},
 		"clustermesh": schema.SingleNestedAttribute{
 			Optional: true,
 			Attributes: map[string]schema.Attribute{
@@ -640,7 +638,9 @@ type CNIPluginModel struct {
 
 // CiliumModel
 type CiliumModel struct {
-	Clustermesh types.Object `tfsdk:"clustermesh"` // CiliumClustermeshSpecModel
+	Clustermesh   types.Object `tfsdk:"clustermesh"` // CiliumClustermeshSpecModel
+	EnableHubble  types.Bool   `tfsdk:"enable_hubble"`
+	EnableL7Proxy types.Bool   `tfsdk:"enable_l7_proxy"`
 }
 
 // CiliumSpecModel
@@ -740,6 +740,8 @@ func ciliumAttrTypes() map[string]attr.Type {
 		"clustermesh": types.ObjectType{
 			AttrTypes: ciliumClustermeshAttrTypes(),
 		},
+		"enable_hubble":   types.BoolType,
+		"enable_l7_proxy": types.BoolType,
 	}
 }
 

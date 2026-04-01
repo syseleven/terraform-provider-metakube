@@ -16,14 +16,14 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/hashicorp/go-cty v1.5.0
 	github.com/hashicorp/go-version v1.7.0
-	github.com/hashicorp/terraform-plugin-framework v1.16.1
+	github.com/hashicorp/terraform-plugin-framework v1.17.0
 	github.com/hashicorp/terraform-plugin-framework-timeouts v0.7.0
 	github.com/hashicorp/terraform-plugin-go v0.29.0
 	github.com/hashicorp/terraform-plugin-mux v0.21.0
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.38.1
 	github.com/hashicorp/terraform-plugin-testing v1.14.0
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/syseleven/go-metakube v0.0.0-20260320160825-8a9d4b5297b8
+	github.com/syseleven/go-metakube v0.0.0-20260402151110-c70fe178b1da
 	go.uber.org/zap v1.19.0
 	golang.org/x/mod v0.29.0
 	k8s.io/utils v0.0.0-20241104163129-6fe5fd82f078

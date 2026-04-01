@@ -454,7 +454,8 @@ func TestExpandClusterSpecFromModel(t *testing.T) {
 					},
 				},
 				CniPlugin: &models.CNIPluginSettings{
-					Type: models.CNIPluginType("canal"),
+					Type:   models.CNIPluginType("canal"),
+					Cilium: &models.CiliumCNISettings{},
 				},
 				Sys11auth: &models.Sys11AuthSettings{
 					Realm: "testrealm",
@@ -482,7 +483,8 @@ func TestExpandClusterSpecFromModel(t *testing.T) {
 			DCName: "",
 			ExpectedOutput: &models.ClusterSpec{
 				CniPlugin: &models.CNIPluginSettings{
-					Type: models.CNIPluginType("canal"),
+					Type:   models.CNIPluginType("canal"),
+					Cilium: &models.CiliumCNISettings{},
 				},
 			},
 		},
@@ -580,7 +582,8 @@ func TestExpandCniPlugin(t *testing.T) {
 				return createCNIPluginObject(ctx, t, "canal")
 			},
 			ExpectedOutput: &models.CNIPluginSettings{
-				Type: "canal",
+				Type:   "canal",
+				Cilium: &models.CiliumCNISettings{},
 			},
 		},
 		{
@@ -589,7 +592,8 @@ func TestExpandCniPlugin(t *testing.T) {
 				return createCNIPluginObject(ctx, t, "cilium")
 			},
 			ExpectedOutput: &models.CNIPluginSettings{
-				Type: "cilium",
+				Type:   "cilium",
+				Cilium: &models.CiliumCNISettings{},
 			},
 		},
 		{
