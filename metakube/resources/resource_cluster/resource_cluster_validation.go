@@ -58,8 +58,8 @@ func (data *metakubeResourceClusterOpenstackValidationData) canValidateAgainstOp
 	}
 
 	hasUserCredentials := data.username != nil && *data.username != "" &&
-	data.password != nil && *data.password != "" &&
-	data.projectID != nil && *data.projectID != ""
+		data.password != nil && *data.password != "" &&
+		data.projectID != nil && *data.projectID != ""
 
 	hasApplicationCredentials := data.applicationCredentialsID != nil && *data.applicationCredentialsID != "" &&
 		data.applicationCredentialsSecret != nil && *data.applicationCredentialsSecret != ""

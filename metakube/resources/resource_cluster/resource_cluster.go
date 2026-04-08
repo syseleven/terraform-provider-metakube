@@ -497,6 +497,9 @@ func (r *clusterResource) readClusterIntoModel(ctx context.Context, model *Clust
 	}
 
 	diags.Append(metakubeResourceClusterFlattenSpec(ctx, model, result.Payload.Spec)...)
+	if diags.HasError() {
+		return diags
+	}
 
 	model.CreationTimestamp = types.StringValue(result.Payload.CreationTimestamp.String())
 	model.DeletionTimestamp = types.StringValue(result.Payload.DeletionTimestamp.String())
@@ -656,7 +659,7 @@ func (r *clusterResource) sendPatchRequest(ctx context.Context, plan, state *Clu
 	p.SetClusterID(clusterID)
 
 	name := plan.Name.ValueString()
-	labels := getLabelsChange(ctx, plan, state)
+	labels := getLabelsChange(plan, state)
 	clusterSpec := metakubeResourceClusterExpandSpec(ctx, plan, plan.DCName.ValueString(), func(_ string) bool { return true })
 
 	p.SetPatch(map[string]interface{}{
@@ -836,7 +839,7 @@ func expandSSHKeysFromModel(sshkeys types.Set) []string {
 	return result
 }
 
-func getLabelsChange(ctx context.Context, plan, state *ClusterModel) map[string]interface{} {
+func getLabelsChange(plan, state *ClusterModel) map[string]interface{} {
 	oldLabels := expandLabelsFromModel(state.Labels)
 	newLabels := expandLabelsFromModel(plan.Labels)
 
