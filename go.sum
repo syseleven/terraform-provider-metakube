@@ -108,8 +108,8 @@ github.com/hashicorp/terraform-exec v0.24.0 h1:mL0xlk9H5g2bn0pPF6JQZk5YlByqSqrO5
 github.com/hashicorp/terraform-exec v0.24.0/go.mod h1:lluc/rDYfAhYdslLJQg3J0oDqo88oGQAdHR+wDqFvo4=
 github.com/hashicorp/terraform-json v0.27.2 h1:BwGuzM6iUPqf9JYM/Z4AF1OJ5VVJEEzoKST/tRDBJKU=
 github.com/hashicorp/terraform-json v0.27.2/go.mod h1:GzPLJ1PLdUG5xL6xn1OXWIjteQRT2CNT9o/6A9mi9hE=
-github.com/hashicorp/terraform-plugin-framework v1.16.1 h1:1+zwFm3MEqd/0K3YBB2v9u9DtyYHyEuhVOfeIXbteWA=
-github.com/hashicorp/terraform-plugin-framework v1.16.1/go.mod h1:0xFOxLy5lRzDTayc4dzK/FakIgBhNf/lC4499R9cV4Y=
+github.com/hashicorp/terraform-plugin-framework v1.17.0 h1:JdX50CFrYcYFY31gkmitAEAzLKoBgsK+iaJjDC8OexY=
+github.com/hashicorp/terraform-plugin-framework v1.17.0/go.mod h1:4OUXKdHNosX+ys6rLgVlgklfxN3WHR5VHSOABeS/BM0=
 github.com/hashicorp/terraform-plugin-framework-timeouts v0.7.0 h1:jblRy1PkLfPm5hb5XeMa3tezusnMRziUGqtT5epSYoI=
 github.com/hashicorp/terraform-plugin-framework-timeouts v0.7.0/go.mod h1:5jm2XK8uqrdiSRfD5O47OoxyGMCnwTcl8eoiDgSa+tc=
 github.com/hashicorp/terraform-plugin-framework-validators v0.19.0 h1:Zz3iGgzxe/1XBkooZCewS0nJAaCFPFPHdNJd8FgE4Ow=
@@ -192,8 +192,10 @@ github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/
 github.com/stretchr/testify v1.7.2/go.mod h1:R6va5+xMeoiuVRoj+gSkQ7d3FALtqAAGI1FQKckRals=
 github.com/stretchr/testify v1.10.0 h1:Xv5erBjTwe/5IxqUQTdXv5kgmIvbHo3QQyRwhJsOfJA=
 github.com/stretchr/testify v1.10.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
-github.com/syseleven/go-metakube v0.0.0-20260121125850-22994dc8f62e h1:ZLnE+t2jhKT65qwFm6mnwPExUe9uHwts+SIZWhQTRIY=
-github.com/syseleven/go-metakube v0.0.0-20260121125850-22994dc8f62e/go.mod h1:CIdx+n4KCHzWNA/NxC588chVRFxzmMKr4fbk5+q4u+Q=
+github.com/syseleven/go-metakube v0.0.0-20260320160825-8a9d4b5297b8 h1:EPjnGGIZQ2o0w5yQwIkO9ERYNEtBPokl5oftJtrKLkw=
+github.com/syseleven/go-metakube v0.0.0-20260320160825-8a9d4b5297b8/go.mod h1:CIdx+n4KCHzWNA/NxC588chVRFxzmMKr4fbk5+q4u+Q=
+github.com/syseleven/go-metakube v0.0.0-20260402151110-c70fe178b1da h1:U/yHxk2kxrmF3ZGJV/c8KpZJjnuW9rOhqGQf5DBKaCM=
+github.com/syseleven/go-metakube v0.0.0-20260402151110-c70fe178b1da/go.mod h1:CIdx+n4KCHzWNA/NxC588chVRFxzmMKr4fbk5+q4u+Q=
 github.com/syseleven/terraform-plugin-sdk/v2 v2.38.1-sys11-1 h1:WQENg3wXwErE81Jju0JXPSfpATYglb86qWuobLwjgoA=
 github.com/syseleven/terraform-plugin-sdk/v2 v2.38.1-sys11-1/go.mod h1:GQhpKVvvuwzD79e8/NZ+xzj+ZpWovdPAe8nfV/skwNU=
 github.com/vmihailenco/msgpack v3.3.3+incompatible/go.mod h1:fy3FlTQTDXWkZ7Bh6AcGMlsjHatGryHQYUTf1ShIgkk=

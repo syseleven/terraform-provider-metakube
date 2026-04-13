@@ -48,15 +48,27 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 	if err := clusterOpenstackBasicTemplate.Execute(&config, data); err != nil {
 		t.Fatal(err)
 	}
+
 	var config2 strings.Builder
 	data2 := *data
 	data2.CNIPlugin = "cilium"
-	data2.IPFamily = "IPv4"
-	data2.SyselevenAuth = true
-	data2.IAMAuthentication = true
-	data2.AuditLogging = true
-	data2.PodNodeSelector = true
-	if err := clusterOpenstackBasicTemplate.Execute(&config2, data2); err != nil {
+	data2.Cilium = true
+	data2.Clustermesh = true
+	if err := clusterOpenstackBasicTemplate.Execute(&config2, &data2); err != nil {
+		t.Fatal(err)
+	}
+
+	var config3 strings.Builder
+	data3 := *data
+	data3.CNIPlugin = "cilium"
+	data3.Cilium = true
+	data3.Clustermesh = false
+	data3.IPFamily = "IPv4"
+	data3.SyselevenAuth = true
+	data3.IAMAuthentication = true
+	data3.AuditLogging = true
+	data3.PodNodeSelector = true
+	if err := clusterOpenstackBasicTemplate.Execute(&config3, &data3); err != nil {
 		t.Fatal(err)
 	}
 
@@ -124,23 +136,27 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 				Config: config2.String(),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
-						plancheck.ExpectResourceAction(networkResourceName, plancheck.ResourceActionNoop),
-						plancheck.ExpectResourceAction(securityGroupResourceName, plancheck.ResourceActionNoop),
-						plancheck.ExpectResourceAction(subnetResourceName, plancheck.ResourceActionNoop),
-						plancheck.ExpectResourceAction("metakube_cluster.acctest_cluster", plancheck.ResourceActionUpdate),
-						plancheck.ExpectKnownValue(resourceName, auditLoggingPath, knownvalue.Bool(true)),
-						plancheck.ExpectKnownValue(resourceName, podNodeSelectorPath, knownvalue.Bool(true)),
-					},
-					PostApplyPreRefresh: []plancheck.PlanCheck{
-						plancheck.ExpectEmptyPlan(),
-					},
-					PostApplyPostRefresh: []plancheck.PlanCheck{
-						plancheck.ExpectEmptyPlan(),
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionUpdate),
 					},
 				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeClusterExists(&cluster),
-					testAccCheckMetaKubeClusterOpenstackAttributes(&cluster, data2.Name, data2.DatacenterName, data2.Version, true),
+					testAccCheckMetaKubeClusterOpenstackAttributes(&cluster, data2.Name, data2.DatacenterName, data2.Version, false),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.cilium.clustermesh.enable", "true"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.cilium.clustermesh.cluster_id", "1"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.cilium.clustermesh.ipv4_native_routing_cidr", "172.0.0.0/15"),
+				),
+			},
+			{
+				Config: config3.String(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionUpdate),
+					},
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testAccCheckMetaKubeClusterExists(&cluster),
+					testAccCheckMetaKubeClusterOpenstackAttributes(&cluster, data3.Name, data3.DatacenterName, data3.Version, true),
 					resource.TestCheckResourceAttr(resourceName, "dc_name", data.DatacenterName),
 					resource.TestCheckResourceAttr(resourceName, "name", data.Name),
 					resource.TestCheckResourceAttr(resourceName, "labels.%", "2"),
@@ -153,6 +169,9 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "spec.0.services_cidr", "10.240.16.0/18"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.pods_cidr", "172.25.0.0/18"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.type", "cilium"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.cilium.clustermesh.enable", "false"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.cilium.clustermesh.cluster_id", "1"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.cilium.clustermesh.ipv4_native_routing_cidr", "172.0.0.0/15"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.ip_family", "IPv4"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.aws.#", "0"),
@@ -172,7 +191,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 				),
 			},
 			{
-				Config: config2.String(),
+				Config: config3.String(),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
 						plancheck.ExpectResourceAction(networkResourceName, plancheck.ResourceActionNoop),
@@ -200,7 +219,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 				},
 			},
 			{
-				Config:   config2.String(),
+				Config:   config3.String(),
 				PlanOnly: true,
 			},
 			{
@@ -394,6 +413,8 @@ type clusterOpenstackBasicData struct {
 	ProjectID         string
 	Version           string
 	CNIPlugin         string
+	Cilium            bool
+	Clustermesh       bool
 	IPFamily          string
 	SyselevenAuth     bool
 	AuditLogging      bool
@@ -474,6 +495,15 @@ resource "metakube_cluster" "acctest_cluster" {
 		{{ if .CNIPlugin }}
 		cni_plugin = {
 			type = "{{ .CNIPlugin }}"
+			{{ if .Cilium }}
+			cilium = {
+				clustermesh = {
+					enable = {{ .Clustermesh }}
+					cluster_id = 1
+					ipv4_native_routing_cidr = "172.0.0.0/15"
+				}
+			}
+			{{ end }}
 		}
 		{{ end }}
 

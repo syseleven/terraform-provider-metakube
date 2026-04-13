@@ -454,7 +454,8 @@ func TestExpandClusterSpecFromModel(t *testing.T) {
 					},
 				},
 				CniPlugin: &models.CNIPluginSettings{
-					Type: models.CNIPluginType("canal"),
+					Type:   models.CNIPluginType("canal"),
+					Cilium: &models.CiliumCNISettings{},
 				},
 				Sys11auth: &models.Sys11AuthSettings{
 					Realm: "testrealm",
@@ -482,7 +483,8 @@ func TestExpandClusterSpecFromModel(t *testing.T) {
 			DCName: "",
 			ExpectedOutput: &models.ClusterSpec{
 				CniPlugin: &models.CNIPluginSettings{
-					Type: models.CNIPluginType("canal"),
+					Type:   models.CNIPluginType("canal"),
+					Cilium: &models.CiliumCNISettings{},
 				},
 			},
 		},
@@ -580,7 +582,8 @@ func TestExpandCniPlugin(t *testing.T) {
 				return createCNIPluginObject(ctx, t, "canal")
 			},
 			ExpectedOutput: &models.CNIPluginSettings{
-				Type: "canal",
+				Type:   "canal",
+				Cilium: &models.CiliumCNISettings{},
 			},
 		},
 		{
@@ -589,7 +592,8 @@ func TestExpandCniPlugin(t *testing.T) {
 				return createCNIPluginObject(ctx, t, "cilium")
 			},
 			ExpectedOutput: &models.CNIPluginSettings{
-				Type: "cilium",
+				Type:   "cilium",
+				Cilium: &models.CiliumCNISettings{},
 			},
 		},
 		{
@@ -1503,7 +1507,8 @@ func createUpdateWindowList(ctx context.Context, t *testing.T, start, length str
 func createCNIPluginObject(ctx context.Context, t *testing.T, pluginType string) types.Object {
 	t.Helper()
 	cniModel := CNIPluginModel{
-		Type: types.StringValue(pluginType),
+		Type:   types.StringValue(pluginType),
+		Cilium: types.ObjectNull(ciliumAttrTypes()),
 	}
 	objVal, _ := types.ObjectValueFrom(ctx, cniPluginAttrTypes(), cniModel)
 	return objVal

@@ -8,12 +8,15 @@ import (
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
+	"github.com/hashicorp/terraform-plugin-framework-validators/boolvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	fwpath "github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -113,27 +116,6 @@ func (m boolDiffSuppressPlanModifier) PlanModifyBool(ctx context.Context, req pl
 
 func BoolDiffSuppress() planmodifier.Bool {
 	return boolDiffSuppressPlanModifier{}
-}
-
-type cniPluginPlanModifier struct{}
-
-func (m cniPluginPlanModifier) Description(ctx context.Context) string {
-	return "Preserves CNI plugin value from state (CNI type cannot be changed after cluster creation)"
-}
-
-func (m cniPluginPlanModifier) MarkdownDescription(ctx context.Context) string {
-	return m.Description(ctx)
-}
-
-func (m cniPluginPlanModifier) PlanModifyObject(ctx context.Context, req planmodifier.ObjectRequest, resp *planmodifier.ObjectResponse) {
-	if req.StateValue.IsNull() || req.StateValue.IsUnknown() {
-		return
-	}
-	resp.PlanValue = req.StateValue
-}
-
-func CNIPluginDiffSuppress() planmodifier.Object {
-	return cniPluginPlanModifier{}
 }
 
 func ClusterResourceSchema(ctx context.Context) schema.Schema {
@@ -274,22 +256,30 @@ func metakubeResourceClusterSpecAttributes() map[string]schema.Attribute {
 			},
 		},
 		"cni_plugin": schema.SingleNestedAttribute{
+			Description: "Contains the spec of the CNI plugin used by the Cluster. Defaults to canal if not specified.",
 			Optional:    true,
 			Computed:    true,
-			Description: "Contains the spec of the CNI plugin used by the Cluster. Defaults to canal if not specified.",
 			Attributes: map[string]schema.Attribute{
 				"type": schema.StringAttribute{
 					Optional:    true,
 					Computed:    true,
-					Description: "Define the type of CNI plugin",
+					Description: "Define the type of CNI plugin. Defaults to canal if not specified.",
 					Validators: []validator.String{
 						stringvalidator.OneOf("cilium", "canal", "none"),
 					},
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
 				},
-			},
-			PlanModifiers: []planmodifier.Object{
-				objectplanmodifier.UseStateForUnknown(),
-				CNIPluginDiffSuppress(),
+				"cilium": schema.SingleNestedAttribute{
+					Optional:    true,
+					Computed:    true,
+					Description: "Cilium clustermesh",
+					Attributes:  metakubeResourceClusterCNICiliumAttributes(),
+					PlanModifiers: []planmodifier.Object{
+						objectplanmodifier.UseStateForUnknown(),
+					},
+				},
 			},
 		},
 	}
@@ -557,6 +547,50 @@ func metakubeResourceClusterOpenstackCloudSpecApplicationCredentialsFields() map
 	}
 }
 
+func metakubeResourceClusterCNICiliumAttributes() map[string]schema.Attribute {
+	return map[string]schema.Attribute{
+		"enable_hubble": schema.BoolAttribute{
+			Optional:    true,
+			Computed:    true,
+			Description: "Enable Hubble relay",
+			PlanModifiers: []planmodifier.Bool{
+				boolplanmodifier.UseNonNullStateForUnknown(),
+			},
+		},
+		"enable_l7_proxy": schema.BoolAttribute{
+			Optional:    true,
+			Computed:    true,
+			Description: "Enable L7 Proxy",
+			PlanModifiers: []planmodifier.Bool{
+				boolplanmodifier.UseNonNullStateForUnknown(),
+			},
+		},
+		"clustermesh": schema.SingleNestedAttribute{
+			Optional: true,
+			Attributes: map[string]schema.Attribute{
+				"enable": schema.BoolAttribute{
+					Optional:    true,
+					Description: "Enale clustermesh",
+					Validators: []validator.Bool{
+						boolvalidator.AlsoRequires(path.Expressions{
+							path.MatchRelative().AtParent().AtName("cluster_id"),
+							path.MatchRelative().AtParent().AtName("ipv4_native_routing_cidr"),
+						}...),
+					},
+				},
+				"cluster_id": schema.Int32Attribute{
+					Optional:    true,
+					Description: "Set cilium cluster ID",
+				},
+				"ipv4_native_routing_cidr": schema.StringAttribute{
+					Optional:    true,
+					Description: "Set ipv4 native routing cidr",
+				},
+			},
+		},
+	}
+}
+
 // ClusterModel represents the Terraform resource model for a cluster.
 type ClusterModel struct {
 	ID                  types.String   `tfsdk:"id"`
@@ -598,7 +632,22 @@ type UpdateWindowModel struct {
 
 // CNIPluginModel represents the cni_plugin block.
 type CNIPluginModel struct {
-	Type types.String `tfsdk:"type"`
+	Type   types.String `tfsdk:"type"`
+	Cilium types.Object `tfsdk:"cilium"` // CiliumSpecModel
+}
+
+// CiliumModel
+type CiliumModel struct {
+	Clustermesh   types.Object `tfsdk:"clustermesh"` // CiliumClustermeshSpecModel
+	EnableHubble  types.Bool   `tfsdk:"enable_hubble"`
+	EnableL7Proxy types.Bool   `tfsdk:"enable_l7_proxy"`
+}
+
+// CiliumSpecModel
+type CiliumClustermeshModel struct {
+	Enable                types.Bool   `tfsdk:"enable"`
+	ClusterID             types.Int32  `tfsdk:"cluster_id"`
+	IPv4NativeRoutingCIDR types.String `tfsdk:"ipv4_native_routing_cidr"`
 }
 
 // SyselevenAuthModel represents the syseleven_auth block.
@@ -680,6 +729,27 @@ func updateWindowAttrTypes() map[string]attr.Type {
 func cniPluginAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"type": types.StringType,
+		"cilium": types.ObjectType{
+			AttrTypes: ciliumAttrTypes(),
+		},
+	}
+}
+
+func ciliumAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"clustermesh": types.ObjectType{
+			AttrTypes: ciliumClustermeshAttrTypes(),
+		},
+		"enable_hubble":   types.BoolType,
+		"enable_l7_proxy": types.BoolType,
+	}
+}
+
+func ciliumClustermeshAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"enable":                   types.BoolType,
+		"cluster_id":               types.Int32Type,
+		"ipv4_native_routing_cidr": types.StringType,
 	}
 }
 
