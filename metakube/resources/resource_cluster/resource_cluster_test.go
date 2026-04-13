@@ -31,8 +31,8 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 	resourceName := "metakube_cluster.acctest_cluster"
 	securityGroupResourceName := "openstack_networking_secgroup_v2.cluster-net"
 	subnetResourceName := "openstack_networking_subnet_v2.subnet_tf_test"
-	auditLoggingPath := tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("audit_logging")
-	podNodeSelectorPath := tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("pod_node_selector")
+	auditLoggingPath := tfjsonpath.New("spec").AtMapKey("audit_logging")
+	podNodeSelectorPath := tfjsonpath.New("spec").AtMapKey("pod_node_selector")
 	data := &clusterOpenstackBasicData{
 		Name:                                  testutil.MakeRandomName() + "-cluster-os-basic",
 		OpenstackAuthURL:                      os.Getenv(common.TestEnvOpenstackAuthURL),
@@ -111,23 +111,19 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "labels.%", "2"),
 					resource.TestCheckResourceAttr(resourceName, "labels.a", "b"),
 					resource.TestCheckResourceAttr(resourceName, "labels.c", "d"),
-					resource.TestCheckResourceAttr(resourceName, "spec.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.version", data.Version),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.update_window.0.start", "Tue 02:00"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.update_window.0.length", "2h"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.services_cidr", "10.240.16.0/18"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.pods_cidr", "172.25.0.0/18"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.type", "cilium"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.ip_family", "IPv4"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.aws.#", "0"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.#", "1"),
-					resource.TestCheckResourceAttrSet(resourceName, "spec.0.cloud.0.openstack.0.security_group"),
-					resource.TestCheckResourceAttrSet(resourceName, "spec.0.cloud.0.openstack.0.network"),
-					resource.TestCheckResourceAttrSet(resourceName, "spec.0.cloud.0.openstack.0.subnet_id"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.0.subnet_cidr", "192.168.2.0/24"),
+					resource.TestCheckResourceAttr(resourceName, "spec.version", data.Version),
+					resource.TestCheckResourceAttr(resourceName, "spec.update_window.start", "Tue 02:00"),
+					resource.TestCheckResourceAttr(resourceName, "spec.update_window.length", "2h"),
+					resource.TestCheckResourceAttr(resourceName, "spec.services_cidr", "10.240.16.0/18"),
+					resource.TestCheckResourceAttr(resourceName, "spec.pods_cidr", "172.25.0.0/18"),
+					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.type", "cilium"),
+					resource.TestCheckResourceAttr(resourceName, "spec.ip_family", "IPv4"),
+					resource.TestCheckResourceAttrSet(resourceName, "spec.cloud.openstack.security_group"),
+					resource.TestCheckResourceAttrSet(resourceName, "spec.cloud.openstack.network"),
+					resource.TestCheckResourceAttrSet(resourceName, "spec.cloud.openstack.subnet_id"),
+					resource.TestCheckResourceAttr(resourceName, "spec.cloud.openstack.subnet_cidr", "192.168.2.0/24"),
 					resource.TestCheckResourceAttrSet(resourceName, "kube_config"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.audit_logging", "false"),
+					resource.TestCheckResourceAttr(resourceName, "spec.audit_logging", "false"),
 					resource.TestCheckResourceAttrSet(resourceName, "creation_timestamp"),
 					resource.TestCheckResourceAttrSet(resourceName, "deletion_timestamp"),
 				),
@@ -142,9 +138,9 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeClusterExists(&cluster),
 					testAccCheckMetaKubeClusterOpenstackAttributes(&cluster, data2.Name, data2.DatacenterName, data2.Version, false),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.cilium.clustermesh.enable", "true"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.cilium.clustermesh.cluster_id", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.cilium.clustermesh.ipv4_native_routing_cidr", "172.0.0.0/15"),
+					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.cilium.clustermesh.enable", "true"),
+					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.cilium.clustermesh.cluster_id", "1"),
+					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.cilium.clustermesh.ipv4_native_routing_cidr", "172.0.0.0/15"),
 				),
 			},
 			{
@@ -162,30 +158,22 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "labels.%", "2"),
 					resource.TestCheckResourceAttr(resourceName, "labels.a", "b"),
 					resource.TestCheckResourceAttr(resourceName, "labels.c", "d"),
-					resource.TestCheckResourceAttr(resourceName, "spec.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.version", data.Version),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.update_window.0.start", "Tue 02:00"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.update_window.0.length", "2h"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.services_cidr", "10.240.16.0/18"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.pods_cidr", "172.25.0.0/18"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.type", "cilium"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.cilium.clustermesh.enable", "false"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.cilium.clustermesh.cluster_id", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cni_plugin.cilium.clustermesh.ipv4_native_routing_cidr", "172.0.0.0/15"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.ip_family", "IPv4"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.aws.#", "0"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.#", "1"),
-					resource.TestCheckResourceAttrSet(resourceName, "spec.0.cloud.0.openstack.0.security_group"),
-					resource.TestCheckResourceAttrSet(resourceName, "spec.0.cloud.0.openstack.0.network"),
-					resource.TestCheckResourceAttrSet(resourceName, "spec.0.cloud.0.openstack.0.subnet_id"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.0.subnet_cidr", "192.168.2.0/24"),
+					resource.TestCheckResourceAttr(resourceName, "spec.version", data.Version),
+					resource.TestCheckResourceAttr(resourceName, "spec.update_window.start", "Tue 02:00"),
+					resource.TestCheckResourceAttr(resourceName, "spec.update_window.length", "2h"),
+					resource.TestCheckResourceAttr(resourceName, "spec.services_cidr", "10.240.16.0/18"),
+					resource.TestCheckResourceAttr(resourceName, "spec.pods_cidr", "172.25.0.0/18"),
+					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.type", "cilium"),
+					resource.TestCheckResourceAttr(resourceName, "spec.ip_family", "IPv4"),
+					resource.TestCheckResourceAttrSet(resourceName, "spec.cloud.openstack.security_group"),
+					resource.TestCheckResourceAttrSet(resourceName, "spec.cloud.openstack.network"),
+					resource.TestCheckResourceAttrSet(resourceName, "spec.cloud.openstack.subnet_id"),
+					resource.TestCheckResourceAttr(resourceName, "spec.cloud.openstack.subnet_cidr", "192.168.2.0/24"),
 					resource.TestCheckResourceAttrSet(resourceName, "kube_config"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.audit_logging", "true"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.pod_node_selector", "true"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.syseleven_auth.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.syseleven_auth.0.realm", "syseleven"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.syseleven_auth.0.iam_authentication", "true"),
+					resource.TestCheckResourceAttr(resourceName, "spec.audit_logging", "true"),
+					resource.TestCheckResourceAttr(resourceName, "spec.pod_node_selector", "true"),
+					resource.TestCheckResourceAttr(resourceName, "spec.syseleven_auth.realm", "syseleven"),
+					resource.TestCheckResourceAttr(resourceName, "spec.syseleven_auth.iam_authentication", "true"),
 					resource.TestCheckResourceAttrSet(resourceName, "creation_timestamp"),
 					resource.TestCheckResourceAttrSet(resourceName, "deletion_timestamp"),
 				),
@@ -213,7 +201,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 				ResourceName:            resourceName,
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"spec.0.cloud.0.openstack.0.application_credentials", "kube_login_kube_config", "oidc_kube_config"},
+				ImportStateVerifyIgnore: []string{"spec.cloud.openstack.application_credentials", "kube_login_kube_config", "oidc_kube_config"},
 				ImportStateIdFunc: func(s *terraform.State) (string, error) {
 					return data.ProjectID + ":" + s.RootModule().Resources[resourceName].Primary.ID, nil
 				},
@@ -318,8 +306,8 @@ func TestAccMetakubeCluster_Openstack_ApplicationCredentials(t *testing.T) {
 				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeClusterExists(&cluster),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.0.application_credentials.0.id", data.OpenstackApplicationCredentialID),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.cloud.0.openstack.0.application_credentials.0.secret", data.OpenstackApplicationCredentialSecret),
+					resource.TestCheckResourceAttr(resourceName, "spec.cloud.openstack.application_credentials.id", data.OpenstackApplicationCredentialID),
+					resource.TestCheckResourceAttr(resourceName, "spec.cloud.openstack.application_credentials.secret", data.OpenstackApplicationCredentialSecret),
 				),
 			},
 		},
@@ -376,7 +364,7 @@ func TestAccMetakubeCluster_Openstack_UpgradeVersion(t *testing.T) {
 				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeClusterExists(&cluster),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.version", versionK8s1),
+					resource.TestCheckResourceAttr(resourceName, "spec.version", versionK8s1),
 				),
 			},
 			{
@@ -394,7 +382,7 @@ func TestAccMetakubeCluster_Openstack_UpgradeVersion(t *testing.T) {
 				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeClusterExists(&cluster),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.version", versionK8s2),
+					resource.TestCheckResourceAttr(resourceName, "spec.version", versionK8s2),
 				),
 			},
 		},
@@ -454,15 +442,15 @@ resource "metakube_cluster" "acctest_cluster" {
         delete = "15m"
     }
 
-	spec {
+	spec = {
 		version = "{{ .Version }}"
-		update_window {
+		update_window = {
 		  start = "Tue 02:00"
 		  length = "2h"
 		}
-		cloud {
-			openstack {
-			    application_credentials {
+		cloud = {
+			openstack = {
+			    application_credentials = {
 					id = "{{ .OpenstackApplicationCredentialsID }}"
 					secret = "{{ .OpenstackApplicationCredentialsSecret }}"
 				}
@@ -475,7 +463,7 @@ resource "metakube_cluster" "acctest_cluster" {
 		}
 
 		{{ if .SyselevenAuth }}
-		syseleven_auth {
+		syseleven_auth = {
 			realm = "syseleven"
 			iam_authentication = {{ .IAMAuthentication }}
 		}
@@ -562,15 +550,15 @@ resource "metakube_cluster" "acctest_cluster" {
 		"c" = "d"
 	}
 
-	spec {
+	spec = {
 		version = "{{ .Version }}"
-		update_window {
+		update_window = {
 		  start = "Tue 02:00"
 		  length = "2h"
 		}
-		cloud {
-			openstack {
-				application_credentials {
+		cloud = {
+			openstack = {
+				application_credentials = {
 					id="{{ .OpenstackApplicationCredentialID }}"
 					secret="{{ .OpenstackApplicationCredentialSecret }}"
 				}
@@ -724,12 +712,12 @@ resource "metakube_cluster" "acctest_cluster" {
 		metakube_sshkey.acctest_sshkey1.id
 	]
 
-	spec {
+	spec = {
 		version = "{{ .Version }}"
 		enable_ssh_agent = true
-		cloud {
-			openstack {
-				application_credentials {
+		cloud = {
+			openstack = {
+				application_credentials = {
 					id = "{{ .OpenstackApplicationCredentialsID }}"
 					secret = "{{ .OpenstackApplicationCredentialsSecret }}"
 				}
@@ -755,12 +743,12 @@ resource "metakube_cluster" "acctest_cluster" {
 		metakube_sshkey.acctest_sshkey2.id
 	]
 
-	spec {
+	spec = {
 		version = "{{ .Version }}"
 		enable_ssh_agent = true
-		cloud {
-			openstack {
-				application_credentials {
+		cloud = {
+			openstack = {
+				application_credentials = {
 					id = "{{ .OpenstackApplicationCredentialsID }}"
 					secret = "{{ .OpenstackApplicationCredentialsSecret }}"
 				}

@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/syseleven/go-metakube/client/datacenter"
 	"github.com/syseleven/go-metakube/client/project"
@@ -109,7 +110,7 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 		sshAgentEnabled := getSSHAgentEnabled(ctx, &plan)
 		if !sshAgentEnabled {
 			resp.Diagnostics.AddAttributeError(
-				path.Root("spec").AtListIndex(0).AtName("enable_ssh_agent"),
+				path.Root("spec").AtName("enable_ssh_agent"),
 				"SSH Agent must be enabled",
 				"SSH Agent must be enabled in order to automatically manage ssh keys",
 			)
@@ -226,11 +227,7 @@ func (r *clusterResource) Update(ctx context.Context, req resource.UpdateRequest
 	specChanged := !plan.Spec.Equal(state.Spec)
 
 	if nameChanged || labelsChanged || specChanged {
-		if err := r.sendPatchRequest(ctx, &plan, &state, clusterPatchChanges{
-			name:   nameChanged,
-			labels: labelsChanged,
-			spec:   specChanged,
-		}); err != nil {
+		if err := r.sendPatchRequest(ctx, &plan, &state); err != nil {
 			resp.Diagnostics.AddError("Failed to patch cluster", err.Error())
 			return
 		}
@@ -415,12 +412,15 @@ func (r *clusterResource) ImportState(ctx context.Context, req resource.ImportSt
 func (r *clusterResource) UpgradeState(_ context.Context) map[int64]resource.StateUpgrader {
 	return map[int64]resource.StateUpgrader{
 		0: {
-			StateUpgrader: upgradeClusterStateToV1,
+			StateUpgrader: upgradeClusterStateToV2,
+		},
+		1: {
+			StateUpgrader: upgradeClusterStateToV2,
 		},
 	}
 }
 
-func upgradeClusterStateToV1(_ context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
+func upgradeClusterStateToV2(_ context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
 	if req.RawState == nil || len(req.RawState.JSON) == 0 {
 		return
 	}
@@ -434,7 +434,7 @@ func upgradeClusterStateToV1(_ context.Context, req resource.UpgradeStateRequest
 		return
 	}
 
-	upgradeClusterLegacyCNIPluginState(rawState)
+	upgradeClusterLegacyNestedSpecState(rawState)
 
 	upgradedJSON, err := json.Marshal(rawState)
 	if err != nil {
@@ -495,6 +495,9 @@ func (r *clusterResource) readClusterIntoModel(ctx context.Context, model *Clust
 		}
 		labelsValue, d := types.MapValue(types.StringType, labels)
 		diags.Append(d...)
+		if diags.HasError() {
+			return diags
+		}
 		model.Labels = labelsValue
 	} else {
 		model.Labels = types.MapValueMust(types.StringType, map[string]attr.Value{})
@@ -626,13 +629,10 @@ func (r *clusterResource) validateDatacenter(ctx context.Context, model *Cluster
 
 	available := make([]string, 0)
 	openstackCluster := hasOpenstackConfig(ctx, model)
-	awsCluster := hasAWSConfig(ctx, model)
 
 	for _, dc := range result.Payload {
 		openstackDatacenter := dc.Spec.Openstack != nil
-		awsDatacenter := dc.Spec.Aws != nil
-		if (openstackCluster && openstackDatacenter) ||
-			(awsCluster && awsDatacenter) {
+		if openstackCluster && openstackDatacenter {
 			available = append(available, dc.Metadata.Name)
 		}
 		if dc.Metadata.Name == name {
@@ -653,13 +653,7 @@ func (r *clusterResource) validateDatacenter(ctx context.Context, model *Cluster
 	return diags
 }
 
-type clusterPatchChanges struct {
-	name   bool
-	labels bool
-	spec   bool
-}
-
-func (r *clusterResource) sendPatchRequest(ctx context.Context, plan, state *ClusterModel, changes clusterPatchChanges) error {
+func (r *clusterResource) sendPatchRequest(ctx context.Context, plan, state *ClusterModel) error {
 	projectID := plan.ProjectID.ValueString()
 	clusterID := state.ID.ValueString()
 
@@ -672,7 +666,11 @@ func (r *clusterResource) sendPatchRequest(ctx context.Context, plan, state *Clu
 	labels := getLabelsChange(plan, state)
 	clusterSpec := metakubeResourceClusterExpandSpec(ctx, plan, plan.DCName.ValueString(), func(_ string) bool { return true })
 
-	p.SetPatch(patchBody)
+	p.SetPatch(map[string]interface{}{
+		"name":   name,
+		"labels": labels,
+		"spec":   clusterSpec,
+	})
 
 	timeout := 20 * time.Minute
 	deadline := time.Now().Add(timeout)
@@ -693,122 +691,6 @@ func (r *clusterResource) sendPatchRequest(ctx context.Context, plan, state *Clu
 	return fmt.Errorf("timeout patching cluster '%s'", clusterID)
 }
 
-func buildClusterPatchBody(ctx context.Context, plan, state *ClusterModel, changes clusterPatchChanges) (map[string]any, error) {
-	patch := make(map[string]any, 3)
-
-	if changes.name {
-		patch["name"] = plan.Name.ValueString()
-	}
-
-	if changes.labels {
-		patch["labels"] = getLabelsChange(ctx, plan, state)
-	}
-
-	if changes.spec {
-		planSpec := clusterSpecFromModel(ctx, plan)
-		stateSpec := clusterSpecFromModel(ctx, state)
-
-		specPatch, err := buildClusterSpecPatchFromModels(ctx, plan.DCName.ValueString(), planSpec, stateSpec)
-		if err != nil {
-			return nil, err
-		}
-		patch["spec"] = specPatch
-	}
-
-	return patch, nil
-}
-
-func buildClusterSpecPatchFromModels(ctx context.Context, dcName string, planSpec, stateSpec *ClusterSpecModel) (map[string]any, error) {
-	spec := metakubeResourceClusterExpandSpecModel(ctx, planSpec, dcName, func(_ string) bool { return true })
-
-	patch, err := marshalClusterSpecToMap(spec)
-	if err != nil {
-		return nil, err
-	}
-
-	fixOmitemptyBoolFields(patch, planSpec)
-	nullRemovedBlocks(patch, planSpec, stateSpec)
-
-	return patch, nil
-}
-
-
-func marshalClusterSpecToMap(spec *models.ClusterSpec) (map[string]any, error) {
-	if spec == nil {
-		return map[string]any{}, nil
-	}
-
-	payload, err := json.Marshal(spec)
-	if err != nil {
-		return nil, err
-	}
-
-	var out map[string]any
-	if err := json.Unmarshal(payload, &out); err != nil {
-		return nil, err
-	}
-
-	if out == nil {
-		return map[string]any{}, nil
-	}
-
-	return out, nil
-}
-
-// fixOmitemptyBoolFields re-inserts boolean values that json.Marshal drops
-// because the generated go-metakube model uses `omitempty` on plain bool
-// fields. When the plan value is false, Marshal omits the key entirely, so
-// the merge-patch endpoint treats it as "no change" instead of "set to false".
-//
-// Only fields whose API model type is `bool` (not `*bool`) need this.
-// pointer-backed bools like EnableUserSSHKeyAgent survive omitempty correctly.
-func fixOmitemptyBoolFields(patch map[string]any, planSpec *ClusterSpecModel) {
-	if planSpec == nil {
-		return
-	}
-
-	if !planSpec.AuditLogging.IsNull() && !planSpec.AuditLogging.IsUnknown() {
-		patch["auditLogging"] = map[string]any{"enabled": planSpec.AuditLogging.ValueBool()}
-	}
-
-	if !planSpec.PodSecurityPolicy.IsNull() && !planSpec.PodSecurityPolicy.IsUnknown() {
-		patch["usePodSecurityPolicyAdmissionPlugin"] = planSpec.PodSecurityPolicy.ValueBool()
-	}
-
-	if !planSpec.PodNodeSelector.IsNull() && !planSpec.PodNodeSelector.IsUnknown() {
-		patch["usePodNodeSelectorAdmissionPlugin"] = planSpec.PodNodeSelector.ValueBool()
-	}
-}
-
-func nullRemovedBlocks(patch map[string]any, planSpec, stateSpec *ClusterSpecModel) {
-	if planSpec == nil || stateSpec == nil {
-		return
-	}
-
-	for _, b := range []struct {
-		jsonKey string
-		plan    types.List
-		state   types.List
-	}{
-		{"sys11auth", planSpec.SyselevenAuth, stateSpec.SyselevenAuth},
-		{"updateWindow", planSpec.UpdateWindow, stateSpec.UpdateWindow},
-	} {
-		if b.plan.IsNull() && !b.state.IsNull() && len(b.state.Elements()) > 0 {
-			patch[b.jsonKey] = nil
-		}
-	}
-}
-
-func clusterSpecFromModel(ctx context.Context, m *ClusterModel) *ClusterSpecModel {
-	if m.Spec.IsNull() || m.Spec.IsUnknown() {
-		return nil
-	}
-	var specs []ClusterSpecModel
-	if d := m.Spec.ElementsAs(ctx, &specs, false); d.HasError() || len(specs) == 0 {
-		return nil
-	}
-	return &specs[0]
-}
 
 func (r *clusterResource) updateClusterSSHKeys(ctx context.Context, plan, state *ClusterModel) error {
 	projectID := plan.ProjectID.ValueString()
@@ -868,71 +750,37 @@ func isNotFoundError(err error) bool {
 }
 
 func getSSHAgentEnabled(ctx context.Context, model *ClusterModel) bool {
-	if model.Spec.IsNull() || model.Spec.IsUnknown() {
+	spec, ok := getClusterSpecModel(ctx, model)
+	if !ok {
 		return true // default
 	}
-	var specs []ClusterSpecModel
-	if diags := model.Spec.ElementsAs(ctx, &specs, false); diags.HasError() || len(specs) == 0 {
+	if spec.EnableSSHAgent.IsNull() || spec.EnableSSHAgent.IsUnknown() {
 		return true
 	}
-	if specs[0].EnableSSHAgent.IsNull() || specs[0].EnableSSHAgent.IsUnknown() {
-		return true
-	}
-	return specs[0].EnableSSHAgent.ValueBool()
+	return spec.EnableSSHAgent.ValueBool()
 }
 
 func getVersionFromModel(ctx context.Context, model *ClusterModel) string {
-	if model.Spec.IsNull() || model.Spec.IsUnknown() {
+	spec, ok := getClusterSpecModel(ctx, model)
+	if !ok {
 		return ""
 	}
-	var specs []ClusterSpecModel
-	if diags := model.Spec.ElementsAs(ctx, &specs, false); diags.HasError() || len(specs) == 0 {
-		return ""
-	}
-	return specs[0].Version.ValueString()
+	return spec.Version.ValueString()
 }
 
 func hasSyselevenAuth(ctx context.Context, model *ClusterModel) bool {
-	if model.Spec.IsNull() || model.Spec.IsUnknown() {
+	spec, ok := getClusterSpecModel(ctx, model)
+	if !ok {
 		return false
 	}
-	var specs []ClusterSpecModel
-	if diags := model.Spec.ElementsAs(ctx, &specs, false); diags.HasError() || len(specs) == 0 {
+	if spec.SyselevenAuth.IsNull() || spec.SyselevenAuth.IsUnknown() {
 		return false
 	}
-	if specs[0].SyselevenAuth.IsNull() || specs[0].SyselevenAuth.IsUnknown() {
+	var sysAuth SyselevenAuthModel
+	if diags := spec.SyselevenAuth.As(ctx, &sysAuth, basetypes.ObjectAsOptions{}); diags.HasError() {
 		return false
 	}
-	var sysAuth []SyselevenAuthModel
-	if diags := specs[0].SyselevenAuth.ElementsAs(ctx, &sysAuth, false); diags.HasError() || len(sysAuth) == 0 {
-		return false
-	}
-	return !sysAuth[0].Realm.IsNull() && sysAuth[0].Realm.ValueString() != ""
-}
-
-func hasAWSConfig(ctx context.Context, model *ClusterModel) bool {
-	if model.Spec.IsNull() || model.Spec.IsUnknown() {
-		return false
-	}
-	var specs []ClusterSpecModel
-	if diags := model.Spec.ElementsAs(ctx, &specs, false); diags.HasError() || len(specs) == 0 {
-		return false
-	}
-	if specs[0].Cloud.IsNull() || specs[0].Cloud.IsUnknown() {
-		return false
-	}
-	var clouds []ClusterCloudSpecModel
-	if diags := specs[0].Cloud.ElementsAs(ctx, &clouds, false); diags.HasError() || len(clouds) == 0 {
-		return false
-	}
-	if clouds[0].AWS.IsNull() || clouds[0].AWS.IsUnknown() {
-		return false
-	}
-	var aws []AWSCloudSpecModel
-	if diags := clouds[0].AWS.ElementsAs(ctx, &aws, false); diags.HasError() || len(aws) == 0 {
-		return false
-	}
-	return true
+	return !sysAuth.Realm.IsNull() && sysAuth.Realm.ValueString() != ""
 }
 
 func expandLabelsFromModel(labels types.Map) map[string]string {
