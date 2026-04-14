@@ -328,14 +328,14 @@ var nodeDeploymentBasicTemplate = testutil.MustParseTemplate("nodeDeploymentBasi
 		update = "40m"
 		delete = "40m"
 	}
-		spec {
+		spec = {
 			version = "{{ .ClusterVersion }}"
-			cloud {
-				openstack {
-					application_credentials {
+			cloud = {
+				openstack = {
+					application_credentials = {
 						id = "{{ .OpenstackApplicationCredentialsID }}"
 						secret = "{{ .OpenstackApplicationCredentialsSecret }}"
-						}
+					}
 					floating_ip_pool = "ext-net"
 				}
 			}

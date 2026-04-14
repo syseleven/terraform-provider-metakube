@@ -170,11 +170,11 @@ func testAccCheckMetaKubeMaintenanceCronJobBasicConfig(t *testing.T, params *tes
 		dc_name = "{{ .DatacenterName }}"
 		project_id = "{{ .ProjectID }}"
 	
-		spec {
+		spec = {
 			version = "{{ .Version }}"
-			cloud {
-				openstack {
-					application_credentials {
+			cloud = {
+				openstack = {
+					application_credentials = {
 						id = "{{ .OpenstackApplicationCredentialID }}"
 						secret ="{{ .OpenstackApplicationCredentialSecret }}"
 					}
@@ -213,11 +213,11 @@ func testAccCheckMetaKubeMaintenanceCronJobUpdateConfig(t *testing.T, params *te
 		dc_name = "{{ .DatacenterName }}"
 		project_id = "{{ .ProjectID }}"
 	
-		spec {
+		spec = {
 			version = "{{ .Version }}"
-			cloud {
-				openstack {
-					application_credentials {
+			cloud = {
+				openstack = {
+					application_credentials = {
 						id = "{{ .OpenstackApplicationCredentialID }}"
 						secret ="{{ .OpenstackApplicationCredentialSecret }}"
 					}

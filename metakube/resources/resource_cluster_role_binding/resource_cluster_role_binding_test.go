@@ -118,11 +118,11 @@ resource "metakube_cluster" "acctest" {
 	dc_name = "{{ .DatacenterName }}"
 	project_id = "{{ .ProjectID }}"
 
-	spec {
+	spec = {
 		version = "{{ .Version }}"
-		cloud {
-			openstack {
-				application_credentials {
+		cloud = {
+			openstack = {
+				application_credentials = {
 					id = "{{ .OpenstackApplicationCredentialID }}"
 					secret ="{{ .OpenstackApplicationCredentialSecret }}"
 				}
