@@ -18,7 +18,7 @@ data "metakube_k8s_version" "example" {
 
 resource "metakube_cluster" "foo" {
   # ...
-  spec {
+  spec = {
     version = data.metakube_k8s_version.example.version
     # ...
   }

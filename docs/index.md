@@ -21,19 +21,19 @@ resource "metakube_cluster" "cluster" {
   name       = "cluster-via-terraform"
   dc_name    = "syseleven-cbk1"
   project_id = "YOUR_PROJECT_ID"
-  labels = { 
+  labels = {
     "foo" = "bar"
   }
 
-  spec {
+  spec = {
     enable_ssh_agent = true
     version          = data.metakube_k8s_version.cluster.version
-    cloud {
-      openstack {
-        application_credentials {
-		id     = "YOUR_CREDENTIAL_ID"
-        	secret  = "YOU_CREDENTIAL_SECRET"
-	}
+    cloud = {
+      openstack = {
+        application_credentials = {
+          id     = "YOUR_CREDENTIAL_ID"
+          secret = "YOU_CREDENTIAL_SECRET"
+        }
       }
     }
   }
