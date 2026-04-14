@@ -7,11 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/syseleven/go-metakube/client/project"
 	"github.com/syseleven/terraform-provider-metakube/metakube/common"
-	"github.com/syseleven/terraform-provider-metakube/metakube/common/provider_testutil"
 	"go.uber.org/zap"
 )
 
@@ -26,10 +24,6 @@ func init() {
 	})
 }
 func TestMain(m *testing.M) {
-	provider_testutil.TestAccProvider = Provider()
-	provider_testutil.TestAccProviders = map[string]*schema.Provider{
-		"metakube": provider_testutil.TestAccProvider,
-	}
 	resource.TestMain(m)
 }
 

@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/hashicorp/go-cty/cty"
 	fwdiag "github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	sdkdiag "github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -98,28 +96,4 @@ func LoggerToFrameworkDiagnostics(err error) fwdiag.Diagnostics {
 	}
 
 	return diags
-}
-
-func LoggerToSDKDiagnostics(err error) sdkdiag.Diagnostics {
-	if err == nil {
-		return nil
-	}
-
-	var logErr *LoggerError
-	if errors.As(err, &logErr) {
-		var attrPath cty.Path
-		for _, attr := range logErr.Attributes {
-			attrPath = append(attrPath, cty.GetAttrStep{Name: attr})
-		}
-		return sdkdiag.Diagnostics{{
-			Severity:      sdkdiag.Error,
-			Summary:       logErr.Message,
-			AttributePath: attrPath,
-		}}
-	}
-
-	return sdkdiag.Diagnostics{{
-		Severity: sdkdiag.Error,
-		Summary:  err.Error(),
-	}}
 }
