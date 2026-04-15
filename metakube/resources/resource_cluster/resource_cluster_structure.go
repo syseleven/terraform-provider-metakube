@@ -299,7 +299,7 @@ func flattenClusterCloudSpec(ctx context.Context, specModel *ClusterSpecModel, v
 func flattenClusterSys11Auth(ctx context.Context, specModel *ClusterSpecModel, in *models.Sys11AuthSettings) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	if in == nil || (in.Realm == "" && (in.IAMAuthentication == nil || !ptr.Deref(in.IAMAuthentication, false))) {
+	if in == nil {
 		specModel.SyselevenAuth = types.ObjectNull(syselevenAuthAttrTypes())
 		return diags
 	}

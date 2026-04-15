@@ -299,9 +299,6 @@ func metakubeResourceClusterSpecAttributes() map[string]schema.Attribute {
 				"realm": schema.StringAttribute{
 					Optional:    true,
 					Description: "Realm name",
-					Validators: []validator.String{
-						stringvalidator.LengthAtLeast(1),
-					},
 				},
 				"iam_authentication": schema.BoolAttribute{
 					Optional:    true,
