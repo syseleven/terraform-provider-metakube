@@ -1,7 +1,6 @@
 package testutil
 
 import (
-	"context"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -10,10 +9,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
-	"github.com/hashicorp/terraform-plugin-go/tfprotov5"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
-	"github.com/hashicorp/terraform-plugin-mux/tf5to6server"
-	"github.com/hashicorp/terraform-plugin-mux/tf6muxserver"
 	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
@@ -25,29 +21,7 @@ import (
 )
 
 var TestAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
-	"metakube": func() (tfprotov6.ProviderServer, error) {
-		ctx := context.Background()
-
-		upgradedSdkProvider, err := tf5to6server.UpgradeServer(
-			ctx,
-			func() tfprotov5.ProviderServer {
-				return metakube.Provider().GRPCProvider()
-			},
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		providers := []func() tfprotov6.ProviderServer{
-			providerserver.NewProtocol6(metakube.NewFrameworkProvider()),
-			func() tfprotov6.ProviderServer { return upgradedSdkProvider },
-		}
-		muxServer, err := tf6muxserver.NewMuxServer(ctx, providers...)
-		if err != nil {
-			return nil, err
-		}
-		return muxServer.ProviderServer(), nil
-	},
+	"metakube": providerserver.NewProtocol6WithError(metakube.NewFrameworkProvider()),
 }
 
 const (

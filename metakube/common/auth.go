@@ -8,10 +8,8 @@ import (
 
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
-	"github.com/hashicorp/go-cty/cty"
 	fwdiag "github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	sdkdiag "github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/mitchellh/go-homedir"
 )
 
@@ -102,28 +100,4 @@ func ToFrameworkDiagnostics(err error) fwdiag.Diagnostics {
 	}
 
 	return diags
-}
-
-func ToSDKDiagnostics(err error) sdkdiag.Diagnostics {
-	if err == nil {
-		return nil
-	}
-
-	var authErr *AuthError
-	if errors.As(err, &authErr) {
-		var attrPath cty.Path
-		for _, attr := range authErr.Attributes {
-			attrPath = append(attrPath, cty.GetAttrStep{Name: attr})
-		}
-		return sdkdiag.Diagnostics{{
-			Severity:      sdkdiag.Error,
-			Summary:       authErr.Message,
-			AttributePath: attrPath,
-		}}
-	}
-
-	return sdkdiag.Diagnostics{{
-		Severity: sdkdiag.Error,
-		Summary:  err.Error(),
-	}}
 }
