@@ -306,11 +306,7 @@ func flattenClusterSys11Auth(ctx context.Context, specModel *ClusterSpecModel, i
 
 	authModel := SyselevenAuthModel{}
 
-	if in.Realm != "" {
-		authModel.Realm = types.StringValue(in.Realm)
-	} else {
-		authModel.Realm = types.StringValue("")
-	}
+	authModel.Realm = types.StringValue(ptr.Deref(in.Realm, ""))
 
 	authModel.IAMAuthentication = types.BoolValue(ptr.Deref(in.IAMAuthentication, false))
 
@@ -623,7 +619,7 @@ func expandClusterSys11Auth(ctx context.Context, obj types.Object) *models.Sys11
 	}
 
 	if !auth.Realm.IsNull() && !auth.Realm.IsUnknown() {
-		ret.Realm = auth.Realm.ValueString()
+		ret.Realm = ptr.To(auth.Realm.ValueString())
 	}
 
 	return ret

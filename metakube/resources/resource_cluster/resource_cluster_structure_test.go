@@ -37,7 +37,7 @@ func TestFlattenSpecIntoModel(t *testing.T) {
 					Openstack:      &models.OpenstackCloudSpec{},
 				},
 				Sys11auth: &models.Sys11AuthSettings{
-					Realm: "testrealm",
+					Realm: ptr.To("testrealm"),
 				},
 				ClusterNetwork: &models.ClusterNetworkingConfig{
 					Services: &models.NetworkRanges{
@@ -368,7 +368,7 @@ func TestExpandClusterSpecFromModel(t *testing.T) {
 				},
 				Sys11auth: &models.Sys11AuthSettings{
 					IAMAuthentication: ptr.To(false),
-					Realm:             "testrealm",
+					Realm:             ptr.To("testrealm"),
 				},
 			},
 		},
@@ -1166,7 +1166,7 @@ func createSyselevenAuthList(ctx context.Context, t *testing.T, realm string) ty
 	t.Helper()
 	authModel := SyselevenAuthModel{
 		Realm:             types.StringValue(realm),
-		IAMAuthentication: types.BoolNull(),
+		IAMAuthentication: types.BoolValue(false),
 	}
 	objVal, _ := types.ObjectValueFrom(ctx, syselevenAuthAttrTypes(), authModel)
 	return objVal

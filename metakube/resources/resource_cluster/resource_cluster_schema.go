@@ -298,6 +298,7 @@ func metakubeResourceClusterSpecAttributes() map[string]schema.Attribute {
 			Attributes: map[string]schema.Attribute{
 				"realm": schema.StringAttribute{
 					Optional:    true,
+					Default:     stringdefault.StaticString(""),
 					Description: "Realm name",
 				},
 				"iam_authentication": schema.BoolAttribute{
@@ -305,7 +306,13 @@ func metakubeResourceClusterSpecAttributes() map[string]schema.Attribute {
 					Computed:    true,
 					Default:     booldefault.StaticBool(false),
 					Description: "Enable Authentication against Syseleven IAM system",
+					PlanModifiers: []planmodifier.Bool{
+						boolplanmodifier.UseStateForUnknown(),
+					},
 				},
+			},
+			PlanModifiers: []planmodifier.Object{
+				objectplanmodifier.UseStateForUnknown(),
 			},
 		},
 	}
