@@ -14,13 +14,10 @@ require (
 	github.com/go-openapi/runtime v0.28.0
 	github.com/go-openapi/strfmt v0.23.0
 	github.com/google/go-cmp v0.7.0
-	github.com/hashicorp/go-cty v1.5.0
 	github.com/hashicorp/go-version v1.7.0
 	github.com/hashicorp/terraform-plugin-framework v1.17.0
 	github.com/hashicorp/terraform-plugin-framework-timeouts v0.7.0
 	github.com/hashicorp/terraform-plugin-go v0.29.0
-	github.com/hashicorp/terraform-plugin-mux v0.21.0
-	github.com/hashicorp/terraform-plugin-sdk/v2 v2.38.1
 	github.com/hashicorp/terraform-plugin-testing v1.14.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/syseleven/go-metakube v0.0.0-20260402151110-c70fe178b1da
@@ -36,7 +33,9 @@ require (
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/hashicorp/go-cty v1.5.0 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
+	github.com/hashicorp/terraform-plugin-sdk/v2 v2.38.1 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
