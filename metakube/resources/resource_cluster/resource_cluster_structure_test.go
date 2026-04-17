@@ -1439,3 +1439,151 @@ func TestUpgradeClusterLegacyNestedSpecState_FromV5SDKClusterState(t *testing.T)
 		t.Fatalf("unexpected application_credentials.secret after upgrade: got %v, want %v", got, want)
 	}
 }
+
+func TestClusterSpecPatchBody(t *testing.T) {
+	t.Run("nil spec returns nil map", func(t *testing.T) {
+		got, err := clusterSpecPatchBody(nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got != nil {
+			t.Fatalf("expected nil map, got: %#v", got)
+		}
+	})
+
+	t.Run("false booleans are forced into the body", func(t *testing.T) {
+		spec := &models.ClusterSpec{
+			UsePodNodeSelectorAdmissionPlugin:   false,
+			UsePodSecurityPolicyAdmissionPlugin: false,
+			AuditLogging:                        &models.AuditLoggingSettings{Enabled: false},
+			CniPlugin: &models.CNIPluginSettings{
+				Type: models.CNIPluginType("cilium"),
+				Cilium: &models.CiliumCNISettings{
+					EnableHubble:  false,
+					EnableL7Proxy: false,
+				},
+			},
+		}
+
+		got, err := clusterSpecPatchBody(spec)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if got["usePodNodeSelectorAdmissionPlugin"] != false {
+			t.Errorf("expected usePodNodeSelectorAdmissionPlugin=false, got: %#v", got["usePodNodeSelectorAdmissionPlugin"])
+		}
+		if got["usePodSecurityPolicyAdmissionPlugin"] != false {
+			t.Errorf("expected usePodSecurityPolicyAdmissionPlugin=false, got: %#v", got["usePodSecurityPolicyAdmissionPlugin"])
+		}
+
+		auditLogging, ok := got["auditLogging"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected auditLogging map, got: %#v", got["auditLogging"])
+		}
+		if auditLogging["enabled"] != false {
+			t.Errorf("expected auditLogging.enabled=false, got: %#v", auditLogging["enabled"])
+		}
+
+		cni, ok := got["cniPlugin"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected cniPlugin map, got: %#v", got["cniPlugin"])
+		}
+		cilium, ok := cni["cilium"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected cniPlugin.cilium map, got: %#v", cni["cilium"])
+		}
+		if cilium["enableHubble"] != false {
+			t.Errorf("expected cniPlugin.cilium.enableHubble=false, got: %#v", cilium["enableHubble"])
+		}
+		if cilium["enableL7Proxy"] != false {
+			t.Errorf("expected cniPlugin.cilium.enableL7Proxy=false, got: %#v", cilium["enableL7Proxy"])
+		}
+	})
+
+	t.Run("true booleans are preserved", func(t *testing.T) {
+		spec := &models.ClusterSpec{
+			UsePodNodeSelectorAdmissionPlugin:   true,
+			UsePodSecurityPolicyAdmissionPlugin: true,
+			AuditLogging:                        &models.AuditLoggingSettings{Enabled: true},
+			CniPlugin: &models.CNIPluginSettings{
+				Type: models.CNIPluginType("cilium"),
+				Cilium: &models.CiliumCNISettings{
+					EnableHubble:  true,
+					EnableL7Proxy: true,
+				},
+			},
+		}
+
+		got, err := clusterSpecPatchBody(spec)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if got["usePodNodeSelectorAdmissionPlugin"] != true {
+			t.Errorf("expected usePodNodeSelectorAdmissionPlugin=true, got: %#v", got["usePodNodeSelectorAdmissionPlugin"])
+		}
+		if got["usePodSecurityPolicyAdmissionPlugin"] != true {
+			t.Errorf("expected usePodSecurityPolicyAdmissionPlugin=true, got: %#v", got["usePodSecurityPolicyAdmissionPlugin"])
+		}
+
+		auditLogging := got["auditLogging"].(map[string]interface{})
+		if auditLogging["enabled"] != true {
+			t.Errorf("expected auditLogging.enabled=true, got: %#v", auditLogging["enabled"])
+		}
+
+		cilium := got["cniPlugin"].(map[string]interface{})["cilium"].(map[string]interface{})
+		if cilium["enableHubble"] != true {
+			t.Errorf("expected cniPlugin.cilium.enableHubble=true, got: %#v", cilium["enableHubble"])
+		}
+		if cilium["enableL7Proxy"] != true {
+			t.Errorf("expected cniPlugin.cilium.enableL7Proxy=true, got: %#v", cilium["enableL7Proxy"])
+		}
+	})
+
+	t.Run("absent auditLogging and cniPlugin are not fabricated", func(t *testing.T) {
+		spec := &models.ClusterSpec{
+			UsePodNodeSelectorAdmissionPlugin:   false,
+			UsePodSecurityPolicyAdmissionPlugin: true,
+		}
+
+		got, err := clusterSpecPatchBody(spec)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if _, ok := got["auditLogging"]; ok {
+			t.Errorf("expected auditLogging to be absent, got: %#v", got["auditLogging"])
+		}
+		if _, ok := got["cniPlugin"]; ok {
+			t.Errorf("expected cniPlugin to be absent, got: %#v", got["cniPlugin"])
+		}
+		if got["usePodNodeSelectorAdmissionPlugin"] != false {
+			t.Errorf("expected usePodNodeSelectorAdmissionPlugin=false, got: %#v", got["usePodNodeSelectorAdmissionPlugin"])
+		}
+		if got["usePodSecurityPolicyAdmissionPlugin"] != true {
+			t.Errorf("expected usePodSecurityPolicyAdmissionPlugin=true, got: %#v", got["usePodSecurityPolicyAdmissionPlugin"])
+		}
+	})
+
+	t.Run("cniPlugin without cilium is left untouched", func(t *testing.T) {
+		spec := &models.ClusterSpec{
+			CniPlugin: &models.CNIPluginSettings{
+				Type: models.CNIPluginType("canal"),
+			},
+		}
+
+		got, err := clusterSpecPatchBody(spec)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		cni, ok := got["cniPlugin"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected cniPlugin map, got: %#v", got["cniPlugin"])
+		}
+		if _, ok := cni["cilium"]; ok {
+			t.Errorf("expected cniPlugin.cilium to remain absent, got: %#v", cni["cilium"])
+		}
+	})
+}

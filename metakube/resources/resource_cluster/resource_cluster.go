@@ -666,10 +666,15 @@ func (r *clusterResource) sendPatchRequest(ctx context.Context, plan, state *Clu
 	labels := getLabelsChange(plan, state)
 	clusterSpec := metakubeResourceClusterExpandSpec(ctx, plan, plan.DCName.ValueString(), func(_ string) bool { return true })
 
-	p.SetPatch(map[string]interface{}{
+	specPatch, err := clusterSpecPatchBody(clusterSpec)
+	if err != nil {
+		return err
+	}
+
+	p.SetPatch(map[string]any{
 		"name":   name,
 		"labels": labels,
-		"spec":   clusterSpec,
+		"spec":   specPatch,
 	})
 
 	timeout := 20 * time.Minute
@@ -690,7 +695,6 @@ func (r *clusterResource) sendPatchRequest(ctx context.Context, plan, state *Clu
 
 	return fmt.Errorf("timeout patching cluster '%s'", clusterID)
 }
-
 
 func (r *clusterResource) updateClusterSSHKeys(ctx context.Context, plan, state *ClusterModel) error {
 	projectID := plan.ProjectID.ValueString()

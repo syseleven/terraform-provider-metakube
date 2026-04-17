@@ -2,6 +2,8 @@ package resource_cluster
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -804,4 +806,48 @@ func upgradeSingleItemListToObject(parent map[string]any, key string) {
 			parent[key] = valueMap
 		}
 	}
+}
+
+// TODO: Remove this workaround once go-metakube uses pointers for
+// nullable patch-relevant fields, so falsey fields are serialized without forcing keys.
+func clusterSpecPatchBody(spec *models.ClusterSpec) (map[string]any, error) {
+	if spec == nil {
+		return nil, nil
+	}
+
+	raw, err := json.Marshal(spec)
+	if err != nil {
+		return nil, fmt.Errorf("marshal cluster spec: %w", err)
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return nil, fmt.Errorf("unmarshal cluster spec: %w", err)
+	}
+
+	m["usePodNodeSelectorAdmissionPlugin"] = spec.UsePodNodeSelectorAdmissionPlugin
+	m["usePodSecurityPolicyAdmissionPlugin"] = spec.UsePodSecurityPolicyAdmissionPlugin
+
+	if spec.AuditLogging != nil {
+		al := asJSONObject(m["auditLogging"])
+		al["enabled"] = spec.AuditLogging.Enabled
+		m["auditLogging"] = al
+	}
+
+	if spec.CniPlugin != nil && spec.CniPlugin.Cilium != nil {
+		cni := asJSONObject(m["cniPlugin"])
+		cilium := asJSONObject(cni["cilium"])
+		cilium["enableHubble"] = spec.CniPlugin.Cilium.EnableHubble
+		cilium["enableL7Proxy"] = spec.CniPlugin.Cilium.EnableL7Proxy
+		cni["cilium"] = cilium
+		m["cniPlugin"] = cni
+	}
+
+	return m, nil
+}
+
+func asJSONObject(v any) map[string]any {
+	if m, ok := v.(map[string]any); ok {
+		return m
+	}
+	return map[string]any{}
 }

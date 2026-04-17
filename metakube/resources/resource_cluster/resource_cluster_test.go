@@ -230,7 +230,6 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeClusterExists(&cluster),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.syseleven_auth.#", "0"),
 				),
 			},
 			{

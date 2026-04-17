@@ -98,6 +98,43 @@ func EnvDefaultWithDiffSuppress(envVar string) planmodifier.String {
 	return envDefaultPlanModifier{envVar: envVar, diffSuppress: true}
 }
 
+// useNonEmptyStateForUnknownModifier preserves the prior state value for a computed string
+// attribute only when that state value is a non-empty string. When state is null/empty, the
+// plan is left unknown so any apply-generated value is accepted. This is appropriate for
+// attributes like kube_login_kube_config whose population depends on another attribute (syseleven_auth)
+type useNonEmptyStateForUnknownModifier struct{}
+
+func (m useNonEmptyStateForUnknownModifier) Description(_ context.Context) string {
+	return "Preserves prior non-empty state value when plan is unknown; leaves plan unknown if state is empty."
+}
+
+func (m useNonEmptyStateForUnknownModifier) MarkdownDescription(ctx context.Context) string {
+	return m.Description(ctx)
+}
+
+func (m useNonEmptyStateForUnknownModifier) PlanModifyString(_ context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	if req.State.Raw.IsNull() {
+		return
+	}
+	if !req.PlanValue.IsUnknown() {
+		return
+	}
+	if req.ConfigValue.IsUnknown() {
+		return
+	}
+	if req.StateValue.IsNull() || req.StateValue.IsUnknown() {
+		return
+	}
+	if req.StateValue.ValueString() == "" {
+		return
+	}
+	resp.PlanValue = req.StateValue
+}
+
+func UseNonEmptyStateForUnknown() planmodifier.String {
+	return useNonEmptyStateForUnknownModifier{}
+}
+
 func ClusterResourceSchema(ctx context.Context) schema.Schema {
 	return schema.Schema{
 		Description: "Cluster resource in MetaKube",
@@ -157,24 +194,39 @@ func ClusterResourceSchema(ctx context.Context) schema.Schema {
 			"creation_timestamp": schema.StringAttribute{
 				Computed:    true,
 				Description: "Creation timestamp",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"deletion_timestamp": schema.StringAttribute{
 				Computed:    true,
 				Description: "Deletion timestamp",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"kube_config": schema.StringAttribute{
 				Sensitive:   true,
 				Computed:    true,
 				Description: "Kubeconfig for the cluster",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"oidc_kube_config": schema.StringAttribute{
 				Sensitive:   true,
 				Computed:    true,
 				Description: "OIDC Kubeconfig for the cluster",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"kube_login_kube_config": schema.StringAttribute{
 				Computed:    true,
 				Description: "Kubelogin Kubeconfig for the cluster",
+				PlanModifiers: []planmodifier.String{
+					UseNonEmptyStateForUnknown(),
+				},
 			},
 		},
 	}
@@ -200,6 +252,9 @@ func metakubeResourceClusterSpecAttributes() map[string]schema.Attribute {
 			Computed:    true,
 			Default:     booldefault.StaticBool(false),
 			Description: "Whether to enable audit logging or not",
+			PlanModifiers: []planmodifier.Bool{
+				boolplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"pod_security_policy": schema.BoolAttribute{
 			Optional:           true,
@@ -207,6 +262,9 @@ func metakubeResourceClusterSpecAttributes() map[string]schema.Attribute {
 			Default:            booldefault.StaticBool(false),
 			DeprecationMessage: "PodSecurityPolicy deprecated by Kubernetes since version 1.21 and will be removed in version 1.25",
 			Description:        "Pod security policies allow detailed authorization of pod creation and updates",
+			PlanModifiers: []planmodifier.Bool{
+				boolplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"pod_node_selector": schema.BoolAttribute{
 			Optional:    true,
@@ -218,11 +276,17 @@ func metakubeResourceClusterSpecAttributes() map[string]schema.Attribute {
 			Optional:    true,
 			Computed:    true,
 			Description: "Internal IP range for ClusterIP Services",
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"pods_cidr": schema.StringAttribute{
 			Optional:    true,
 			Computed:    true,
 			Description: "Internal IP range for Pods",
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"ip_family": schema.StringAttribute{
 			Optional:    true,
@@ -231,6 +295,9 @@ func metakubeResourceClusterSpecAttributes() map[string]schema.Attribute {
 			Description: "Represents IP address family to use for the Cluster",
 			Validators: []validator.String{
 				stringvalidator.OneOf("IPv4", "IPv4+IPv6"),
+			},
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
 			},
 		},
 		"cni_plugin": schema.SingleNestedAttribute{
@@ -258,6 +325,9 @@ func metakubeResourceClusterSpecAttributes() map[string]schema.Attribute {
 						objectplanmodifier.UseStateForUnknown(),
 					},
 				},
+			},
+			PlanModifiers: []planmodifier.Object{
+				objectplanmodifier.UseStateForUnknown(),
 			},
 		},
 		"update_window": schema.SingleNestedAttribute{
@@ -328,11 +398,17 @@ func metakubeResourceClusterOpenstackCloudSpecFields() map[string]schema.Attribu
 			Computed:    true,
 			Optional:    true,
 			Description: "The floating ip pool used by all worker nodes to receive a public ip",
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"security_group": schema.StringAttribute{
 			Computed:    true,
 			Optional:    true,
 			Description: "When specified, all worker nodes will be attached to this security group. If not specified, a security group will be created",
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"network": schema.StringAttribute{
 			Computed:    true,
@@ -346,16 +422,25 @@ func metakubeResourceClusterOpenstackCloudSpecFields() map[string]schema.Attribu
 			Validators: []validator.String{
 				stringvalidator.AlsoRequires(fwpath.MatchRoot("spec").AtName("cloud").AtName("openstack").AtName("network")),
 			},
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"subnet_cidr": schema.StringAttribute{
 			Computed:    true,
 			Optional:    true,
 			Description: "Change this to configure a different internal IP range for Nodes. Default: 192.168.1.0/24",
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"server_group_id": schema.StringAttribute{
 			Computed:    true,
 			Optional:    true,
 			Description: "Server group to use for all machines within a cluster",
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"user_credentials": schema.SingleNestedAttribute{
 			Optional: true,
