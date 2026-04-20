@@ -50,7 +50,7 @@ resource "metakube_node_deployment" "example_with_annotations" {
       cloud {
         openstack {
           flavor = "m1.small"
-          image  = "Ubuntu 22.04"
+          image  = "Ubuntu 24.04"
         }
       }
       operating_system {
