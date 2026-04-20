@@ -59,18 +59,24 @@ func (r *clusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 
 	planSpec, planOk := getClusterSpecModel(ctx, &plan)
 	stateSpec, stateOk := getClusterSpecModel(ctx, &state)
-	authChanged := true
-	if planOk && stateOk {
+
+	var authChanged bool
+	switch {
+	case planOk && stateOk:
 		authChanged = !planSpec.SyselevenAuth.Equal(stateSpec.SyselevenAuth)
-	} else if !planOk && !stateOk {
+	case planOk != stateOk:
+		authChanged = true
+	default:
 		authChanged = false
 	}
 
-	if plan.OIDCKubeConfig.IsUnknown() && !authChanged {
-		resp.Plan.SetAttribute(ctx, path.Root("oidc_kube_config"), state.OIDCKubeConfig)
-	}
-	if plan.KubeLoginKubeConfig.IsUnknown() && !authChanged {
-		resp.Plan.SetAttribute(ctx, path.Root("kube_login_kube_config"), state.KubeLoginKubeConfig)
+	if !authChanged {
+		if plan.OIDCKubeConfig.IsUnknown() {
+			resp.Plan.SetAttribute(ctx, path.Root("oidc_kube_config"), state.OIDCKubeConfig)
+		}
+		if plan.KubeLoginKubeConfig.IsUnknown() {
+			resp.Plan.SetAttribute(ctx, path.Root("kube_login_kube_config"), state.KubeLoginKubeConfig)
+		}
 	}
 }
 
