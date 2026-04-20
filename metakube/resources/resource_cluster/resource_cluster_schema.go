@@ -98,43 +98,6 @@ func EnvDefaultWithDiffSuppress(envVar string) planmodifier.String {
 	return envDefaultPlanModifier{envVar: envVar, diffSuppress: true}
 }
 
-// useNonEmptyStateForUnknownModifier preserves the prior state value for a computed string
-// attribute only when that state value is a non-empty string. When state is null/empty, the
-// plan is left unknown so any apply-generated value is accepted. This is appropriate for
-// attributes like kube_login_kube_config whose population depends on another attribute (syseleven_auth)
-type useNonEmptyStateForUnknownModifier struct{}
-
-func (m useNonEmptyStateForUnknownModifier) Description(_ context.Context) string {
-	return "Preserves prior non-empty state value when plan is unknown; leaves plan unknown if state is empty."
-}
-
-func (m useNonEmptyStateForUnknownModifier) MarkdownDescription(ctx context.Context) string {
-	return m.Description(ctx)
-}
-
-func (m useNonEmptyStateForUnknownModifier) PlanModifyString(_ context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
-	if req.State.Raw.IsNull() {
-		return
-	}
-	if !req.PlanValue.IsUnknown() {
-		return
-	}
-	if req.ConfigValue.IsUnknown() {
-		return
-	}
-	if req.StateValue.IsNull() || req.StateValue.IsUnknown() {
-		return
-	}
-	if req.StateValue.ValueString() == "" {
-		return
-	}
-	resp.PlanValue = req.StateValue
-}
-
-func UseNonEmptyStateForUnknown() planmodifier.String {
-	return useNonEmptyStateForUnknownModifier{}
-}
-
 func ClusterResourceSchema(ctx context.Context) schema.Schema {
 	return schema.Schema{
 		Description: "Cluster resource in MetaKube",
@@ -217,16 +180,10 @@ func ClusterResourceSchema(ctx context.Context) schema.Schema {
 				Sensitive:   true,
 				Computed:    true,
 				Description: "OIDC Kubeconfig for the cluster",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
 			},
 			"kube_login_kube_config": schema.StringAttribute{
 				Computed:    true,
 				Description: "Kubelogin Kubeconfig for the cluster",
-				PlanModifiers: []planmodifier.String{
-					UseNonEmptyStateForUnknown(),
-				},
 			},
 		},
 	}
@@ -276,17 +233,11 @@ func metakubeResourceClusterSpecAttributes() map[string]schema.Attribute {
 			Optional:    true,
 			Computed:    true,
 			Description: "Internal IP range for ClusterIP Services",
-			PlanModifiers: []planmodifier.String{
-				stringplanmodifier.UseStateForUnknown(),
-			},
 		},
 		"pods_cidr": schema.StringAttribute{
 			Optional:    true,
 			Computed:    true,
 			Description: "Internal IP range for Pods",
-			PlanModifiers: []planmodifier.String{
-				stringplanmodifier.UseStateForUnknown(),
-			},
 		},
 		"ip_family": schema.StringAttribute{
 			Optional:    true,

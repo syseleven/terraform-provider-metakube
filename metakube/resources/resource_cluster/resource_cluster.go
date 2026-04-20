@@ -26,6 +26,7 @@ var (
 	_ resource.ResourceWithConfigure    = &clusterResource{}
 	_ resource.ResourceWithImportState  = &clusterResource{}
 	_ resource.ResourceWithUpgradeState = &clusterResource{}
+	_ resource.ResourceWithModifyPlan   = &clusterResource{}
 )
 
 func NewClusterResource() resource.Resource {
@@ -42,6 +43,35 @@ func (r *clusterResource) Metadata(_ context.Context, req resource.MetadataReque
 
 func (r *clusterResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = ClusterResourceSchema(ctx)
+}
+
+func (r *clusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+	var plan, state ClusterModel
+	if diags := req.Plan.Get(ctx, &plan); diags.HasError() {
+		return
+	}
+	if diags := req.State.Get(ctx, &state); diags.HasError() {
+		return
+	}
+
+	planSpec, planOk := getClusterSpecModel(ctx, &plan)
+	stateSpec, stateOk := getClusterSpecModel(ctx, &state)
+	authChanged := true
+	if planOk && stateOk {
+		authChanged = !planSpec.SyselevenAuth.Equal(stateSpec.SyselevenAuth)
+	} else if !planOk && !stateOk {
+		authChanged = false
+	}
+
+	if plan.OIDCKubeConfig.IsUnknown() && !authChanged {
+		resp.Plan.SetAttribute(ctx, path.Root("oidc_kube_config"), state.OIDCKubeConfig)
+	}
+	if plan.KubeLoginKubeConfig.IsUnknown() && !authChanged {
+		resp.Plan.SetAttribute(ctx, path.Root("kube_login_kube_config"), state.KubeLoginKubeConfig)
+	}
 }
 
 func (r *clusterResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -536,20 +566,20 @@ func (r *clusterResource) readClusterIntoModel(ctx context.Context, model *Clust
 	if hasSyselevenAuth(ctx, model) {
 		if conf, err := r.metakubeClusterUpdateOIDCKubeconfig(ctx, projectID, model.ID.ValueString()); err != nil {
 			diags.AddWarning("Could not get OIDC kubeconfig", fmt.Sprintf("could not update OIDC kubeconfig: %s", common.StringifyResponseError(err)))
-			model.OIDCKubeConfig = types.StringValue("")
+			model.OIDCKubeConfig = types.StringNull()
 		} else {
 			model.OIDCKubeConfig = types.StringValue(conf)
 		}
 
 		if conf, err := r.metakubeClusterUpdateKubeloginKubeconfig(ctx, projectID, model.ID.ValueString()); err != nil {
 			diags.AddWarning("Could not get kubelogin kubeconfig", fmt.Sprintf("could not update kubelogin kubeconfig: %v", err))
-			model.KubeLoginKubeConfig = types.StringValue("")
+			model.KubeLoginKubeConfig = types.StringNull()
 		} else {
 			model.KubeLoginKubeConfig = types.StringValue(conf)
 		}
 	} else {
-		model.OIDCKubeConfig = types.StringValue("")
-		model.KubeLoginKubeConfig = types.StringValue("")
+		model.OIDCKubeConfig = types.StringNull()
+		model.KubeLoginKubeConfig = types.StringNull()
 	}
 
 	return diags
