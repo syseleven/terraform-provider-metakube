@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/syseleven/go-metakube/client/openstack"
 	"github.com/syseleven/go-metakube/client/project"
 	"github.com/syseleven/go-metakube/client/versions"
@@ -78,38 +79,35 @@ func newOpenstackValidationData(ctx context.Context, model *ClusterModel) metaku
 
 	data.dcName = stringValueToPtr(model.DCName)
 
-	var specs []ClusterSpecModel
-	if model.Spec.IsNull() || model.Spec.IsUnknown() {
-		return data
-	}
-	if diags := model.Spec.ElementsAs(ctx, &specs, false); diags.HasError() || len(specs) == 0 {
+	spec, ok := getClusterSpecModel(ctx, model)
+	if !ok {
 		return data
 	}
 
-	var clouds []ClusterCloudSpecModel
-	if specs[0].Cloud.IsNull() || specs[0].Cloud.IsUnknown() {
-		return data
-	}
-	if diags := specs[0].Cloud.ElementsAs(ctx, &clouds, false); diags.HasError() || len(clouds) == 0 {
+	if spec.Cloud.IsNull() || spec.Cloud.IsUnknown() {
 		return data
 	}
 
-	var openstacks []OpenstackCloudSpecModel
-	if clouds[0].Openstack.IsNull() || clouds[0].Openstack.IsUnknown() {
-		return data
-	}
-	if diags := clouds[0].Openstack.ElementsAs(ctx, &openstacks, false); diags.HasError() || len(openstacks) == 0 {
+	var cloud ClusterCloudSpecModel
+	if diags := spec.Cloud.As(ctx, &cloud, basetypes.ObjectAsOptions{}); diags.HasError() {
 		return data
 	}
 
-	os := openstacks[0]
+	if cloud.Openstack.IsNull() || cloud.Openstack.IsUnknown() {
+		return data
+	}
+
+	var os OpenstackCloudSpecModel
+	if diags := cloud.Openstack.As(ctx, &os, basetypes.ObjectAsOptions{}); diags.HasError() {
+		return data
+	}
+
 	data.network = stringValueToPtr(os.Network)
 	data.subnetID = stringValueToPtr(os.SubnetID)
 
-	var userCreds []OpenstackUserCredentialsModel
 	if !os.UserCredentials.IsNull() && !os.UserCredentials.IsUnknown() {
-		if diags := os.UserCredentials.ElementsAs(ctx, &userCreds, false); !diags.HasError() && len(userCreds) > 0 {
-			uc := userCreds[0]
+		var uc OpenstackUserCredentialsModel
+		if diags := os.UserCredentials.As(ctx, &uc, basetypes.ObjectAsOptions{}); !diags.HasError() {
 			data.username = stringValueToPtr(uc.Username)
 			data.password = stringValueToPtr(uc.Password)
 			data.projectID = stringValueToPtr(uc.ProjectID)
@@ -117,10 +115,9 @@ func newOpenstackValidationData(ctx context.Context, model *ClusterModel) metaku
 		}
 	}
 
-	var appCreds []OpenstackApplicationCredentialsModel
 	if !os.ApplicationCredentials.IsNull() && !os.ApplicationCredentials.IsUnknown() {
-		if diags := os.ApplicationCredentials.ElementsAs(ctx, &appCreds, false); !diags.HasError() && len(appCreds) > 0 {
-			ac := appCreds[0]
+		var ac OpenstackApplicationCredentialsModel
+		if diags := os.ApplicationCredentials.As(ctx, &ac, basetypes.ObjectAsOptions{}); !diags.HasError() {
 			data.applicationCredentialsID = stringValueToPtr(ac.ID)
 			data.applicationCredentialsSecret = stringValueToPtr(ac.Secret)
 		}
@@ -160,25 +157,22 @@ func metakubeResourceClusterValidateClusterFields(ctx context.Context, model *Cl
 }
 
 func hasOpenstackConfig(ctx context.Context, model *ClusterModel) bool {
-	if model.Spec.IsNull() || model.Spec.IsUnknown() {
+	spec, ok := getClusterSpecModel(ctx, model)
+	if !ok {
 		return false
 	}
-	var specs []ClusterSpecModel
-	if diags := model.Spec.ElementsAs(ctx, &specs, false); diags.HasError() || len(specs) == 0 {
+	if spec.Cloud.IsNull() || spec.Cloud.IsUnknown() {
 		return false
 	}
-	if specs[0].Cloud.IsNull() || specs[0].Cloud.IsUnknown() {
+	var cloud ClusterCloudSpecModel
+	if diags := spec.Cloud.As(ctx, &cloud, basetypes.ObjectAsOptions{}); diags.HasError() {
 		return false
 	}
-	var clouds []ClusterCloudSpecModel
-	if diags := specs[0].Cloud.ElementsAs(ctx, &clouds, false); diags.HasError() || len(clouds) == 0 {
+	if cloud.Openstack.IsNull() || cloud.Openstack.IsUnknown() {
 		return false
 	}
-	if clouds[0].Openstack.IsNull() || clouds[0].Openstack.IsUnknown() {
-		return false
-	}
-	var openstacks []OpenstackCloudSpecModel
-	if diags := clouds[0].Openstack.ElementsAs(ctx, &openstacks, false); diags.HasError() || len(openstacks) == 0 {
+	var openstack OpenstackCloudSpecModel
+	if diags := cloud.Openstack.As(ctx, &openstack, basetypes.ObjectAsOptions{}); diags.HasError() {
 		return false
 	}
 	return true
@@ -204,7 +198,7 @@ func metakubeResourceClusterValidateVersionUpgrade(ctx context.Context, projectI
 	}
 	var ret diag.Diagnostics
 	ret.AddAttributeError(
-		path.Root("spec").AtListIndex(0).AtName("version"),
+		path.Root("spec").AtName("version"),
 		fmt.Sprintf("Not allowed upgrade %s->%s", cluster.Spec.Version, newVersion),
 		fmt.Sprintf("Please select one of available upgrades: %v", available),
 	)
@@ -216,16 +210,12 @@ func metakubeResourceValidateVersionExistence(ctx context.Context, model *Cluste
 		return nil
 	}
 
-	if model.Spec.IsNull() || model.Spec.IsUnknown() {
+	spec, ok := getClusterSpecModel(ctx, model)
+	if !ok {
 		return nil
 	}
 
-	var specs []ClusterSpecModel
-	if diags := model.Spec.ElementsAs(ctx, &specs, false); diags.HasError() || len(specs) == 0 {
-		return nil
-	}
-
-	version := specs[0].Version.ValueString()
+	version := spec.Version.ValueString()
 	if version == "" {
 		return nil
 	}
@@ -248,7 +238,7 @@ func metakubeResourceValidateVersionExistence(ctx context.Context, model *Cluste
 
 	var ret diag.Diagnostics
 	ret.AddAttributeError(
-		path.Root("spec").AtListIndex(0).AtName("version"),
+		path.Root("spec").AtName("version"),
 		fmt.Sprintf("Unknown version %s", version),
 		fmt.Sprintf("Please select one of available versions: %v", available),
 	)
@@ -279,7 +269,7 @@ func metakubeResourceClusterValidateFloatingIPPool(ctx context.Context, model *C
 		}
 		var ret diag.Diagnostics
 		ret.AddAttributeError(
-			path.Root("spec").AtListIndex(0).AtName("cloud").AtListIndex(0).AtName("openstack").AtListIndex(0).AtName("floating_ip_pool"),
+			path.Root("spec").AtName("cloud").AtName("openstack").AtName("floating_ip_pool"),
 			fmt.Sprintf("Invalid value: %v", err),
 			diagnoseDetail,
 		)
@@ -312,7 +302,7 @@ func metakubeResourceClusterValidateOpenstackNetwork(ctx context.Context, model 
 		}
 		var ret diag.Diagnostics
 		ret.AddAttributeError(
-			path.Root("spec").AtListIndex(0).AtName("cloud").AtListIndex(0).AtName("openstack").AtListIndex(0).AtName("network"),
+			path.Root("spec").AtName("cloud").AtName("openstack").AtName("network"),
 			fmt.Sprintf("Invalid value: %v", err),
 			diagnoseDetail,
 		)
@@ -345,7 +335,7 @@ func diagnoseOpenstackSubnetWithIDExistsIfSet(ctx context.Context, model *Cluste
 	}
 	var ret diag.Diagnostics
 	ret.AddAttributeError(
-		path.Root("spec").AtListIndex(0).AtName("cloud").AtListIndex(0).AtName("openstack").AtListIndex(0).AtName("subnet_id"),
+		path.Root("spec").AtName("cloud").AtName("openstack").AtName("subnet_id"),
 		fmt.Sprintf("Invalid value: %v", err),
 		diagnoseDetail,
 	)
@@ -353,28 +343,25 @@ func diagnoseOpenstackSubnetWithIDExistsIfSet(ctx context.Context, model *Cluste
 }
 
 func getOpenstackFieldString(ctx context.Context, model *ClusterModel, getter func(OpenstackCloudSpecModel) types.String) (string, bool) {
-	if model.Spec.IsNull() || model.Spec.IsUnknown() {
+	spec, ok := getClusterSpecModel(ctx, model)
+	if !ok {
 		return "", false
 	}
-	var specs []ClusterSpecModel
-	if diags := model.Spec.ElementsAs(ctx, &specs, false); diags.HasError() || len(specs) == 0 {
+	if spec.Cloud.IsNull() || spec.Cloud.IsUnknown() {
 		return "", false
 	}
-	if specs[0].Cloud.IsNull() || specs[0].Cloud.IsUnknown() {
+	var cloud ClusterCloudSpecModel
+	if diags := spec.Cloud.As(ctx, &cloud, basetypes.ObjectAsOptions{}); diags.HasError() {
 		return "", false
 	}
-	var clouds []ClusterCloudSpecModel
-	if diags := specs[0].Cloud.ElementsAs(ctx, &clouds, false); diags.HasError() || len(clouds) == 0 {
+	if cloud.Openstack.IsNull() || cloud.Openstack.IsUnknown() {
 		return "", false
 	}
-	if clouds[0].Openstack.IsNull() || clouds[0].Openstack.IsUnknown() {
+	var openstack OpenstackCloudSpecModel
+	if diags := cloud.Openstack.As(ctx, &openstack, basetypes.ObjectAsOptions{}); diags.HasError() {
 		return "", false
 	}
-	var openstacks []OpenstackCloudSpecModel
-	if diags := clouds[0].Openstack.ElementsAs(ctx, &openstacks, false); diags.HasError() || len(openstacks) == 0 {
-		return "", false
-	}
-	field := getter(openstacks[0])
+	field := getter(openstack)
 	if field.IsNull() || field.IsUnknown() {
 		return "", false
 	}
@@ -451,7 +438,7 @@ func metakubeResourceClusterValidateAccessCredentialsSet(ctx context.Context, mo
 		}
 		var ret diag.Diagnostics
 		ret.AddAttributeError(
-			path.Root("spec").AtListIndex(0).AtName("cloud").AtListIndex(0).AtName("openstack").AtListIndex(0),
+			path.Root("spec").AtName("cloud").AtName("openstack"),
 			"Please set all username, password, project_id and project_name or use application_credentials",
 			strings.Join(details, ", "),
 		)
@@ -468,7 +455,7 @@ func metakubeResourceClusterValidateAccessCredentialsSet(ctx context.Context, mo
 		}
 		var ret diag.Diagnostics
 		ret.AddAttributeError(
-			path.Root("spec").AtListIndex(0).AtName("cloud").AtListIndex(0).AtName("openstack").AtListIndex(0),
+			path.Root("spec").AtName("cloud").AtName("openstack"),
 			"Please set both id and secret",
 			strings.Join(details, ", "),
 		)

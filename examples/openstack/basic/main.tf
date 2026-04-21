@@ -58,12 +58,12 @@ resource "metakube_cluster" "cluster" {
   project_id = var.project_id
   sshkeys    = [metakube_sshkey.local.id]
 
-  spec {
+  spec = {
     enable_ssh_agent = true
     version          = data.metakube_k8s_version.cluster.version
-    cloud {
-      openstack {
-        user_credentials {
+    cloud = {
+      openstack = {
+        user_credentials = {
           password     = var.password
           project_id   = var.openstack_project_id
           project_name = var.openstack_project_name

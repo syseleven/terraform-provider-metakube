@@ -152,12 +152,12 @@ resource "metakube_cluster" "cluster" {
     "test-key" = "test-value"
   }
 
-  spec {
+  spec = {
     enable_ssh_agent = true
     version          = data.metakube_k8s_version.cluster.version
-    cloud {
-      openstack {
-        user_credentials {
+    cloud = {
+      openstack = {
+        user_credentials = {
           project_id   = var.openstack_project_id
           project_name = var.openstack_project_name
           username     = var.username

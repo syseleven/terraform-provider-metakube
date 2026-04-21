@@ -10,11 +10,10 @@ resource "metakube_cluster" "example" {
   name = "example"
   dc_name = "europe-west3-c"
 
-  spec {
+  spec = {
     version = "1.18.8"
-    cloud {
-
-      aws {
+    cloud = {
+      aws = {
         instance_profile_name = "example-profile-name"
       }
     }
@@ -35,7 +34,7 @@ The following arguments are supported:
 * `project_id` - (Required) Reference project identifier.
 * `dc_name` - (Required) Data center name. To list of available options you can run the following command: `curl -s -H "authorization: Bearer $METAKUBE_TOKEN" https://metakube.syseleven.de/api/v1/dc | jq -r '.[] | select(.seed!=true) | .metadata.name'`
 * `name` - (Required) Cluster name.
-* `spec` - (Required) Cluster specification.
+* `spec` - (Required) Cluster specification as a single nested attribute.
 * `labels` - (Optional) Labels added to cluster.
 * `sshkeys` - (Optional) IDs of SSH keys to be attached to nodes. Ideally you want to use this along with [metakube_sshkey](./sshkey.md).
 
@@ -55,7 +54,7 @@ The following arguments are supported:
 * `creation_timestamp` - Timestamp of resource creation.
 * `deletion_timestamp` - Timestamp of resource deletion.
 
-## Nested Blocks
+## Nested Configuration
 
 ### `spec`
 
@@ -73,6 +72,31 @@ The following arguments are supported:
 * `pods_cidr` - (Optional) Internal IP range for Pods.
 * `cni_plugin` - (Optional) CNI plugin used by the Cluster.
 * `ip_family` - (Optional) IP family to use for the Cluster.
+
+`spec` is a single nested attribute and therefore uses `=` syntax:
+
+```hcl
+spec = {
+  update_window = {
+    start  = "Thu 02:35"
+    length = "1h30m"
+  }
+
+  cloud = {
+    openstack = {
+      application_credentials = {
+        id     = var.openstack_application_credential_id
+        secret = var.openstack_application_credential_secret
+      }
+    }
+  }
+
+  syseleven_auth = {
+    realm              = "syseleven"
+    iam_authentication = false
+  }
+}
+```
 
 ### `cloud`
 

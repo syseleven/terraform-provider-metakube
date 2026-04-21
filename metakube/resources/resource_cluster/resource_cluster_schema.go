@@ -9,7 +9,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework-validators/boolvalidator"
-	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -98,43 +98,16 @@ func EnvDefaultWithDiffSuppress(envVar string) planmodifier.String {
 	return envDefaultPlanModifier{envVar: envVar, diffSuppress: true}
 }
 
-type boolDiffSuppressPlanModifier struct{}
-
-func (m boolDiffSuppressPlanModifier) Description(ctx context.Context) string {
-	return "Suppresses diff when config is null but state has a value"
-}
-
-func (m boolDiffSuppressPlanModifier) MarkdownDescription(ctx context.Context) string {
-	return m.Description(ctx)
-}
-
-func (m boolDiffSuppressPlanModifier) PlanModifyBool(ctx context.Context, req planmodifier.BoolRequest, resp *planmodifier.BoolResponse) {
-	if req.ConfigValue.IsNull() && !req.StateValue.IsNull() {
-		resp.PlanValue = req.StateValue
-	}
-}
-
-func BoolDiffSuppress() planmodifier.Bool {
-	return boolDiffSuppressPlanModifier{}
-}
-
 func ClusterResourceSchema(ctx context.Context) schema.Schema {
 	return schema.Schema{
 		Description: "Cluster resource in MetaKube",
-		Version:     1,
+		Version:     2,
 		Blocks: map[string]schema.Block{
 			"timeouts": timeouts.Block(ctx, timeouts.Opts{
 				Create: true,
 				Update: true,
 				Delete: true,
 			}),
-			"spec": schema.ListNestedBlock{
-				Description: "Cluster specification",
-				NestedObject: schema.NestedBlockObject{
-					Attributes: metakubeResourceClusterSpecAttributes(),
-					Blocks:     metakubeResourceClusterSpecBlocks(),
-				},
-			},
 		},
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -162,6 +135,11 @@ func ClusterResourceSchema(ctx context.Context) schema.Schema {
 				Required:    true,
 				Description: "Cluster name",
 			},
+			"spec": schema.SingleNestedAttribute{
+				Required:    true,
+				Description: "Cluster specification",
+				Attributes:  metakubeResourceClusterSpecAttributes(),
+			},
 			"labels": schema.MapAttribute{
 				Optional:    true,
 				Computed:    true,
@@ -179,15 +157,24 @@ func ClusterResourceSchema(ctx context.Context) schema.Schema {
 			"creation_timestamp": schema.StringAttribute{
 				Computed:    true,
 				Description: "Creation timestamp",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"deletion_timestamp": schema.StringAttribute{
 				Computed:    true,
 				Description: "Deletion timestamp",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"kube_config": schema.StringAttribute{
 				Sensitive:   true,
 				Computed:    true,
 				Description: "Kubeconfig for the cluster",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"oidc_kube_config": schema.StringAttribute{
 				Sensitive:   true,
@@ -222,6 +209,9 @@ func metakubeResourceClusterSpecAttributes() map[string]schema.Attribute {
 			Computed:    true,
 			Default:     booldefault.StaticBool(false),
 			Description: "Whether to enable audit logging or not",
+			PlanModifiers: []planmodifier.Bool{
+				boolplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"pod_security_policy": schema.BoolAttribute{
 			Optional:           true,
@@ -229,6 +219,9 @@ func metakubeResourceClusterSpecAttributes() map[string]schema.Attribute {
 			Default:            booldefault.StaticBool(false),
 			DeprecationMessage: "PodSecurityPolicy deprecated by Kubernetes since version 1.21 and will be removed in version 1.25",
 			Description:        "Pod security policies allow detailed authorization of pod creation and updates",
+			PlanModifiers: []planmodifier.Bool{
+				boolplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"pod_node_selector": schema.BoolAttribute{
 			Optional:    true,
@@ -253,6 +246,9 @@ func metakubeResourceClusterSpecAttributes() map[string]schema.Attribute {
 			Description: "Represents IP address family to use for the Cluster",
 			Validators: []validator.String{
 				stringvalidator.OneOf("IPv4", "IPv4+IPv6"),
+			},
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
 			},
 		},
 		"cni_plugin": schema.SingleNestedAttribute{
@@ -281,212 +277,139 @@ func metakubeResourceClusterSpecAttributes() map[string]schema.Attribute {
 					},
 				},
 			},
+			PlanModifiers: []planmodifier.Object{
+				objectplanmodifier.UseStateForUnknown(),
+			},
 		},
-	}
-}
-
-func metakubeResourceClusterSpecBlocks() map[string]schema.Block {
-	return map[string]schema.Block{
-		"update_window": schema.ListNestedBlock{
+		"update_window": schema.SingleNestedAttribute{
+			Optional:    true,
 			Description: "Flatcar nodes reboot window",
-			Validators: []validator.List{
-				listvalidator.SizeAtMost(1),
-			},
-			NestedObject: schema.NestedBlockObject{
-				Attributes: map[string]schema.Attribute{
-					"start": schema.StringAttribute{
-						Required:    true,
-						Description: "Node reboot window start time",
-						Validators: []validator.String{
-							stringvalidator.RegexMatches(regexp.MustCompile("(Mon |Tue |Wed |Thu |Fri |Sat )*([0-1][0-9]|2[0-4]):[0-5][0-9]"), "Example: 'Thu 02:00' or '02:00'"),
-						},
+			Attributes: map[string]schema.Attribute{
+				"start": schema.StringAttribute{
+					Required:    true,
+					Description: "Node reboot window start time",
+					Validators: []validator.String{
+						stringvalidator.RegexMatches(regexp.MustCompile("(Mon |Tue |Wed |Thu |Fri |Sat )*([0-1][0-9]|2[0-4]):[0-5][0-9]"), "Example: 'Thu 02:00' or '02:00'"),
 					},
-					"length": schema.StringAttribute{
-						Required:    true,
-						Description: "Node reboot window duration",
-						Validators: []validator.String{
-							DurationValidator(),
-						},
+				},
+				"length": schema.StringAttribute{
+					Required:    true,
+					Description: "Node reboot window duration",
+					Validators: []validator.String{
+						DurationValidator(),
 					},
 				},
 			},
 		},
-		"cloud": schema.ListNestedBlock{
+		"cloud": schema.SingleNestedAttribute{
+			Required:    true,
 			Description: "Cloud provider specification",
-			Validators: []validator.List{
-				listvalidator.SizeAtLeast(1),
-				listvalidator.SizeAtMost(1),
-			},
-			NestedObject: schema.NestedBlockObject{
-				Blocks: map[string]schema.Block{
-					"aws": schema.ListNestedBlock{
-						Description: "AWS cluster specification",
-						Validators: []validator.List{
-							listvalidator.SizeAtMost(1),
-							listvalidator.ConflictsWith(
-								fwpath.MatchRelative().AtParent().AtName("openstack"),
-							),
-						},
-						NestedObject: metakubeResourceClusterAWSCloudSpecFields(),
-					},
-					"openstack": schema.ListNestedBlock{
-						Description: "OpenStack cluster specification",
-						Validators: []validator.List{
-							listvalidator.SizeAtMost(1),
-							listvalidator.ConflictsWith(
-								fwpath.MatchRelative().AtParent().AtName("aws"),
-							),
-						},
-						NestedObject: metakubeResourceClusterOpenstackCloudSpecFields(),
-					},
+			Attributes: map[string]schema.Attribute{
+				"openstack": schema.SingleNestedAttribute{
+					Required:    true,
+					Description: "OpenStack cluster specification",
+					Attributes:  metakubeResourceClusterOpenstackCloudSpecFields(),
 				},
 			},
 		},
-		"syseleven_auth": schema.ListNestedBlock{
+		"syseleven_auth": schema.SingleNestedAttribute{
+			Optional:    true,
+			Computed:    true,
 			Description: "Configuration of SysEleven Login over OpenID Connect to authenticate against this cluster",
-			Validators: []validator.List{
-				listvalidator.SizeAtMost(1),
-			},
-			NestedObject: schema.NestedBlockObject{
-				Attributes: map[string]schema.Attribute{
-					"realm": schema.StringAttribute{
-						Optional:    true,
-						Description: "Realm name",
-						Validators: []validator.String{
-							stringvalidator.LengthAtLeast(1),
-						},
-					},
-					"iam_authentication": schema.BoolAttribute{
-						Optional:    true,
-						Computed:    true,
-						Default:     booldefault.StaticBool(false),
-						Description: "Enable Authentication against Syseleven IAM system",
-						PlanModifiers: []planmodifier.Bool{
-							BoolDiffSuppress(),
-						},
+			Attributes: map[string]schema.Attribute{
+				"realm": schema.StringAttribute{
+					Optional:    true,
+					Computed:    true,
+					Default:     stringdefault.StaticString(""),
+					Description: "Realm name",
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
 					},
 				},
+				"iam_authentication": schema.BoolAttribute{
+					Optional:    true,
+					Computed:    true,
+					Default:     booldefault.StaticBool(false),
+					Description: "Enable Authentication against Syseleven IAM system",
+					PlanModifiers: []planmodifier.Bool{
+						boolplanmodifier.UseStateForUnknown(),
+					},
+				},
+			},
+			PlanModifiers: []planmodifier.Object{
+				objectplanmodifier.UseStateForUnknown(),
 			},
 		},
 	}
 }
 
-func metakubeResourceClusterAWSCloudSpecFields() schema.NestedBlockObject {
-	return schema.NestedBlockObject{
-		Attributes: map[string]schema.Attribute{
-			"access_key_id": schema.StringAttribute{
-				Required:  true,
-				Sensitive: true,
-				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
-				},
-				Description: "Access key identifier",
-			},
-			"secret_access_key": schema.StringAttribute{
-				Required:  true,
-				Sensitive: true,
-				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
-				},
-				Description: "Secret access key",
-			},
-			"vpc_id": schema.StringAttribute{
-				Required: true,
-				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
-				},
-				Description: "Virtual private cloud identifier",
-			},
-			"security_group_id": schema.StringAttribute{
-				Optional:    true,
-				Description: "Security group identifier",
-			},
-			"route_table_id": schema.StringAttribute{
-				Optional:    true,
-				Description: "Route table identifier",
-			},
-			"instance_profile_name": schema.StringAttribute{
-				Optional:    true,
-				Description: "Instance profile name",
-			},
-			"role_arn": schema.StringAttribute{
-				Optional:    true,
-				Description: "The IAM role the control plane will use over assume-role",
-			},
-			"openstack_billing_tenant": schema.StringAttribute{
-				Required: true,
-				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
-				},
-				Description: "Openstack tenant/project name for the account",
-				PlanModifiers: []planmodifier.String{
-					EnvDefault("OS_PROJECT_NAME"),
-				},
+func metakubeResourceClusterOpenstackCloudSpecFields() map[string]schema.Attribute {
+	return map[string]schema.Attribute{
+		"floating_ip_pool": schema.StringAttribute{
+			Computed:    true,
+			Optional:    true,
+			Description: "The floating ip pool used by all worker nodes to receive a public ip",
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
 			},
 		},
-	}
-}
-
-func metakubeResourceClusterOpenstackCloudSpecFields() schema.NestedBlockObject {
-	return schema.NestedBlockObject{
-		Attributes: map[string]schema.Attribute{
-			"floating_ip_pool": schema.StringAttribute{
-				Computed:    true,
-				Optional:    true,
-				Description: "The floating ip pool used by all worker nodes to receive a public ip",
-			},
-			"security_group": schema.StringAttribute{
-				Computed:    true,
-				Optional:    true,
-				Description: "When specified, all worker nodes will be attached to this security group. If not specified, a security group will be created",
-			},
-			"network": schema.StringAttribute{
-				Computed:    true,
-				Optional:    true,
-				Description: "When specified, all worker nodes will be attached to this network. If not specified, a network, subnet & router will be created.",
-			},
-			"subnet_id": schema.StringAttribute{
-				Computed:    true,
-				Optional:    true,
-				Description: "When specified, all worker nodes will be attached to this subnet of specified network. If not specified, a network, subnet & router will be created.",
-				Validators: []validator.String{
-					stringvalidator.AlsoRequires(fwpath.MatchRoot("spec").AtListIndex(0).AtName("cloud").AtListIndex(0).AtName("openstack").AtListIndex(0).AtName("network")),
-				},
-			},
-			"subnet_cidr": schema.StringAttribute{
-				Computed:    true,
-				Optional:    true,
-				Description: "Change this to configure a different internal IP range for Nodes. Default: 192.168.1.0/24",
-			},
-			"server_group_id": schema.StringAttribute{
-				Computed:    true,
-				Optional:    true,
-				Description: "Server group to use for all machines within a cluster",
+		"security_group": schema.StringAttribute{
+			Computed:    true,
+			Optional:    true,
+			Description: "When specified, all worker nodes will be attached to this security group. If not specified, a security group will be created",
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
 			},
 		},
-		Blocks: map[string]schema.Block{
-			"user_credentials": schema.ListNestedBlock{
-				Validators: []validator.List{
-					listvalidator.SizeAtMost(1),
-					listvalidator.ConflictsWith(
-						fwpath.MatchRoot("spec").AtListIndex(0).AtName("cloud").AtListIndex(0).AtName("openstack").AtListIndex(0).AtName("application_credentials"),
-					),
-				},
-				NestedObject: schema.NestedBlockObject{
-					Attributes: metakubeResourceClusterOpenstackCloudSpecUserCredentialsFields(),
-				},
+		"network": schema.StringAttribute{
+			Computed:    true,
+			Optional:    true,
+			Description: "When specified, all worker nodes will be attached to this network. If not specified, a network, subnet & router will be created.",
+		},
+		"subnet_id": schema.StringAttribute{
+			Computed:    true,
+			Optional:    true,
+			Description: "When specified, all worker nodes will be attached to this subnet of specified network. If not specified, a network, subnet & router will be created.",
+			Validators: []validator.String{
+				stringvalidator.AlsoRequires(fwpath.MatchRoot("spec").AtName("cloud").AtName("openstack").AtName("network")),
 			},
-			"application_credentials": schema.ListNestedBlock{
-				Validators: []validator.List{
-					listvalidator.SizeAtMost(1),
-					listvalidator.ConflictsWith(
-						fwpath.MatchRoot("spec").AtListIndex(0).AtName("cloud").AtListIndex(0).AtName("openstack").AtListIndex(0).AtName("user_credentials"),
-					),
-				},
-				NestedObject: schema.NestedBlockObject{
-					Attributes: metakubeResourceClusterOpenstackCloudSpecApplicationCredentialsFields(),
-				},
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
 			},
+		},
+		"subnet_cidr": schema.StringAttribute{
+			Computed:    true,
+			Optional:    true,
+			Description: "Change this to configure a different internal IP range for Nodes. Default: 192.168.1.0/24",
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
+		},
+		"server_group_id": schema.StringAttribute{
+			Computed:    true,
+			Optional:    true,
+			Description: "Server group to use for all machines within a cluster",
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
+		},
+		"user_credentials": schema.SingleNestedAttribute{
+			Optional: true,
+			Validators: []validator.Object{
+				objectvalidator.ConflictsWith(
+					fwpath.MatchRelative().AtParent().AtName("application_credentials"),
+				),
+			},
+			Attributes: metakubeResourceClusterOpenstackCloudSpecUserCredentialsFields(),
+		},
+		"application_credentials": schema.SingleNestedAttribute{
+			Optional: true,
+			Validators: []validator.Object{
+				objectvalidator.ConflictsWith(
+					fwpath.MatchRelative().AtParent().AtName("user_credentials"),
+				),
+			},
+			Attributes: metakubeResourceClusterOpenstackCloudSpecApplicationCredentialsFields(),
 		},
 	}
 }
@@ -599,7 +522,7 @@ type ClusterModel struct {
 	Name                types.String   `tfsdk:"name"`
 	Labels              types.Map      `tfsdk:"labels"`
 	SSHKeys             types.Set      `tfsdk:"sshkeys"`
-	Spec                types.List     `tfsdk:"spec"` // []ClusterSpecModel
+	Spec                types.Object   `tfsdk:"spec"` // ClusterSpecModel
 	CreationTimestamp   types.String   `tfsdk:"creation_timestamp"`
 	DeletionTimestamp   types.String   `tfsdk:"deletion_timestamp"`
 	KubeConfig          types.String   `tfsdk:"kube_config"`
@@ -618,10 +541,10 @@ type ClusterSpecModel struct {
 	ServicesCIDR      types.String `tfsdk:"services_cidr"`
 	PodsCIDR          types.String `tfsdk:"pods_cidr"`
 	IPFamily          types.String `tfsdk:"ip_family"`
-	UpdateWindow      types.List   `tfsdk:"update_window"`  // []UpdateWindowModel
+	UpdateWindow      types.Object `tfsdk:"update_window"`  // UpdateWindowModel
 	CNIPlugin         types.Object `tfsdk:"cni_plugin"`     // CNIPluginModel
-	Cloud             types.List   `tfsdk:"cloud"`          // []ClusterCloudSpecModel
-	SyselevenAuth     types.List   `tfsdk:"syseleven_auth"` // []SyselevenAuthModel
+	Cloud             types.Object `tfsdk:"cloud"`          // ClusterCloudSpecModel
+	SyselevenAuth     types.Object `tfsdk:"syseleven_auth"` // SyselevenAuthModel
 }
 
 // UpdateWindowModel represents the update_window block.
@@ -658,26 +581,13 @@ type SyselevenAuthModel struct {
 
 // ClusterCloudSpecModel represents the cloud block.
 type ClusterCloudSpecModel struct {
-	AWS       types.List `tfsdk:"aws"`       // []AWSCloudSpecModel
-	Openstack types.List `tfsdk:"openstack"` // []OpenstackCloudSpecModel
-}
-
-// AWSCloudSpecModel represents the AWS cloud specification.
-type AWSCloudSpecModel struct {
-	AccessKeyID            types.String `tfsdk:"access_key_id"`
-	SecretAccessKey        types.String `tfsdk:"secret_access_key"`
-	VPCID                  types.String `tfsdk:"vpc_id"`
-	SecurityGroupID        types.String `tfsdk:"security_group_id"`
-	RouteTableID           types.String `tfsdk:"route_table_id"`
-	InstanceProfileName    types.String `tfsdk:"instance_profile_name"`
-	RoleARN                types.String `tfsdk:"role_arn"`
-	OpenstackBillingTenant types.String `tfsdk:"openstack_billing_tenant"`
+	Openstack types.Object `tfsdk:"openstack"` // OpenstackCloudSpecModel
 }
 
 // OpenstackCloudSpecModel represents the OpenStack cloud specification.
 type OpenstackCloudSpecModel struct {
-	UserCredentials        types.List   `tfsdk:"user_credentials"`        // []OpenstackUserCredentialsModel
-	ApplicationCredentials types.List   `tfsdk:"application_credentials"` // []OpenstackApplicationCredentialsModel
+	UserCredentials        types.Object `tfsdk:"user_credentials"`        // OpenstackUserCredentialsModel
+	ApplicationCredentials types.Object `tfsdk:"application_credentials"` // OpenstackApplicationCredentialsModel
 	FloatingIPPool         types.String `tfsdk:"floating_ip_pool"`
 	SecurityGroup          types.String `tfsdk:"security_group"`
 	Network                types.String `tfsdk:"network"`
@@ -712,10 +622,10 @@ func clusterSpecAttrTypes() map[string]attr.Type {
 		"services_cidr":       types.StringType,
 		"pods_cidr":           types.StringType,
 		"ip_family":           types.StringType,
-		"update_window":       types.ListType{ElemType: types.ObjectType{AttrTypes: updateWindowAttrTypes()}},
+		"update_window":       types.ObjectType{AttrTypes: updateWindowAttrTypes()},
 		"cni_plugin":          types.ObjectType{AttrTypes: cniPluginAttrTypes()},
-		"cloud":               types.ListType{ElemType: types.ObjectType{AttrTypes: clusterCloudSpecAttrTypes()}},
-		"syseleven_auth":      types.ListType{ElemType: types.ObjectType{AttrTypes: syselevenAuthAttrTypes()}},
+		"cloud":               types.ObjectType{AttrTypes: clusterCloudSpecAttrTypes()},
+		"syseleven_auth":      types.ObjectType{AttrTypes: syselevenAuthAttrTypes()},
 	}
 }
 
@@ -762,28 +672,14 @@ func syselevenAuthAttrTypes() map[string]attr.Type {
 
 func clusterCloudSpecAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"aws":       types.ListType{ElemType: types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}},
-		"openstack": types.ListType{ElemType: types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}},
-	}
-}
-
-func awsCloudSpecAttrTypes() map[string]attr.Type {
-	return map[string]attr.Type{
-		"access_key_id":            types.StringType,
-		"secret_access_key":        types.StringType,
-		"vpc_id":                   types.StringType,
-		"security_group_id":        types.StringType,
-		"route_table_id":           types.StringType,
-		"instance_profile_name":    types.StringType,
-		"role_arn":                 types.StringType,
-		"openstack_billing_tenant": types.StringType,
+		"openstack": types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()},
 	}
 }
 
 func openstackCloudSpecAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"user_credentials":        types.ListType{ElemType: types.ObjectType{AttrTypes: openstackUserCredentialsAttrTypes()}},
-		"application_credentials": types.ListType{ElemType: types.ObjectType{AttrTypes: openstackApplicationCredentialsAttrTypes()}},
+		"user_credentials":        types.ObjectType{AttrTypes: openstackUserCredentialsAttrTypes()},
+		"application_credentials": types.ObjectType{AttrTypes: openstackApplicationCredentialsAttrTypes()},
 		"floating_ip_pool":        types.StringType,
 		"security_group":          types.StringType,
 		"network":                 types.StringType,

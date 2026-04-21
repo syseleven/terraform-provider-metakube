@@ -26,6 +26,8 @@ func TestMain(m *testing.M) {
 func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 	var ndepl models.NodeDeployment
 	var sgroupID string
+	clusterResourceName := "metakube_cluster.acctest_cluster"
+	distUpgradeOnBootPath := tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("operating_system").AtSliceIndex(0).AtMapKey("ubuntu").AtSliceIndex(0).AtMapKey("dist_upgrade_on_boot")
 	resourceName := "metakube_node_deployment.acctest_nd"
 	serverGroupResourceName := "openstack_compute_servergroup_v2.acctest_sg"
 
@@ -83,11 +85,18 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 					resource.TestMatchResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.server_group_id", regexp.MustCompile(`.+`)),
 				),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(clusterResourceName, plancheck.ResourceActionCreate),
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionCreate),
+						plancheck.ExpectKnownValue(resourceName, distUpgradeOnBootPath, knownvalue.Bool(false)),
+					},
 					PostApplyPreRefresh: []plancheck.PlanCheck{
 						plancheck.ExpectEmptyPlan(),
+						plancheck.ExpectKnownValue(resourceName, distUpgradeOnBootPath, knownvalue.Bool(false)),
 					},
 					PostApplyPostRefresh: []plancheck.PlanCheck{
 						plancheck.ExpectEmptyPlan(),
+						plancheck.ExpectKnownValue(resourceName, distUpgradeOnBootPath, knownvalue.Bool(false)),
 					},
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
@@ -145,6 +154,22 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 			},
 			{
 				Config: config2.String(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(clusterResourceName, plancheck.ResourceActionNoop),
+						plancheck.ExpectResourceAction(serverGroupResourceName, plancheck.ResourceActionCreate),
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionUpdate),
+						plancheck.ExpectKnownValue(resourceName, distUpgradeOnBootPath, knownvalue.Bool(false)),
+					},
+					PostApplyPreRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+						plancheck.ExpectKnownValue(resourceName, distUpgradeOnBootPath, knownvalue.Bool(false)),
+					},
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+						plancheck.ExpectKnownValue(resourceName, distUpgradeOnBootPath, knownvalue.Bool(false)),
+					},
+				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testutil.TestResourceInstanceState(resourceName, func(is *terraform.InstanceState) error {
 						// Record IDs to test import
@@ -296,14 +321,14 @@ var nodeDeploymentBasicTemplate = testutil.MustParseTemplate("nodeDeploymentBasi
 		update = "40m"
 		delete = "40m"
 	}
-		spec {
+		spec = {
 			version = "{{ .ClusterVersion }}"
-			cloud {
-				openstack {
-					application_credentials {
+			cloud = {
+				openstack = {
+					application_credentials = {
 						id = "{{ .OpenstackApplicationCredentialsID }}"
 						secret = "{{ .OpenstackApplicationCredentialsSecret }}"
-						}
+					}
 					floating_ip_pool = "ext-net"
 				}
 			}

@@ -6,10 +6,10 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/syseleven/go-metakube/models"
+	"k8s.io/utils/ptr"
 )
 
 func TestFlattenSpecIntoModel(t *testing.T) {
@@ -37,7 +37,7 @@ func TestFlattenSpecIntoModel(t *testing.T) {
 					Openstack:      &models.OpenstackCloudSpec{},
 				},
 				Sys11auth: &models.Sys11AuthSettings{
-					Realm: "testrealm",
+					Realm: ptr.To("testrealm"),
 				},
 				ClusterNetwork: &models.ClusterNetworkingConfig{
 					Services: &models.NetworkRanges{
@@ -101,15 +101,10 @@ func TestFlattenSpecIntoModel(t *testing.T) {
 				return
 			}
 
-			var specs []ClusterSpecModel
-			if d := model.Spec.ElementsAs(ctx, &specs, false); d.HasError() {
-				t.Fatalf("Failed to get spec elements: %v", d)
+			spec, ok := getClusterSpecModel(ctx, model)
+			if !ok {
+				t.Fatal("Expected spec object to be set")
 			}
-			if len(specs) == 0 {
-				t.Fatal("Expected spec list to have elements")
-			}
-
-			spec := specs[0]
 
 			if spec.Version.ValueString() != tc.ExpectedSpec.Version.ValueString() {
 				t.Errorf("Version mismatch: got %v, want %v", spec.Version.ValueString(), tc.ExpectedSpec.Version.ValueString())
@@ -199,16 +194,8 @@ func TestFlattenClusterCloudSpec(t *testing.T) {
 	cases := []struct {
 		name       string
 		Input      *models.CloudSpec
-		HasAWS     bool
 		ExpectNull bool
 	}{
-		{
-			name: "aws cloud",
-			Input: &models.CloudSpec{
-				Aws: &models.AWSCloudSpec{},
-			},
-			HasAWS: true,
-		},
 		{
 			name:  "empty cloud",
 			Input: &models.CloudSpec{},
@@ -235,83 +222,9 @@ func TestFlattenClusterCloudSpec(t *testing.T) {
 				return
 			}
 
-			var clouds []ClusterCloudSpecModel
-			if d := specModel.Cloud.ElementsAs(ctx, &clouds, false); d.HasError() {
-				t.Fatalf("Failed to get cloud elements: %v", d)
-			}
-			if len(clouds) == 0 {
-				t.Fatal("Expected cloud list to have elements")
-			}
-
-			if tc.HasAWS && clouds[0].AWS.IsNull() {
-				t.Error("Expected AWS to be set")
-			}
-		})
-	}
-}
-
-func TestFlattenAWSCloudSpec(t *testing.T) {
-	ctx := context.Background()
-
-	cases := []struct {
-		name       string
-		Input      *models.AWSCloudSpec
-		ExpectNull bool
-	}{
-		{
-			name: "full aws spec",
-			Input: &models.AWSCloudSpec{
-				AccessKeyID:            "AKIAIOSFODNN7EXAMPLE",
-				ControlPlaneRoleARN:    "default",
-				InstanceProfileName:    "default",
-				OpenstackBillingTenant: "foo",
-				RouteTableID:           "rtb-09ba434c1bEXAMPLE",
-				SecretAccessKey:        "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-				SecurityGroupID:        "sg-51530134",
-				VPCID:                  "e5e4b2ef2fe",
-			},
-		},
-		{
-			name:  "empty aws spec",
-			Input: &models.AWSCloudSpec{},
-		},
-		{
-			name:       "nil aws spec",
-			Input:      nil,
-			ExpectNull: true,
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			cloudModel := &ClusterCloudSpecModel{
-				AWS:       types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}),
-				Openstack: types.ListNull(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}),
-			}
-			diags := flattenAWSCloudSpec(ctx, cloudModel, tc.Input)
-			if diags.HasError() {
-				t.Fatalf("Unexpected error: %v", diags)
-			}
-
-			if tc.ExpectNull {
-				if !cloudModel.AWS.IsNull() {
-					t.Fatalf("Expected null AWS, got %v", cloudModel.AWS)
-				}
-				return
-			}
-
-			var awsSpecs []AWSCloudSpecModel
-			if d := cloudModel.AWS.ElementsAs(ctx, &awsSpecs, false); d.HasError() {
-				t.Fatalf("Failed to get AWS elements: %v", d)
-			}
-			if len(awsSpecs) == 0 {
-				t.Fatal("Expected AWS list to have elements")
-			}
-
-			if tc.Input != nil && tc.Input.AccessKeyID != "" {
-				if awsSpecs[0].AccessKeyID.ValueString() != tc.Input.AccessKeyID {
-					t.Errorf("AccessKeyID mismatch: got %v, want %v", awsSpecs[0].AccessKeyID.ValueString(), tc.Input.AccessKeyID)
-				}
+			var cloud ClusterCloudSpecModel
+			if d := specModel.Cloud.As(ctx, &cloud, basetypes.ObjectAsOptions{}); d.HasError() {
+				t.Fatalf("Failed to get cloud object: %v", d)
 			}
 		})
 	}
@@ -370,8 +283,7 @@ func TestFlattenOpenstackCloudSpec(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			cloudModel := &ClusterCloudSpecModel{
-				AWS:       types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}),
-				Openstack: types.ListNull(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}),
+				Openstack: types.ObjectNull(openstackCloudSpecAttrTypes()),
 			}
 			diags := flattenOpenstackSpec(ctx, cloudModel, tc.PreserveValues, tc.Input)
 			if diags.HasError() {
@@ -385,17 +297,14 @@ func TestFlattenOpenstackCloudSpec(t *testing.T) {
 				return
 			}
 
-			var osSpecs []OpenstackCloudSpecModel
-			if d := cloudModel.Openstack.ElementsAs(ctx, &osSpecs, false); d.HasError() {
-				t.Fatalf("Failed to get Openstack elements: %v", d)
-			}
-			if len(osSpecs) == 0 {
-				t.Fatal("Expected Openstack list to have elements")
+			var osSpec OpenstackCloudSpecModel
+			if d := cloudModel.Openstack.As(ctx, &osSpec, basetypes.ObjectAsOptions{}); d.HasError() {
+				t.Fatalf("Failed to get Openstack object: %v", d)
 			}
 
 			if tc.Input != nil && tc.Input.FloatingIPPool != "" {
-				if osSpecs[0].FloatingIPPool.ValueString() != tc.Input.FloatingIPPool {
-					t.Errorf("FloatingIPPool mismatch: got %v, want %v", osSpecs[0].FloatingIPPool.ValueString(), tc.Input.FloatingIPPool)
+				if osSpec.FloatingIPPool.ValueString() != tc.Input.FloatingIPPool {
+					t.Errorf("FloatingIPPool mismatch: got %v, want %v", osSpec.FloatingIPPool.ValueString(), tc.Input.FloatingIPPool)
 				}
 			}
 		})
@@ -458,7 +367,8 @@ func TestExpandClusterSpecFromModel(t *testing.T) {
 					Cilium: &models.CiliumCNISettings{},
 				},
 				Sys11auth: &models.Sys11AuthSettings{
-					Realm: "testrealm",
+					IAMAuthentication: ptr.To(false),
+					Realm:             ptr.To("testrealm"),
 				},
 			},
 		},
@@ -474,10 +384,10 @@ func TestExpandClusterSpecFromModel(t *testing.T) {
 					ServicesCIDR:      types.StringNull(),
 					PodsCIDR:          types.StringNull(),
 					IPFamily:          types.StringNull(),
-					UpdateWindow:      types.ListNull(types.ObjectType{AttrTypes: updateWindowAttrTypes()}),
+					UpdateWindow:      types.ObjectNull(updateWindowAttrTypes()),
 					CNIPlugin:         createCNIPluginObject(ctx, t, "canal"),
-					Cloud:             types.ListNull(types.ObjectType{AttrTypes: clusterCloudSpecAttrTypes()}),
-					SyselevenAuth:     types.ListNull(types.ObjectType{AttrTypes: syselevenAuthAttrTypes()}),
+					Cloud:             types.ObjectNull(clusterCloudSpecAttrTypes()),
+					SyselevenAuth:     types.ObjectNull(syselevenAuthAttrTypes()),
 				})
 			},
 			DCName: "",
@@ -492,7 +402,7 @@ func TestExpandClusterSpecFromModel(t *testing.T) {
 			name: "nil spec",
 			setupModel: func() *ClusterModel {
 				return &ClusterModel{
-					Spec: types.ListNull(types.ObjectType{AttrTypes: clusterSpecAttrTypes()}),
+					Spec: types.ObjectNull(clusterSpecAttrTypes()),
 				}
 			},
 			DCName:         "",
@@ -516,31 +426,31 @@ func TestExpandClusterCloudSpec(t *testing.T) {
 
 	cases := []struct {
 		name           string
-		setupList      func() types.List
+		setupObject    func() types.Object
 		DCName         string
 		ExpectedOutput *models.CloudSpec
 	}{
 		{
-			name: "aws cloud",
-			setupList: func() types.List {
-				return createAWSCloudList(ctx, t)
+			name: "openstack cloud",
+			setupObject: func() types.Object {
+				return createOpenstackCloudList(ctx, t)
 			},
 			DCName: "eu-west-1",
 			ExpectedOutput: &models.CloudSpec{
 				DatacenterName: "eu-west-1",
-				Aws:            &models.AWSCloudSpec{},
+				Openstack: &models.OpenstackCloudSpec{
+					Domain: "Default",
+				},
 			},
 		},
 		{
 			name: "empty cloud",
-			setupList: func() types.List {
+			setupObject: func() types.Object {
 				cloudModel := ClusterCloudSpecModel{
-					AWS:       types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}),
-					Openstack: types.ListNull(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}),
+					Openstack: types.ObjectNull(openstackCloudSpecAttrTypes()),
 				}
 				objVal, _ := types.ObjectValueFrom(ctx, clusterCloudSpecAttrTypes(), cloudModel)
-				listVal, _ := types.ListValue(types.ObjectType{AttrTypes: clusterCloudSpecAttrTypes()}, []attr.Value{objVal})
-				return listVal
+				return objVal
 			},
 			DCName: "eu-west-1",
 			ExpectedOutput: &models.CloudSpec{
@@ -549,8 +459,8 @@ func TestExpandClusterCloudSpec(t *testing.T) {
 		},
 		{
 			name: "null cloud",
-			setupList: func() types.List {
-				return types.ListNull(types.ObjectType{AttrTypes: clusterCloudSpecAttrTypes()})
+			setupObject: func() types.Object {
+				return types.ObjectNull(clusterCloudSpecAttrTypes())
 			},
 			DCName:         "eu-west-1",
 			ExpectedOutput: nil,
@@ -559,8 +469,8 @@ func TestExpandClusterCloudSpec(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			list := tc.setupList()
-			output := expandClusterCloudSpec(ctx, list, tc.DCName, func(string) bool { return true })
+			object := tc.setupObject()
+			output := expandClusterCloudSpec(ctx, object, tc.DCName, func(string) bool { return true })
 			if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
 				t.Fatalf("Unexpected output from expander: mismatch (-want +got):\n%s", diff)
 			}
@@ -627,92 +537,17 @@ func TestExpandCniPlugin(t *testing.T) {
 	}
 }
 
-func TestExpandAWSCloudSpec(t *testing.T) {
-	ctx := context.Background()
-
-	cases := []struct {
-		name           string
-		setupList      func() types.List
-		ExpectedOutput *models.AWSCloudSpec
-	}{
-		{
-			name: "full aws spec",
-			setupList: func() types.List {
-				awsModel := AWSCloudSpecModel{
-					AccessKeyID:            types.StringValue("AKIAIOSFODNN7EXAMPLE"),
-					RoleARN:                types.StringValue("default"),
-					OpenstackBillingTenant: types.StringValue("foo"),
-					InstanceProfileName:    types.StringValue("default"),
-					RouteTableID:           types.StringValue("rtb-09ba434c1bEXAMPLE"),
-					SecretAccessKey:        types.StringValue("wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"),
-					SecurityGroupID:        types.StringValue("sg-51530134"),
-					VPCID:                  types.StringValue("e5e4b2ef2fe"),
-				}
-				objVal, _ := types.ObjectValueFrom(ctx, awsCloudSpecAttrTypes(), awsModel)
-				listVal, _ := types.ListValue(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}, []attr.Value{objVal})
-				return listVal
-			},
-			ExpectedOutput: &models.AWSCloudSpec{
-				AccessKeyID:            "AKIAIOSFODNN7EXAMPLE",
-				ControlPlaneRoleARN:    "default",
-				OpenstackBillingTenant: "foo",
-				InstanceProfileName:    "default",
-				RouteTableID:           "rtb-09ba434c1bEXAMPLE",
-				SecretAccessKey:        "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-				SecurityGroupID:        "sg-51530134",
-				VPCID:                  "e5e4b2ef2fe",
-			},
-		},
-		{
-			name: "empty aws spec",
-			setupList: func() types.List {
-				awsModel := AWSCloudSpecModel{
-					AccessKeyID:            types.StringNull(),
-					SecretAccessKey:        types.StringNull(),
-					VPCID:                  types.StringNull(),
-					SecurityGroupID:        types.StringNull(),
-					RouteTableID:           types.StringNull(),
-					InstanceProfileName:    types.StringNull(),
-					RoleARN:                types.StringNull(),
-					OpenstackBillingTenant: types.StringNull(),
-				}
-				objVal, _ := types.ObjectValueFrom(ctx, awsCloudSpecAttrTypes(), awsModel)
-				listVal, _ := types.ListValue(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}, []attr.Value{objVal})
-				return listVal
-			},
-			ExpectedOutput: &models.AWSCloudSpec{},
-		},
-		{
-			name: "null list",
-			setupList: func() types.List {
-				return types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()})
-			},
-			ExpectedOutput: nil,
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			list := tc.setupList()
-			output := expandAWSCloudSpec(ctx, list, func(string) bool { return true })
-			if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
-				t.Fatalf("Unexpected output from expander: mismatch (-want +got):\n%s", diff)
-			}
-		})
-	}
-}
-
 func TestExpandOpenstackCloudSpec(t *testing.T) {
 	ctx := context.Background()
 
 	cases := []struct {
 		name           string
-		setupList      func() types.List
+		setupObject    func() types.Object
 		ExpectedOutput *models.OpenstackCloudSpec
 	}{
 		{
 			name: "with user credentials",
-			setupList: func() types.List {
+			setupObject: func() types.Object {
 				userCredsModel := OpenstackUserCredentialsModel{
 					Username:    types.StringValue("Username"),
 					Password:    types.StringValue("Password"),
@@ -720,21 +555,19 @@ func TestExpandOpenstackCloudSpec(t *testing.T) {
 					ProjectName: types.StringValue("ProjectName"),
 				}
 				userCredsObjVal, _ := types.ObjectValueFrom(ctx, openstackUserCredentialsAttrTypes(), userCredsModel)
-				userCredsList, _ := types.ListValue(types.ObjectType{AttrTypes: openstackUserCredentialsAttrTypes()}, []attr.Value{userCredsObjVal})
 
 				osModel := OpenstackCloudSpecModel{
 					FloatingIPPool:         types.StringValue("FloatingIPPool"),
 					ServerGroupID:          types.StringValue("ServerGroupID"),
-					UserCredentials:        userCredsList,
-					ApplicationCredentials: types.ListNull(types.ObjectType{AttrTypes: openstackApplicationCredentialsAttrTypes()}),
+					UserCredentials:        userCredsObjVal,
+					ApplicationCredentials: types.ObjectNull(openstackApplicationCredentialsAttrTypes()),
 					SecurityGroup:          types.StringNull(),
 					Network:                types.StringNull(),
 					SubnetID:               types.StringNull(),
 					SubnetCIDR:             types.StringNull(),
 				}
 				objVal, _ := types.ObjectValueFrom(ctx, openstackCloudSpecAttrTypes(), osModel)
-				listVal, _ := types.ListValue(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}, []attr.Value{objVal})
-				return listVal
+				return objVal
 			},
 			ExpectedOutput: &models.OpenstackCloudSpec{
 				Domain:         "Default",
@@ -748,27 +581,25 @@ func TestExpandOpenstackCloudSpec(t *testing.T) {
 		},
 		{
 			name: "with application credentials",
-			setupList: func() types.List {
+			setupObject: func() types.Object {
 				appCredsModel := OpenstackApplicationCredentialsModel{
 					ID:     types.StringValue("id"),
 					Secret: types.StringValue("secret"),
 				}
 				appCredsObjVal, _ := types.ObjectValueFrom(ctx, openstackApplicationCredentialsAttrTypes(), appCredsModel)
-				appCredsList, _ := types.ListValue(types.ObjectType{AttrTypes: openstackApplicationCredentialsAttrTypes()}, []attr.Value{appCredsObjVal})
 
 				osModel := OpenstackCloudSpecModel{
 					FloatingIPPool:         types.StringValue("FloatingIPPool"),
 					ServerGroupID:          types.StringValue("ServerGroupID"),
-					ApplicationCredentials: appCredsList,
-					UserCredentials:        types.ListNull(types.ObjectType{AttrTypes: openstackUserCredentialsAttrTypes()}),
+					ApplicationCredentials: appCredsObjVal,
+					UserCredentials:        types.ObjectNull(openstackUserCredentialsAttrTypes()),
 					SecurityGroup:          types.StringNull(),
 					Network:                types.StringNull(),
 					SubnetID:               types.StringNull(),
 					SubnetCIDR:             types.StringNull(),
 				}
 				objVal, _ := types.ObjectValueFrom(ctx, openstackCloudSpecAttrTypes(), osModel)
-				listVal, _ := types.ListValue(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}, []attr.Value{objVal})
-				return listVal
+				return objVal
 			},
 			ExpectedOutput: &models.OpenstackCloudSpec{
 				Domain:                      "Default",
@@ -780,7 +611,7 @@ func TestExpandOpenstackCloudSpec(t *testing.T) {
 		},
 		{
 			name: "empty openstack spec",
-			setupList: func() types.List {
+			setupObject: func() types.Object {
 				osModel := OpenstackCloudSpecModel{
 					FloatingIPPool:         types.StringNull(),
 					SecurityGroup:          types.StringNull(),
@@ -788,12 +619,11 @@ func TestExpandOpenstackCloudSpec(t *testing.T) {
 					SubnetID:               types.StringNull(),
 					SubnetCIDR:             types.StringNull(),
 					ServerGroupID:          types.StringNull(),
-					UserCredentials:        types.ListNull(types.ObjectType{AttrTypes: openstackUserCredentialsAttrTypes()}),
-					ApplicationCredentials: types.ListNull(types.ObjectType{AttrTypes: openstackApplicationCredentialsAttrTypes()}),
+					UserCredentials:        types.ObjectNull(openstackUserCredentialsAttrTypes()),
+					ApplicationCredentials: types.ObjectNull(openstackApplicationCredentialsAttrTypes()),
 				}
 				objVal, _ := types.ObjectValueFrom(ctx, openstackCloudSpecAttrTypes(), osModel)
-				listVal, _ := types.ListValue(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}, []attr.Value{objVal})
-				return listVal
+				return objVal
 			},
 			ExpectedOutput: &models.OpenstackCloudSpec{
 				Domain: "Default",
@@ -801,8 +631,8 @@ func TestExpandOpenstackCloudSpec(t *testing.T) {
 		},
 		{
 			name: "null list",
-			setupList: func() types.List {
-				return types.ListNull(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()})
+			setupObject: func() types.Object {
+				return types.ObjectNull(openstackCloudSpecAttrTypes())
 			},
 			ExpectedOutput: nil,
 		},
@@ -810,8 +640,8 @@ func TestExpandOpenstackCloudSpec(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			list := tc.setupList()
-			output := expandOpenstackCloudSpec(ctx, list, func(string) bool { return true })
+			object := tc.setupObject()
+			output := expandOpenstackCloudSpec(ctx, object, func(string) bool { return true })
 			if diff := cmp.Diff(tc.ExpectedOutput, output); diff != "" {
 				t.Fatalf("Unexpected output from expander: mismatch (-want +got):\n%s", diff)
 			}
@@ -835,29 +665,14 @@ func TestGetPreservedValuesFromModel(t *testing.T) {
 	cases := []struct {
 		name       string
 		setupModel func() *ClusterModel
-		expectAWS  *models.AWSCloudSpec
 		expectOS   *clusterOpenstackPreservedValues
 	}{
 		{
 			name: "null spec returns empty values",
 			setupModel: func() *ClusterModel {
 				return &ClusterModel{
-					Spec: types.ListNull(types.ObjectType{AttrTypes: clusterSpecAttrTypes()}),
+					Spec: types.ObjectNull(clusterSpecAttrTypes()),
 				}
-			},
-			expectAWS: nil,
-			expectOS:  nil,
-		},
-		{
-			name: "model with AWS credentials preserves them",
-			setupModel: func() *ClusterModel {
-				return createModelWithAWSCredentials(ctx, t, "AKIATEST", "secretkey123", "vpc-123", "sg-456")
-			},
-			expectAWS: &models.AWSCloudSpec{
-				AccessKeyID:     "AKIATEST",
-				SecretAccessKey: "secretkey123",
-				VPCID:           "vpc-123",
-				SecurityGroupID: "sg-456",
 			},
 			expectOS: nil,
 		},
@@ -866,7 +681,6 @@ func TestGetPreservedValuesFromModel(t *testing.T) {
 			setupModel: func() *ClusterModel {
 				return createModelWithOpenstackUserCredentials(ctx, t, "testuser", "testpass", "project-123", "myproject")
 			},
-			expectAWS: nil,
 			expectOS: &clusterOpenstackPreservedValues{
 				openstackUsername:    types.StringValue("testuser"),
 				openstackPassword:    types.StringValue("testpass"),
@@ -879,7 +693,6 @@ func TestGetPreservedValuesFromModel(t *testing.T) {
 			setupModel: func() *ClusterModel {
 				return createModelWithOpenstackAppCredentials(ctx, t, "app-id-123", "app-secret-456")
 			},
-			expectAWS: nil,
 			expectOS: &clusterOpenstackPreservedValues{
 				openstackApplicationCredentialsID:     types.StringValue("app-id-123"),
 				openstackApplicationCredentialsSecret: types.StringValue("app-secret-456"),
@@ -890,15 +703,14 @@ func TestGetPreservedValuesFromModel(t *testing.T) {
 			setupModel: func() *ClusterModel {
 				specModel := ClusterSpecModel{
 					Version:       types.StringValue("1.18.8"),
-					Cloud:         types.ListNull(types.ObjectType{AttrTypes: clusterCloudSpecAttrTypes()}),
-					UpdateWindow:  types.ListNull(types.ObjectType{AttrTypes: updateWindowAttrTypes()}),
+					Cloud:         types.ObjectNull(clusterCloudSpecAttrTypes()),
+					UpdateWindow:  types.ObjectNull(updateWindowAttrTypes()),
 					CNIPlugin:     createCNIPluginObject(ctx, t, "canal"),
-					SyselevenAuth: types.ListNull(types.ObjectType{AttrTypes: syselevenAuthAttrTypes()}),
+					SyselevenAuth: types.ObjectNull(syselevenAuthAttrTypes()),
 				}
 				return createTestClusterModel(ctx, t, specModel)
 			},
-			expectAWS: nil,
-			expectOS:  nil,
+			expectOS: nil,
 		},
 	}
 
@@ -906,29 +718,6 @@ func TestGetPreservedValuesFromModel(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			model := tc.setupModel()
 			result := getPreservedValuesFromModel(ctx, model)
-
-			// Check AWS
-			if tc.expectAWS == nil {
-				if result.aws != nil {
-					t.Errorf("Expected nil AWS, got %+v", result.aws)
-				}
-			} else {
-				if result.aws == nil {
-					t.Fatal("Expected AWS to be set, got nil")
-				}
-				if result.aws.AccessKeyID != tc.expectAWS.AccessKeyID {
-					t.Errorf("AWS AccessKeyID mismatch: got %v, want %v", result.aws.AccessKeyID, tc.expectAWS.AccessKeyID)
-				}
-				if result.aws.SecretAccessKey != tc.expectAWS.SecretAccessKey {
-					t.Errorf("AWS SecretAccessKey mismatch: got %v, want %v", result.aws.SecretAccessKey, tc.expectAWS.SecretAccessKey)
-				}
-				if result.aws.VPCID != tc.expectAWS.VPCID {
-					t.Errorf("AWS VPCID mismatch: got %v, want %v", result.aws.VPCID, tc.expectAWS.VPCID)
-				}
-				if result.aws.SecurityGroupID != tc.expectAWS.SecurityGroupID {
-					t.Errorf("AWS SecurityGroupID mismatch: got %v, want %v", result.aws.SecurityGroupID, tc.expectAWS.SecurityGroupID)
-				}
-			}
 
 			// Check OpenStack
 			if tc.expectOS == nil {
@@ -957,98 +746,6 @@ func TestGetPreservedValuesFromModel(t *testing.T) {
 				if result.openstack.openstackApplicationCredentialsSecret.ValueString() != tc.expectOS.openstackApplicationCredentialsSecret.ValueString() {
 					t.Errorf("OpenStack AppCredSecret mismatch: got %v, want %v", result.openstack.openstackApplicationCredentialsSecret.ValueString(), tc.expectOS.openstackApplicationCredentialsSecret.ValueString())
 				}
-			}
-		})
-	}
-}
-
-func TestFlattenClusterCloudSpecWithAWSPreservedValues(t *testing.T) {
-	ctx := context.Background()
-
-	cases := []struct {
-		name                  string
-		apiResponse           *models.CloudSpec
-		preservedValues       clusterPreserveValues
-		expectedAccessKeyID   string
-		expectedSecretKey     string
-		expectedVPCID         string
-		expectedSecurityGroup string
-	}{
-		{
-			name: "API returns empty credentials, preserved values used",
-			apiResponse: &models.CloudSpec{
-				Aws: &models.AWSCloudSpec{
-					// API returns empty credentials (sensitive data not returned)
-					VPCID: "api-vpc-id",
-				},
-			},
-			preservedValues: clusterPreserveValues{
-				aws: &models.AWSCloudSpec{
-					AccessKeyID:     "preserved-access-key",
-					SecretAccessKey: "preserved-secret-key",
-					VPCID:           "preserved-vpc-id",
-					SecurityGroupID: "preserved-sg-id",
-				},
-			},
-			expectedAccessKeyID:   "preserved-access-key",
-			expectedSecretKey:     "preserved-secret-key",
-			expectedVPCID:         "preserved-vpc-id",
-			expectedSecurityGroup: "preserved-sg-id",
-		},
-		{
-			name: "no preserved values, API values used",
-			apiResponse: &models.CloudSpec{
-				Aws: &models.AWSCloudSpec{
-					AccessKeyID:     "api-access-key",
-					SecretAccessKey: "api-secret-key",
-					VPCID:           "api-vpc-id",
-					SecurityGroupID: "api-sg-id",
-				},
-			},
-			preservedValues:       clusterPreserveValues{},
-			expectedAccessKeyID:   "api-access-key",
-			expectedSecretKey:     "api-secret-key",
-			expectedVPCID:         "api-vpc-id",
-			expectedSecurityGroup: "api-sg-id",
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			specModel := &ClusterSpecModel{}
-			diags := flattenClusterCloudSpec(ctx, specModel, tc.preservedValues, tc.apiResponse)
-			if diags.HasError() {
-				t.Fatalf("Unexpected error: %v", diags)
-			}
-
-			var clouds []ClusterCloudSpecModel
-			if d := specModel.Cloud.ElementsAs(ctx, &clouds, false); d.HasError() {
-				t.Fatalf("Failed to get cloud elements: %v", d)
-			}
-			if len(clouds) == 0 {
-				t.Fatal("Expected cloud list to have elements")
-			}
-
-			var awsSpecs []AWSCloudSpecModel
-			if d := clouds[0].AWS.ElementsAs(ctx, &awsSpecs, false); d.HasError() {
-				t.Fatalf("Failed to get AWS elements: %v", d)
-			}
-			if len(awsSpecs) == 0 {
-				t.Fatal("Expected AWS list to have elements")
-			}
-
-			aws := awsSpecs[0]
-			if aws.AccessKeyID.ValueString() != tc.expectedAccessKeyID {
-				t.Errorf("AccessKeyID mismatch: got %v, want %v", aws.AccessKeyID.ValueString(), tc.expectedAccessKeyID)
-			}
-			if aws.SecretAccessKey.ValueString() != tc.expectedSecretKey {
-				t.Errorf("SecretAccessKey mismatch: got %v, want %v", aws.SecretAccessKey.ValueString(), tc.expectedSecretKey)
-			}
-			if aws.VPCID.ValueString() != tc.expectedVPCID {
-				t.Errorf("VPCID mismatch: got %v, want %v", aws.VPCID.ValueString(), tc.expectedVPCID)
-			}
-			if aws.SecurityGroupID.ValueString() != tc.expectedSecurityGroup {
-				t.Errorf("SecurityGroupID mismatch: got %v, want %v", aws.SecurityGroupID.ValueString(), tc.expectedSecurityGroup)
 			}
 		})
 	}
@@ -1158,23 +855,17 @@ func TestFlattenOpenstackSpecPreservesCredentials(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			cloudModel := &ClusterCloudSpecModel{
-				AWS:       types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}),
-				Openstack: types.ListNull(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}),
+				Openstack: types.ObjectNull(openstackCloudSpecAttrTypes()),
 			}
 			diags := flattenOpenstackSpec(ctx, cloudModel, tc.preservedValues, tc.apiResponse)
 			if diags.HasError() {
 				t.Fatalf("Unexpected error: %v", diags)
 			}
 
-			var osSpecs []OpenstackCloudSpecModel
-			if d := cloudModel.Openstack.ElementsAs(ctx, &osSpecs, false); d.HasError() {
-				t.Fatalf("Failed to get Openstack elements: %v", d)
+			var os OpenstackCloudSpecModel
+			if d := cloudModel.Openstack.As(ctx, &os, basetypes.ObjectAsOptions{}); d.HasError() {
+				t.Fatalf("Failed to get Openstack object: %v", d)
 			}
-			if len(osSpecs) == 0 {
-				t.Fatal("Expected Openstack list to have elements")
-			}
-
-			os := osSpecs[0]
 
 			// Check ServerGroupID
 			if tc.expectedServerGroupID != "" {
@@ -1188,24 +879,21 @@ func TestFlattenOpenstackSpecPreservesCredentials(t *testing.T) {
 				if os.UserCredentials.IsNull() {
 					t.Fatal("Expected UserCredentials to be set, got null")
 				}
-				var userCreds []OpenstackUserCredentialsModel
-				if d := os.UserCredentials.ElementsAs(ctx, &userCreds, false); d.HasError() {
-					t.Fatalf("Failed to get UserCredentials elements: %v", d)
+				var userCreds OpenstackUserCredentialsModel
+				if d := os.UserCredentials.As(ctx, &userCreds, basetypes.ObjectAsOptions{}); d.HasError() {
+					t.Fatalf("Failed to get UserCredentials object: %v", d)
 				}
-				if len(userCreds) == 0 {
-					t.Fatal("Expected UserCredentials list to have elements")
+				if tc.expectedUsername != "" && userCreds.Username.ValueString() != tc.expectedUsername {
+					t.Errorf("Username mismatch: got %v, want %v", userCreds.Username.ValueString(), tc.expectedUsername)
 				}
-				if tc.expectedUsername != "" && userCreds[0].Username.ValueString() != tc.expectedUsername {
-					t.Errorf("Username mismatch: got %v, want %v", userCreds[0].Username.ValueString(), tc.expectedUsername)
+				if tc.expectedPassword != "" && userCreds.Password.ValueString() != tc.expectedPassword {
+					t.Errorf("Password mismatch: got %v, want %v", userCreds.Password.ValueString(), tc.expectedPassword)
 				}
-				if tc.expectedPassword != "" && userCreds[0].Password.ValueString() != tc.expectedPassword {
-					t.Errorf("Password mismatch: got %v, want %v", userCreds[0].Password.ValueString(), tc.expectedPassword)
+				if tc.expectedProjectID != "" && userCreds.ProjectID.ValueString() != tc.expectedProjectID {
+					t.Errorf("ProjectID mismatch: got %v, want %v", userCreds.ProjectID.ValueString(), tc.expectedProjectID)
 				}
-				if tc.expectedProjectID != "" && userCreds[0].ProjectID.ValueString() != tc.expectedProjectID {
-					t.Errorf("ProjectID mismatch: got %v, want %v", userCreds[0].ProjectID.ValueString(), tc.expectedProjectID)
-				}
-				if tc.expectedProjectName != "" && userCreds[0].ProjectName.ValueString() != tc.expectedProjectName {
-					t.Errorf("ProjectName mismatch: got %v, want %v", userCreds[0].ProjectName.ValueString(), tc.expectedProjectName)
+				if tc.expectedProjectName != "" && userCreds.ProjectName.ValueString() != tc.expectedProjectName {
+					t.Errorf("ProjectName mismatch: got %v, want %v", userCreds.ProjectName.ValueString(), tc.expectedProjectName)
 				}
 			} else {
 				if !os.UserCredentials.IsNull() {
@@ -1218,18 +906,15 @@ func TestFlattenOpenstackSpecPreservesCredentials(t *testing.T) {
 				if os.ApplicationCredentials.IsNull() {
 					t.Fatal("Expected ApplicationCredentials to be set, got null")
 				}
-				var appCreds []OpenstackApplicationCredentialsModel
-				if d := os.ApplicationCredentials.ElementsAs(ctx, &appCreds, false); d.HasError() {
-					t.Fatalf("Failed to get ApplicationCredentials elements: %v", d)
+				var appCreds OpenstackApplicationCredentialsModel
+				if d := os.ApplicationCredentials.As(ctx, &appCreds, basetypes.ObjectAsOptions{}); d.HasError() {
+					t.Fatalf("Failed to get ApplicationCredentials object: %v", d)
 				}
-				if len(appCreds) == 0 {
-					t.Fatal("Expected ApplicationCredentials list to have elements")
+				if appCreds.ID.ValueString() != tc.expectedAppCredID {
+					t.Errorf("AppCred ID mismatch: got %v, want %v", appCreds.ID.ValueString(), tc.expectedAppCredID)
 				}
-				if appCreds[0].ID.ValueString() != tc.expectedAppCredID {
-					t.Errorf("AppCred ID mismatch: got %v, want %v", appCreds[0].ID.ValueString(), tc.expectedAppCredID)
-				}
-				if appCreds[0].Secret.ValueString() != tc.expectedAppCredSecret {
-					t.Errorf("AppCred Secret mismatch: got %v, want %v", appCreds[0].Secret.ValueString(), tc.expectedAppCredSecret)
+				if appCreds.Secret.ValueString() != tc.expectedAppCredSecret {
+					t.Errorf("AppCred Secret mismatch: got %v, want %v", appCreds.Secret.ValueString(), tc.expectedAppCredSecret)
 				}
 			} else {
 				if !os.ApplicationCredentials.IsNull() {
@@ -1251,37 +936,6 @@ func TestFlattenSpecIntoModelPreservesCloudCredentials(t *testing.T) {
 		verifyPreserved func(t *testing.T, model *ClusterModel)
 	}{
 		{
-			name: "AWS credentials preserved through full flatten",
-			setupModel: func() *ClusterModel {
-				return createModelWithAWSCredentials(ctx, t, "state-access-key", "state-secret-key", "state-vpc", "state-sg")
-			},
-			apiSpec: &models.ClusterSpec{
-				Version: "1.20.0",
-				Cloud: &models.CloudSpec{
-					DatacenterName: "dc1",
-					Aws: &models.AWSCloudSpec{
-						// API returns empty credentials
-						VPCID: "api-vpc",
-					},
-				},
-			},
-			verifyPreserved: func(t *testing.T, model *ClusterModel) {
-				var specs []ClusterSpecModel
-				model.Spec.ElementsAs(ctx, &specs, false)
-				var clouds []ClusterCloudSpecModel
-				specs[0].Cloud.ElementsAs(ctx, &clouds, false)
-				var awsSpecs []AWSCloudSpecModel
-				clouds[0].AWS.ElementsAs(ctx, &awsSpecs, false)
-
-				if awsSpecs[0].AccessKeyID.ValueString() != "state-access-key" {
-					t.Errorf("AccessKeyID not preserved: got %v, want state-access-key", awsSpecs[0].AccessKeyID.ValueString())
-				}
-				if awsSpecs[0].SecretAccessKey.ValueString() != "state-secret-key" {
-					t.Errorf("SecretAccessKey not preserved: got %v, want state-secret-key", awsSpecs[0].SecretAccessKey.ValueString())
-				}
-			},
-		},
-		{
 			name: "OpenStack credentials preserved through full flatten",
 			setupModel: func() *ClusterModel {
 				return createModelWithOpenstackUserCredentials(ctx, t, "state-user", "state-pass", "state-proj-id", "state-proj-name")
@@ -1297,23 +951,25 @@ func TestFlattenSpecIntoModelPreservesCloudCredentials(t *testing.T) {
 				},
 			},
 			verifyPreserved: func(t *testing.T, model *ClusterModel) {
-				var specs []ClusterSpecModel
-				model.Spec.ElementsAs(ctx, &specs, false)
-				var clouds []ClusterCloudSpecModel
-				specs[0].Cloud.ElementsAs(ctx, &clouds, false)
-				var osSpecs []OpenstackCloudSpecModel
-				clouds[0].Openstack.ElementsAs(ctx, &osSpecs, false)
+				spec, ok := getClusterSpecModel(ctx, model)
+				if !ok {
+					t.Fatal("expected spec object")
+				}
+				var cloud ClusterCloudSpecModel
+				spec.Cloud.As(ctx, &cloud, basetypes.ObjectAsOptions{})
+				var osSpec OpenstackCloudSpecModel
+				cloud.Openstack.As(ctx, &osSpec, basetypes.ObjectAsOptions{})
 
-				if osSpecs[0].UserCredentials.IsNull() {
+				if osSpec.UserCredentials.IsNull() {
 					t.Fatal("UserCredentials should not be null")
 				}
-				var userCreds []OpenstackUserCredentialsModel
-				osSpecs[0].UserCredentials.ElementsAs(ctx, &userCreds, false)
-				if userCreds[0].Username.ValueString() != "state-user" {
-					t.Errorf("Username not preserved: got %v, want state-user", userCreds[0].Username.ValueString())
+				var userCreds OpenstackUserCredentialsModel
+				osSpec.UserCredentials.As(ctx, &userCreds, basetypes.ObjectAsOptions{})
+				if userCreds.Username.ValueString() != "state-user" {
+					t.Errorf("Username not preserved: got %v, want state-user", userCreds.Username.ValueString())
 				}
-				if userCreds[0].Password.ValueString() != "state-pass" {
-					t.Errorf("Password not preserved: got %v, want state-pass", userCreds[0].Password.ValueString())
+				if userCreds.Password.ValueString() != "state-pass" {
+					t.Errorf("Password not preserved: got %v, want state-pass", userCreds.Password.ValueString())
 				}
 			},
 		},
@@ -1350,8 +1006,8 @@ func TestFlattenSpecIntoModelPopulatesCNIPluginFromAPI(t *testing.T) {
 					Version:       types.StringValue("1.20.0"),
 					CNIPlugin:     createCNIPluginObject(ctx, t, "canal"),
 					Cloud:         createOpenstackCloudList(ctx, t),
-					UpdateWindow:  types.ListNull(types.ObjectType{AttrTypes: updateWindowAttrTypes()}),
-					SyselevenAuth: types.ListNull(types.ObjectType{AttrTypes: syselevenAuthAttrTypes()}),
+					UpdateWindow:  types.ObjectNull(updateWindowAttrTypes()),
+					SyselevenAuth: types.ObjectNull(syselevenAuthAttrTypes()),
 				}
 				return createTestClusterModel(ctx, t, specModel)
 			},
@@ -1374,8 +1030,8 @@ func TestFlattenSpecIntoModelPopulatesCNIPluginFromAPI(t *testing.T) {
 					Version:       types.StringValue("1.20.0"),
 					CNIPlugin:     createCNIPluginObject(ctx, t, "canal"),
 					Cloud:         createOpenstackCloudList(ctx, t),
-					UpdateWindow:  types.ListNull(types.ObjectType{AttrTypes: updateWindowAttrTypes()}),
-					SyselevenAuth: types.ListNull(types.ObjectType{AttrTypes: syselevenAuthAttrTypes()}),
+					UpdateWindow:  types.ObjectNull(updateWindowAttrTypes()),
+					SyselevenAuth: types.ObjectNull(syselevenAuthAttrTypes()),
 				}
 				return createTestClusterModel(ctx, t, specModel)
 			},
@@ -1398,8 +1054,8 @@ func TestFlattenSpecIntoModelPopulatesCNIPluginFromAPI(t *testing.T) {
 					Version:       types.StringValue("1.20.0"),
 					CNIPlugin:     createCNIPluginObject(ctx, t, "cilium"),
 					Cloud:         createOpenstackCloudList(ctx, t),
-					UpdateWindow:  types.ListNull(types.ObjectType{AttrTypes: updateWindowAttrTypes()}),
-					SyselevenAuth: types.ListNull(types.ObjectType{AttrTypes: syselevenAuthAttrTypes()}),
+					UpdateWindow:  types.ObjectNull(updateWindowAttrTypes()),
+					SyselevenAuth: types.ObjectNull(syselevenAuthAttrTypes()),
 				}
 				return createTestClusterModel(ctx, t, specModel)
 			},
@@ -1420,8 +1076,8 @@ func TestFlattenSpecIntoModelPopulatesCNIPluginFromAPI(t *testing.T) {
 					Version:       types.StringValue("1.20.0"),
 					CNIPlugin:     createCNIPluginObject(ctx, t, "cilium"),
 					Cloud:         createOpenstackCloudList(ctx, t),
-					UpdateWindow:  types.ListNull(types.ObjectType{AttrTypes: updateWindowAttrTypes()}),
-					SyselevenAuth: types.ListNull(types.ObjectType{AttrTypes: syselevenAuthAttrTypes()}),
+					UpdateWindow:  types.ObjectNull(updateWindowAttrTypes()),
+					SyselevenAuth: types.ObjectNull(syselevenAuthAttrTypes()),
 				}
 				return createTestClusterModel(ctx, t, specModel)
 			},
@@ -1447,26 +1103,23 @@ func TestFlattenSpecIntoModelPopulatesCNIPluginFromAPI(t *testing.T) {
 				t.Fatalf("Unexpected error: %v", diags)
 			}
 
-			var specs []ClusterSpecModel
-			if d := model.Spec.ElementsAs(ctx, &specs, false); d.HasError() {
-				t.Fatalf("Failed to get spec elements: %v", d)
-			}
-			if len(specs) == 0 {
-				t.Fatal("Expected spec list to have elements")
+			spec, ok := getClusterSpecModel(ctx, model)
+			if !ok {
+				t.Fatal("Expected spec object to be set")
 			}
 
 			if tc.expectNull {
-				if !specs[0].CNIPlugin.IsNull() {
+				if !spec.CNIPlugin.IsNull() {
 					t.Fatal("Expected CNI plugin to be null")
 				}
 				return
 			}
 
-			if specs[0].CNIPlugin.IsNull() {
+			if spec.CNIPlugin.IsNull() {
 				t.Fatal("Expected CNI plugin to be set, got null")
 			}
 			var plugin CNIPluginModel
-			if d := specs[0].CNIPlugin.As(ctx, &plugin, basetypes.ObjectAsOptions{}); d.HasError() {
+			if d := spec.CNIPlugin.As(ctx, &plugin, basetypes.ObjectAsOptions{}); d.HasError() {
 				t.Fatalf("Failed to get CNI plugin: %v", d)
 			}
 			if plugin.Type.ValueString() != tc.expectedCNI {
@@ -1484,24 +1137,19 @@ func createTestClusterModel(ctx context.Context, t *testing.T, specModel Cluster
 	if err != nil {
 		t.Fatalf("Failed to create spec object: %v", err)
 	}
-	specList, err := types.ListValue(types.ObjectType{AttrTypes: clusterSpecAttrTypes()}, []attr.Value{specObjVal})
-	if err != nil {
-		t.Fatalf("Failed to create spec list: %v", err)
-	}
 	return &ClusterModel{
-		Spec: specList,
+		Spec: specObjVal,
 	}
 }
 
-func createUpdateWindowList(ctx context.Context, t *testing.T, start, length string) types.List {
+func createUpdateWindowList(ctx context.Context, t *testing.T, start, length string) types.Object {
 	t.Helper()
 	uwModel := UpdateWindowModel{
 		Start:  types.StringValue(start),
 		Length: types.StringValue(length),
 	}
 	objVal, _ := types.ObjectValueFrom(ctx, updateWindowAttrTypes(), uwModel)
-	listVal, _ := types.ListValue(types.ObjectType{AttrTypes: updateWindowAttrTypes()}, []attr.Value{objVal})
-	return listVal
+	return objVal
 }
 
 func createCNIPluginObject(ctx context.Context, t *testing.T, pluginType string) types.Object {
@@ -1514,18 +1162,17 @@ func createCNIPluginObject(ctx context.Context, t *testing.T, pluginType string)
 	return objVal
 }
 
-func createSyselevenAuthList(ctx context.Context, t *testing.T, realm string) types.List {
+func createSyselevenAuthList(ctx context.Context, t *testing.T, realm string) types.Object {
 	t.Helper()
 	authModel := SyselevenAuthModel{
 		Realm:             types.StringValue(realm),
-		IAMAuthentication: types.BoolNull(),
+		IAMAuthentication: types.BoolValue(false),
 	}
 	objVal, _ := types.ObjectValueFrom(ctx, syselevenAuthAttrTypes(), authModel)
-	listVal, _ := types.ListValue(types.ObjectType{AttrTypes: syselevenAuthAttrTypes()}, []attr.Value{objVal})
-	return listVal
+	return objVal
 }
 
-func createOpenstackCloudList(ctx context.Context, t *testing.T) types.List {
+func createOpenstackCloudList(ctx context.Context, t *testing.T) types.Object {
 	t.Helper()
 	osModel := OpenstackCloudSpecModel{
 		FloatingIPPool:         types.StringNull(),
@@ -1534,84 +1181,16 @@ func createOpenstackCloudList(ctx context.Context, t *testing.T) types.List {
 		SubnetID:               types.StringNull(),
 		SubnetCIDR:             types.StringNull(),
 		ServerGroupID:          types.StringNull(),
-		UserCredentials:        types.ListNull(types.ObjectType{AttrTypes: openstackUserCredentialsAttrTypes()}),
-		ApplicationCredentials: types.ListNull(types.ObjectType{AttrTypes: openstackApplicationCredentialsAttrTypes()}),
+		UserCredentials:        types.ObjectNull(openstackUserCredentialsAttrTypes()),
+		ApplicationCredentials: types.ObjectNull(openstackApplicationCredentialsAttrTypes()),
 	}
 	osObjVal, _ := types.ObjectValueFrom(ctx, openstackCloudSpecAttrTypes(), osModel)
-	osListVal, _ := types.ListValue(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}, []attr.Value{osObjVal})
 
 	cloudModel := ClusterCloudSpecModel{
-		AWS:       types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}),
-		Openstack: osListVal,
+		Openstack: osObjVal,
 	}
 	cloudObjVal, _ := types.ObjectValueFrom(ctx, clusterCloudSpecAttrTypes(), cloudModel)
-	cloudListVal, _ := types.ListValue(types.ObjectType{AttrTypes: clusterCloudSpecAttrTypes()}, []attr.Value{cloudObjVal})
-	return cloudListVal
-}
-
-func createAWSCloudList(ctx context.Context, t *testing.T) types.List {
-	t.Helper()
-	awsModel := AWSCloudSpecModel{
-		AccessKeyID:            types.StringNull(),
-		SecretAccessKey:        types.StringNull(),
-		VPCID:                  types.StringNull(),
-		SecurityGroupID:        types.StringNull(),
-		RouteTableID:           types.StringNull(),
-		InstanceProfileName:    types.StringNull(),
-		RoleARN:                types.StringNull(),
-		OpenstackBillingTenant: types.StringNull(),
-	}
-	awsObjVal, _ := types.ObjectValueFrom(ctx, awsCloudSpecAttrTypes(), awsModel)
-	awsListVal, _ := types.ListValue(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}, []attr.Value{awsObjVal})
-
-	cloudModel := ClusterCloudSpecModel{
-		AWS:       awsListVal,
-		Openstack: types.ListNull(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}),
-	}
-	cloudObjVal, _ := types.ObjectValueFrom(ctx, clusterCloudSpecAttrTypes(), cloudModel)
-	cloudListVal, _ := types.ListValue(types.ObjectType{AttrTypes: clusterCloudSpecAttrTypes()}, []attr.Value{cloudObjVal})
-	return cloudListVal
-}
-
-// Helper functions for creating models with credentials for preserved values tests
-
-func createModelWithAWSCredentials(ctx context.Context, t *testing.T, accessKeyID, secretKey, vpcID, securityGroupID string) *ClusterModel {
-	t.Helper()
-	awsModel := AWSCloudSpecModel{
-		AccessKeyID:            types.StringValue(accessKeyID),
-		SecretAccessKey:        types.StringValue(secretKey),
-		VPCID:                  types.StringValue(vpcID),
-		SecurityGroupID:        types.StringValue(securityGroupID),
-		RouteTableID:           types.StringNull(),
-		InstanceProfileName:    types.StringNull(),
-		RoleARN:                types.StringNull(),
-		OpenstackBillingTenant: types.StringNull(),
-	}
-	awsObjVal, _ := types.ObjectValueFrom(ctx, awsCloudSpecAttrTypes(), awsModel)
-	awsListVal, _ := types.ListValue(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}, []attr.Value{awsObjVal})
-
-	cloudModel := ClusterCloudSpecModel{
-		AWS:       awsListVal,
-		Openstack: types.ListNull(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}),
-	}
-	cloudObjVal, _ := types.ObjectValueFrom(ctx, clusterCloudSpecAttrTypes(), cloudModel)
-	cloudListVal, _ := types.ListValue(types.ObjectType{AttrTypes: clusterCloudSpecAttrTypes()}, []attr.Value{cloudObjVal})
-
-	specModel := ClusterSpecModel{
-		Version:           types.StringValue("1.20.0"),
-		EnableSSHAgent:    types.BoolNull(),
-		AuditLogging:      types.BoolNull(),
-		PodSecurityPolicy: types.BoolNull(),
-		PodNodeSelector:   types.BoolNull(),
-		ServicesCIDR:      types.StringNull(),
-		PodsCIDR:          types.StringNull(),
-		IPFamily:          types.StringNull(),
-		UpdateWindow:      types.ListNull(types.ObjectType{AttrTypes: updateWindowAttrTypes()}),
-		CNIPlugin:         createCNIPluginObject(ctx, t, "canal"),
-		Cloud:             cloudListVal,
-		SyselevenAuth:     types.ListNull(types.ObjectType{AttrTypes: syselevenAuthAttrTypes()}),
-	}
-	return createTestClusterModel(ctx, t, specModel)
+	return cloudObjVal
 }
 
 func createModelWithOpenstackUserCredentials(ctx context.Context, t *testing.T, username, password, projectID, projectName string) *ClusterModel {
@@ -1623,7 +1202,6 @@ func createModelWithOpenstackUserCredentials(ctx context.Context, t *testing.T, 
 		ProjectName: types.StringValue(projectName),
 	}
 	userCredsObjVal, _ := types.ObjectValueFrom(ctx, openstackUserCredentialsAttrTypes(), userCredsModel)
-	userCredsList, _ := types.ListValue(types.ObjectType{AttrTypes: openstackUserCredentialsAttrTypes()}, []attr.Value{userCredsObjVal})
 
 	osModel := OpenstackCloudSpecModel{
 		FloatingIPPool:         types.StringNull(),
@@ -1632,18 +1210,15 @@ func createModelWithOpenstackUserCredentials(ctx context.Context, t *testing.T, 
 		SubnetID:               types.StringNull(),
 		SubnetCIDR:             types.StringNull(),
 		ServerGroupID:          types.StringNull(),
-		UserCredentials:        userCredsList,
-		ApplicationCredentials: types.ListNull(types.ObjectType{AttrTypes: openstackApplicationCredentialsAttrTypes()}),
+		UserCredentials:        userCredsObjVal,
+		ApplicationCredentials: types.ObjectNull(openstackApplicationCredentialsAttrTypes()),
 	}
 	osObjVal, _ := types.ObjectValueFrom(ctx, openstackCloudSpecAttrTypes(), osModel)
-	osListVal, _ := types.ListValue(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}, []attr.Value{osObjVal})
 
 	cloudModel := ClusterCloudSpecModel{
-		AWS:       types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}),
-		Openstack: osListVal,
+		Openstack: osObjVal,
 	}
 	cloudObjVal, _ := types.ObjectValueFrom(ctx, clusterCloudSpecAttrTypes(), cloudModel)
-	cloudListVal, _ := types.ListValue(types.ObjectType{AttrTypes: clusterCloudSpecAttrTypes()}, []attr.Value{cloudObjVal})
 
 	specModel := ClusterSpecModel{
 		Version:           types.StringValue("1.20.0"),
@@ -1654,10 +1229,10 @@ func createModelWithOpenstackUserCredentials(ctx context.Context, t *testing.T, 
 		ServicesCIDR:      types.StringNull(),
 		PodsCIDR:          types.StringNull(),
 		IPFamily:          types.StringNull(),
-		UpdateWindow:      types.ListNull(types.ObjectType{AttrTypes: updateWindowAttrTypes()}),
+		UpdateWindow:      types.ObjectNull(updateWindowAttrTypes()),
 		CNIPlugin:         createCNIPluginObject(ctx, t, "canal"),
-		Cloud:             cloudListVal,
-		SyselevenAuth:     types.ListNull(types.ObjectType{AttrTypes: syselevenAuthAttrTypes()}),
+		Cloud:             cloudObjVal,
+		SyselevenAuth:     types.ObjectNull(syselevenAuthAttrTypes()),
 	}
 	return createTestClusterModel(ctx, t, specModel)
 }
@@ -1669,7 +1244,6 @@ func createModelWithOpenstackAppCredentials(ctx context.Context, t *testing.T, a
 		Secret: types.StringValue(appCredSecret),
 	}
 	appCredsObjVal, _ := types.ObjectValueFrom(ctx, openstackApplicationCredentialsAttrTypes(), appCredsModel)
-	appCredsList, _ := types.ListValue(types.ObjectType{AttrTypes: openstackApplicationCredentialsAttrTypes()}, []attr.Value{appCredsObjVal})
 
 	osModel := OpenstackCloudSpecModel{
 		FloatingIPPool:         types.StringNull(),
@@ -1678,18 +1252,15 @@ func createModelWithOpenstackAppCredentials(ctx context.Context, t *testing.T, a
 		SubnetID:               types.StringNull(),
 		SubnetCIDR:             types.StringNull(),
 		ServerGroupID:          types.StringNull(),
-		UserCredentials:        types.ListNull(types.ObjectType{AttrTypes: openstackUserCredentialsAttrTypes()}),
-		ApplicationCredentials: appCredsList,
+		UserCredentials:        types.ObjectNull(openstackUserCredentialsAttrTypes()),
+		ApplicationCredentials: appCredsObjVal,
 	}
 	osObjVal, _ := types.ObjectValueFrom(ctx, openstackCloudSpecAttrTypes(), osModel)
-	osListVal, _ := types.ListValue(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}, []attr.Value{osObjVal})
 
 	cloudModel := ClusterCloudSpecModel{
-		AWS:       types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}),
-		Openstack: osListVal,
+		Openstack: osObjVal,
 	}
 	cloudObjVal, _ := types.ObjectValueFrom(ctx, clusterCloudSpecAttrTypes(), cloudModel)
-	cloudListVal, _ := types.ListValue(types.ObjectType{AttrTypes: clusterCloudSpecAttrTypes()}, []attr.Value{cloudObjVal})
 
 	specModel := ClusterSpecModel{
 		Version:           types.StringValue("1.20.0"),
@@ -1700,15 +1271,15 @@ func createModelWithOpenstackAppCredentials(ctx context.Context, t *testing.T, a
 		ServicesCIDR:      types.StringNull(),
 		PodsCIDR:          types.StringNull(),
 		IPFamily:          types.StringNull(),
-		UpdateWindow:      types.ListNull(types.ObjectType{AttrTypes: updateWindowAttrTypes()}),
+		UpdateWindow:      types.ObjectNull(updateWindowAttrTypes()),
 		CNIPlugin:         createCNIPluginObject(ctx, t, "canal"),
-		Cloud:             cloudListVal,
-		SyselevenAuth:     types.ListNull(types.ObjectType{AttrTypes: syselevenAuthAttrTypes()}),
+		Cloud:             cloudObjVal,
+		SyselevenAuth:     types.ObjectNull(syselevenAuthAttrTypes()),
 	}
 	return createTestClusterModel(ctx, t, specModel)
 }
 
-func TestUpgradeClusterLegacyCNIPluginState_ListToObject(t *testing.T) {
+func TestUpgradeClusterLegacyNestedSpecState_ListToObject(t *testing.T) {
 	rawState := map[string]any{
 		"spec": []any{
 			map[string]any{
@@ -1722,16 +1293,11 @@ func TestUpgradeClusterLegacyCNIPluginState_ListToObject(t *testing.T) {
 		},
 	}
 
-	upgradeClusterLegacyCNIPluginState(rawState)
+	upgradeClusterLegacyNestedSpecState(rawState)
 
-	specList, ok := rawState["spec"].([]any)
-	if !ok || len(specList) != 1 {
-		t.Fatalf("unexpected spec value after upgrade: %#v", rawState["spec"])
-	}
-
-	specMap, ok := specList[0].(map[string]any)
+	specMap, ok := rawState["spec"].(map[string]any)
 	if !ok {
-		t.Fatalf("unexpected spec element type after upgrade: %#v", specList[0])
+		t.Fatalf("unexpected spec value after upgrade: %#v", rawState["spec"])
 	}
 
 	cniPlugin, ok := specMap["cni_plugin"].(map[string]any)
@@ -1744,7 +1310,7 @@ func TestUpgradeClusterLegacyCNIPluginState_ListToObject(t *testing.T) {
 	}
 }
 
-func TestUpgradeClusterLegacyCNIPluginState_EmptyListToNull(t *testing.T) {
+func TestUpgradeClusterLegacyNestedSpecState_EmptyListToNull(t *testing.T) {
 	rawState := map[string]any{
 		"spec": []any{
 			map[string]any{
@@ -1753,15 +1319,15 @@ func TestUpgradeClusterLegacyCNIPluginState_EmptyListToNull(t *testing.T) {
 		},
 	}
 
-	upgradeClusterLegacyCNIPluginState(rawState)
+	upgradeClusterLegacyNestedSpecState(rawState)
 
-	specMap := rawState["spec"].([]any)[0].(map[string]any)
+	specMap := rawState["spec"].(map[string]any)
 	if val, ok := specMap["cni_plugin"]; !ok || val != nil {
 		t.Fatalf("expected cni_plugin to be null after upgrade, got: %#v", specMap["cni_plugin"])
 	}
 }
 
-func TestUpgradeClusterLegacyCNIPluginState_RemovesLegacyAzureCloud(t *testing.T) {
+func TestUpgradeClusterLegacyNestedSpecState_RemovesLegacyAzureCloud(t *testing.T) {
 	rawState := map[string]any{
 		"spec": []any{
 			map[string]any{
@@ -1779,12 +1345,245 @@ func TestUpgradeClusterLegacyCNIPluginState_RemovesLegacyAzureCloud(t *testing.T
 		},
 	}
 
-	upgradeClusterLegacyCNIPluginState(rawState)
+	upgradeClusterLegacyNestedSpecState(rawState)
 
-	specMap := rawState["spec"].([]any)[0].(map[string]any)
-	cloudMap := specMap["cloud"].([]any)[0].(map[string]any)
+	specMap := rawState["spec"].(map[string]any)
+	cloudMap := specMap["cloud"].(map[string]any)
 
 	if _, ok := cloudMap["azure"]; ok {
 		t.Fatalf("expected legacy cloud.azure to be removed, got: %#v", cloudMap["azure"])
 	}
+}
+
+func TestUpgradeClusterLegacyNestedSpecState_FromV5SDKClusterState(t *testing.T) {
+	rawState := map[string]any{
+		"spec": []any{
+			map[string]any{
+				"version": "1.31.4",
+				"update_window": []any{
+					map[string]any{
+						"start":  "Tue 02:00",
+						"length": "2h",
+					},
+				},
+				"cni_plugin": []any{
+					map[string]any{
+						"type": "canal",
+					},
+				},
+				"syseleven_auth": []any{
+					map[string]any{
+						"realm": "syseleven",
+					},
+				},
+				"cloud": []any{
+					map[string]any{
+						"openstack": []any{
+							map[string]any{
+								"floating_ip_pool": "ext-net",
+								"application_credentials": []any{
+									map[string]any{
+										"id":     "s11auth:project-id",
+										"secret": "secret-value",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	upgradeClusterLegacyNestedSpecState(rawState)
+
+	specMap := rawState["spec"].(map[string]any)
+
+	if _, ok := specMap["update_window"].(map[string]any); !ok {
+		t.Fatalf("expected update_window object after upgrade, got: %#v", specMap["update_window"])
+	}
+
+	if _, ok := specMap["cni_plugin"].(map[string]any); !ok {
+		t.Fatalf("expected cni_plugin object after upgrade, got: %#v", specMap["cni_plugin"])
+	}
+
+	sys11Auth, ok := specMap["syseleven_auth"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected syseleven_auth object after upgrade, got: %#v", specMap["syseleven_auth"])
+	}
+	if got, want := sys11Auth["realm"], "syseleven"; got != want {
+		t.Fatalf("unexpected syseleven_auth.realm after upgrade: got %v, want %v", got, want)
+	}
+
+	cloudMap, ok := specMap["cloud"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected cloud object after upgrade, got: %#v", specMap["cloud"])
+	}
+
+	openstackMap, ok := cloudMap["openstack"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected openstack object after upgrade, got: %#v", cloudMap["openstack"])
+	}
+	if got, want := openstackMap["floating_ip_pool"], "ext-net"; got != want {
+		t.Fatalf("unexpected openstack.floating_ip_pool after upgrade: got %v, want %v", got, want)
+	}
+
+	appCreds, ok := openstackMap["application_credentials"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected application_credentials object after upgrade, got: %#v", openstackMap["application_credentials"])
+	}
+	if got, want := appCreds["id"], "s11auth:project-id"; got != want {
+		t.Fatalf("unexpected application_credentials.id after upgrade: got %v, want %v", got, want)
+	}
+	if got, want := appCreds["secret"], "secret-value"; got != want {
+		t.Fatalf("unexpected application_credentials.secret after upgrade: got %v, want %v", got, want)
+	}
+}
+
+func TestClusterSpecPatchBody(t *testing.T) {
+	t.Run("nil spec returns nil map", func(t *testing.T) {
+		got, err := clusterSpecPatchBody(nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got != nil {
+			t.Fatalf("expected nil map, got: %#v", got)
+		}
+	})
+
+	t.Run("false booleans are forced into the body", func(t *testing.T) {
+		spec := &models.ClusterSpec{
+			UsePodNodeSelectorAdmissionPlugin:   false,
+			UsePodSecurityPolicyAdmissionPlugin: false,
+			AuditLogging:                        &models.AuditLoggingSettings{Enabled: false},
+			CniPlugin: &models.CNIPluginSettings{
+				Type: models.CNIPluginType("cilium"),
+				Cilium: &models.CiliumCNISettings{
+					EnableHubble:  false,
+					EnableL7Proxy: false,
+				},
+			},
+		}
+
+		got, err := clusterSpecPatchBody(spec)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if got["usePodNodeSelectorAdmissionPlugin"] != false {
+			t.Errorf("expected usePodNodeSelectorAdmissionPlugin=false, got: %#v", got["usePodNodeSelectorAdmissionPlugin"])
+		}
+		if got["usePodSecurityPolicyAdmissionPlugin"] != false {
+			t.Errorf("expected usePodSecurityPolicyAdmissionPlugin=false, got: %#v", got["usePodSecurityPolicyAdmissionPlugin"])
+		}
+
+		auditLogging, ok := got["auditLogging"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected auditLogging map, got: %#v", got["auditLogging"])
+		}
+		if auditLogging["enabled"] != false {
+			t.Errorf("expected auditLogging.enabled=false, got: %#v", auditLogging["enabled"])
+		}
+
+		cni, ok := got["cniPlugin"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected cniPlugin map, got: %#v", got["cniPlugin"])
+		}
+		cilium, ok := cni["cilium"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected cniPlugin.cilium map, got: %#v", cni["cilium"])
+		}
+		if cilium["enableHubble"] != false {
+			t.Errorf("expected cniPlugin.cilium.enableHubble=false, got: %#v", cilium["enableHubble"])
+		}
+		if cilium["enableL7Proxy"] != false {
+			t.Errorf("expected cniPlugin.cilium.enableL7Proxy=false, got: %#v", cilium["enableL7Proxy"])
+		}
+	})
+
+	t.Run("true booleans are preserved", func(t *testing.T) {
+		spec := &models.ClusterSpec{
+			UsePodNodeSelectorAdmissionPlugin:   true,
+			UsePodSecurityPolicyAdmissionPlugin: true,
+			AuditLogging:                        &models.AuditLoggingSettings{Enabled: true},
+			CniPlugin: &models.CNIPluginSettings{
+				Type: models.CNIPluginType("cilium"),
+				Cilium: &models.CiliumCNISettings{
+					EnableHubble:  true,
+					EnableL7Proxy: true,
+				},
+			},
+		}
+
+		got, err := clusterSpecPatchBody(spec)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if got["usePodNodeSelectorAdmissionPlugin"] != true {
+			t.Errorf("expected usePodNodeSelectorAdmissionPlugin=true, got: %#v", got["usePodNodeSelectorAdmissionPlugin"])
+		}
+		if got["usePodSecurityPolicyAdmissionPlugin"] != true {
+			t.Errorf("expected usePodSecurityPolicyAdmissionPlugin=true, got: %#v", got["usePodSecurityPolicyAdmissionPlugin"])
+		}
+
+		auditLogging := got["auditLogging"].(map[string]interface{})
+		if auditLogging["enabled"] != true {
+			t.Errorf("expected auditLogging.enabled=true, got: %#v", auditLogging["enabled"])
+		}
+
+		cilium := got["cniPlugin"].(map[string]interface{})["cilium"].(map[string]interface{})
+		if cilium["enableHubble"] != true {
+			t.Errorf("expected cniPlugin.cilium.enableHubble=true, got: %#v", cilium["enableHubble"])
+		}
+		if cilium["enableL7Proxy"] != true {
+			t.Errorf("expected cniPlugin.cilium.enableL7Proxy=true, got: %#v", cilium["enableL7Proxy"])
+		}
+	})
+
+	t.Run("absent auditLogging and cniPlugin are not fabricated", func(t *testing.T) {
+		spec := &models.ClusterSpec{
+			UsePodNodeSelectorAdmissionPlugin:   false,
+			UsePodSecurityPolicyAdmissionPlugin: true,
+		}
+
+		got, err := clusterSpecPatchBody(spec)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if _, ok := got["auditLogging"]; ok {
+			t.Errorf("expected auditLogging to be absent, got: %#v", got["auditLogging"])
+		}
+		if _, ok := got["cniPlugin"]; ok {
+			t.Errorf("expected cniPlugin to be absent, got: %#v", got["cniPlugin"])
+		}
+		if got["usePodNodeSelectorAdmissionPlugin"] != false {
+			t.Errorf("expected usePodNodeSelectorAdmissionPlugin=false, got: %#v", got["usePodNodeSelectorAdmissionPlugin"])
+		}
+		if got["usePodSecurityPolicyAdmissionPlugin"] != true {
+			t.Errorf("expected usePodSecurityPolicyAdmissionPlugin=true, got: %#v", got["usePodSecurityPolicyAdmissionPlugin"])
+		}
+	})
+
+	t.Run("cniPlugin without cilium is left untouched", func(t *testing.T) {
+		spec := &models.ClusterSpec{
+			CniPlugin: &models.CNIPluginSettings{
+				Type: models.CNIPluginType("canal"),
+			},
+		}
+
+		got, err := clusterSpecPatchBody(spec)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		cni, ok := got["cniPlugin"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected cniPlugin map, got: %#v", got["cniPlugin"])
+		}
+		if _, ok := cni["cilium"]; ok {
+			t.Errorf("expected cniPlugin.cilium to remain absent, got: %#v", cni["cilium"])
+		}
+	})
 }

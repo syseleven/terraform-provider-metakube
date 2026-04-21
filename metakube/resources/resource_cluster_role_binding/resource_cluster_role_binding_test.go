@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/syseleven/terraform-provider-metakube/metakube/common"
 	"github.com/syseleven/terraform-provider-metakube/metakube/common/testutil"
@@ -19,6 +20,7 @@ func TestMain(m *testing.M) {
 
 func TestAccMetakubeClusterRoleBinding(t *testing.T) {
 	t.Parallel()
+	clusterResourceName := "metakube_cluster.acctest"
 	resourceName := "metakube_cluster_role_binding.acctest"
 	params := &testAccCheckMetaKubeClusterRoleBindingBasicParams{
 		ClusterName:                          testutil.MakeRandomName() + "-cluster-role-binding",
@@ -46,6 +48,18 @@ func TestAccMetakubeClusterRoleBinding(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testAccCheckMetaKubeClusterRoleBindingBasicConfig(t, params),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(clusterResourceName, plancheck.ResourceActionCreate),
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionCreate),
+					},
+					PostApplyPreRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "cluster_role_name", params.ClusterRoleName),
 					resource.TestCheckResourceAttr(resourceName, "subject.#", "2"),
@@ -104,11 +118,11 @@ resource "metakube_cluster" "acctest" {
 	dc_name = "{{ .DatacenterName }}"
 	project_id = "{{ .ProjectID }}"
 
-	spec {
+	spec = {
 		version = "{{ .Version }}"
-		cloud {
-			openstack {
-				application_credentials {
+		cloud = {
+			openstack = {
+				application_credentials = {
 					id = "{{ .OpenstackApplicationCredentialID }}"
 					secret ="{{ .OpenstackApplicationCredentialSecret }}"
 				}

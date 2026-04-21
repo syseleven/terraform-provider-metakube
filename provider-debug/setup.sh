@@ -6,5 +6,7 @@ provider_installation {
     "syseleven/metakube" = "$(realpath $(dirname $0))"
   }
 }
+
+direct {}
 EOS
 
