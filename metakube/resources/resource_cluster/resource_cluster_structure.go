@@ -553,33 +553,38 @@ func expandCniPlugin(ctx context.Context, obj types.Object) *models.CNIPluginSet
 	}
 
 	var cniPlugin = models.CNIPluginSettings{
-		Type:   models.CNIPluginType(v),
-		Cilium: &models.CiliumCNISettings{},
+		Type: models.CNIPluginType(v),
 	}
 
-	if !plugin.Cilium.IsNull() {
-		var cilium CiliumModel
-		if diags := plugin.Cilium.As(ctx, &cilium, basetypes.ObjectAsOptions{}); !diags.HasError() {
-			if !cilium.EnableHubble.IsNull() && !cilium.EnableHubble.IsUnknown() {
-				cniPlugin.Cilium.EnableHubble = cilium.EnableHubble.ValueBool()
-			}
-			if !cilium.EnableL7Proxy.IsNull() && !cilium.EnableL7Proxy.IsUnknown() {
-				cniPlugin.Cilium.EnableL7Proxy = cilium.EnableL7Proxy.ValueBool()
-			}
-			var clustermesh CiliumClustermeshModel
-			if diags := cilium.Clustermesh.As(ctx, &clustermesh, basetypes.ObjectAsOptions{}); !diags.HasError() {
-				cniPlugin.Cilium.Clustermesh = &models.CiliumClustermesh{
-					Enable:                ptr.To(clustermesh.Enable.ValueBool()),
-					ClusterID:             int64(clustermesh.ClusterID.ValueInt32()),
-					IPV4NativeRoutingCIDR: clustermesh.IPv4NativeRoutingCIDR.ValueString(),
+	if v == "cilium" {
+		cniPlugin.Cilium = &models.CiliumCNISettings{}
+		if !plugin.Cilium.IsNull() && !plugin.Cilium.IsUnknown() {
+			var cilium CiliumModel
+			if diags := plugin.Cilium.As(ctx, &cilium, basetypes.ObjectAsOptions{}); !diags.HasError() {
+				if !cilium.EnableHubble.IsNull() && !cilium.EnableHubble.IsUnknown() {
+					cniPlugin.Cilium.EnableHubble = cilium.EnableHubble.ValueBool()
+				}
+				if !cilium.EnableL7Proxy.IsNull() && !cilium.EnableL7Proxy.IsUnknown() {
+					cniPlugin.Cilium.EnableL7Proxy = cilium.EnableL7Proxy.ValueBool()
+				}
+				if !cilium.Clustermesh.IsNull() && !cilium.Clustermesh.IsUnknown() {
+					var clustermesh CiliumClustermeshModel
+					if diags := cilium.Clustermesh.As(ctx, &clustermesh, basetypes.ObjectAsOptions{}); !diags.HasError() {
+						cniPlugin.Cilium.Clustermesh = &models.CiliumClustermesh{
+							Enable:                ptr.To(clustermesh.Enable.ValueBool()),
+							ClusterID:             int64(clustermesh.ClusterID.ValueInt32()),
+							IPV4NativeRoutingCIDR: clustermesh.IPv4NativeRoutingCIDR.ValueString(),
+						}
+					} else {
+						return nil
+					}
 				}
 			} else {
 				return nil
 			}
-		} else {
-			return nil
 		}
 	}
+
 	return &cniPlugin
 }
 
