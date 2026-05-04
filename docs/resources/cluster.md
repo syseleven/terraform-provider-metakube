@@ -124,11 +124,37 @@ When set, type must be configured. Currently, can be configured as `cilium`, `ca
 > ```hcl
 > cni_plugin = {
 >   type = "cilium"
+>   cilium = {
+>     enable_hubble = true
+>     enable_l7_proxy = true
+>     clustermesh = {
+>         enable = true
+>         cluster_id = 1
+>         ipv4_native_routing_cidr = "172.0.0.0/15"
+>     }
+>   }
 > }
 > ```
 
 #### Arguments
 * `type` - (Optional) Define the type of CNI plugin. Example: `canal`.
+* `cilium` - (Optional) Cilium features.
+
+### `cilium`
+
+#### Arguments
+
+* `enable_hubble` - (Optional) Enable Hubble Relay/UI.
+* `enable_l7_proxy` - (Optional) Enable L7 Proxy.
+* `clustermesh` - (Optional) Cilium Clustermesh.
+
+### `clustermesh`
+
+#### Arguments
+
+* `enable` - (Optional) Enable Cilium Clustermesh.
+* `cluster_id` - (Required if enabled) Unique Cilium cluster ID.
+* `ipv4_native_routing_cidr` - (Required if enabled) Cilium IPv4 Native Routing CIDR covering both cluster CIDRs.
 
 ### `ip_family`
 
