@@ -28,7 +28,7 @@ func TestMetakubeClusterFlattenSpec(t *testing.T) {
 					Openstack:      &models.OpenstackCloudSpec{},
 				},
 				Sys11auth: &models.Sys11AuthSettings{
-					Realm: "testrealm",
+					Realm: strToPtr("testrealm"),
 				},
 				ClusterNetwork: &models.ClusterNetworkingConfig{
 					Services: &models.NetworkRanges{
@@ -488,7 +488,7 @@ func TestExpandClusterSpec(t *testing.T) {
 					Type: models.CNIPluginType("canal"),
 				},
 				Sys11auth: &models.Sys11AuthSettings{
-					Realm: "testrealm",
+					Realm: strToPtr("testrealm"),
 				},
 			},
 			"eu-west-1",

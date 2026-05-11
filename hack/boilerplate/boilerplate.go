@@ -104,7 +104,7 @@ func main() {
 
 	failed, err := run(os.Stdout, rootDir)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, err.Error()+"\n")
+		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
 	if failed {
@@ -278,7 +278,7 @@ func fileExtension(filename string) string {
 		return ""
 	}
 
-	return base[i+1 : len(base)]
+	return base[i+1:]
 }
 
 // getBoilerplateForExtensions reads the boilerplate.*.txt files in the directory

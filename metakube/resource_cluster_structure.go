@@ -102,12 +102,12 @@ func flattenClusterCloudSpec(values clusterPreserveValues, in *models.CloudSpec)
 }
 
 func flattenClusterSys11Auth(in *models.Sys11AuthSettings) []interface{} {
-	if in == nil || in.Realm == "" {
+	if in == nil || in.Realm == nil || *in.Realm == "" {
 		return nil
 	}
 
 	return []interface{}{map[string]interface{}{
-		"realm": in.Realm,
+		"realm": *in.Realm,
 	}}
 }
 
@@ -482,7 +482,7 @@ func expandClusterSys11Auth(p []interface{}) *models.Sys11AuthSettings {
 	}
 	in := p[0].(map[string]interface{})
 	if v := in["realm"].(string); v != "" {
-		return &models.Sys11AuthSettings{Realm: v}
+		return &models.Sys11AuthSettings{Realm: strToPtr(v)}
 	}
 	return nil
 }
