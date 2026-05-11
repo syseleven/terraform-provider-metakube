@@ -3,19 +3,22 @@ package metakube
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/url"
 	"os"
 	"time"
 
 	"github.com/go-openapi/runtime"
+	httptransport "github.com/go-openapi/runtime/client"
 	"github.com/go-openapi/strfmt"
 	"github.com/hashicorp/go-cty/cty"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/mitchellh/go-homedir"
 	k8client "github.com/syseleven/go-metakube/client"
+	"github.com/syseleven/go-metakube/models"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -183,11 +186,42 @@ func newClient(host string) (*k8client.MetaKubeAPI, diag.Diagnostics) {
 		}}
 	}
 
-	return k8client.NewHTTPClientWithConfig(nil, &k8client.TransportConfig{
-		Host:     u.Host,
-		BasePath: u.Path,
-		Schemes:  []string{u.Scheme},
-	}), nil
+	transport := httptransport.New(u.Host, u.Path, []string{u.Scheme})
+	transport.Consumers[runtime.TextMime] = errorResponseTextConsumer{
+		fallback: runtime.TextConsumer(),
+	}
+
+	return k8client.New(transport, nil), nil
+}
+
+type errorResponseTextConsumer struct {
+	fallback runtime.Consumer
+}
+
+func (c errorResponseTextConsumer) Consume(r io.Reader, data interface{}) error {
+	errorResponse, ok := data.(*models.ErrorResponse)
+	if !ok {
+		return c.fallback.Consume(r, data)
+	}
+
+	rawData, err := io.ReadAll(r)
+	if err != nil {
+		return err
+	}
+	rawData = bytes.TrimSpace(rawData)
+	if len(rawData) == 0 {
+		return io.EOF
+	}
+
+	if err := json.Unmarshal(rawData, errorResponse); err == nil {
+		return nil
+	}
+
+	message := string(rawData)
+	errorResponse.Error = &models.ErrorDetails{
+		Message: &message,
+	}
+	return nil
 }
 
 func newAuth(token, tokenPath, terraformVersion string) (runtime.ClientAuthInfoWriter, diag.Diagnostics) {
@@ -200,7 +234,7 @@ func newAuth(token, tokenPath, terraformVersion string) (runtime.ClientAuthInfoW
 				AttributePath: cty.Path{cty.GetAttrStep{Name: "token_path"}},
 			}}
 		}
-		rawToken, err := ioutil.ReadFile(p)
+		rawToken, err := os.ReadFile(p)
 		if err != nil {
 			return nil, diag.Diagnostics{{
 				Severity:      diag.Error,
