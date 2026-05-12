@@ -191,6 +191,8 @@ func newClient(host string) (*k8client.MetaKubeAPI, diag.Diagnostics) {
 		fallback: runtime.TextConsumer(),
 	}
 
+	transport.Transport = &loggingTransport{next: transport.Transport}
+
 	return k8client.New(transport, nil), nil
 }
 
