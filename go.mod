@@ -15,6 +15,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/hashicorp/go-cty v1.4.1-0.20200723130312-85980079f637
 	github.com/hashicorp/go-version v1.9.0
+	github.com/hashicorp/terraform-plugin-log v0.9.0
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.30.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/syseleven/go-metakube v0.0.0-20260430112715-4ed4632f4b26
@@ -68,7 +69,6 @@ require (
 	github.com/hashicorp/terraform-exec v0.19.0 // indirect
 	github.com/hashicorp/terraform-json v0.18.0 // indirect
 	github.com/hashicorp/terraform-plugin-go v0.20.0 // indirect
-	github.com/hashicorp/terraform-plugin-log v0.9.0 // indirect
 	github.com/hashicorp/terraform-plugin-testing v1.6.0
 	github.com/hashicorp/terraform-registry-address v0.2.3 // indirect
 	github.com/hashicorp/terraform-svchost v0.1.1 // indirect

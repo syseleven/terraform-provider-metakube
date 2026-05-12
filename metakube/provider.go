@@ -187,6 +187,7 @@ func newClient(host string) (*k8client.MetaKubeAPI, diag.Diagnostics) {
 	}
 
 	transport := httptransport.New(u.Host, u.Path, []string{u.Scheme})
+	transport.Transport = &loggingTransport{next: transport.Transport}
 	transport.Consumers[runtime.TextMime] = errorResponseTextConsumer{
 		fallback: runtime.TextConsumer(),
 	}
