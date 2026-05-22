@@ -377,10 +377,45 @@ func metakubeResourceClusterOpenstackCloudSpecFields() map[string]schema.Attribu
 				stringplanmodifier.UseStateForUnknown(),
 			},
 		},
+		"subnet_v6_id": schema.StringAttribute{
+			Computed:    true,
+			Optional:    true,
+			Description: "When specified, all worker nodes will be attached to this IPv6 subnet of specified network.",
+			Validators: []validator.String{
+				stringvalidator.AlsoRequires(fwpath.MatchRoot("spec").AtName("cloud").AtName("openstack").AtName("network")),
+			},
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
+		},
 		"subnet_cidr": schema.StringAttribute{
 			Computed:    true,
 			Optional:    true,
 			Description: "Change this to configure a different internal IP range for Nodes. Default: 192.168.1.0/24",
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
+		},
+		"subnet_v6_cidr": schema.StringAttribute{
+			Computed:    true,
+			Optional:    true,
+			Description: "Change this to configure a different internal IPv6 range for Nodes.",
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
+		},
+		"create_pod_subnet_v6": schema.BoolAttribute{
+			Computed:    true,
+			Optional:    true,
+			Description: "Whether to create a public IPv6 subnet for pods when pod_subnet_v6_id is not set.",
+			PlanModifiers: []planmodifier.Bool{
+				boolplanmodifier.UseStateForUnknown(),
+			},
+		},
+		"pod_subnet_v6_id": schema.StringAttribute{
+			Computed:    true,
+			Optional:    true,
+			Description: "IPv6 subnet to use for pods. If not specified, pods use an internal CIDR unless create_pod_subnet_v6 is enabled.",
 			PlanModifiers: []planmodifier.String{
 				stringplanmodifier.UseStateForUnknown(),
 			},
@@ -599,6 +634,10 @@ type OpenstackCloudSpecModel struct {
 	Network                types.String `tfsdk:"network"`
 	SubnetID               types.String `tfsdk:"subnet_id"`
 	SubnetCIDR             types.String `tfsdk:"subnet_cidr"`
+	SubnetV6ID             types.String `tfsdk:"subnet_v6_id"`
+	SubnetV6CIDR           types.String `tfsdk:"subnet_v6_cidr"`
+	CreatePodSubnetV6      types.Bool   `tfsdk:"create_pod_subnet_v6"`
+	PodSubnetV6ID          types.String `tfsdk:"pod_subnet_v6_id"`
 	ServerGroupID          types.String `tfsdk:"server_group_id"`
 }
 
@@ -691,6 +730,10 @@ func openstackCloudSpecAttrTypes() map[string]attr.Type {
 		"network":                 types.StringType,
 		"subnet_id":               types.StringType,
 		"subnet_cidr":             types.StringType,
+		"subnet_v6_id":            types.StringType,
+		"subnet_v6_cidr":          types.StringType,
+		"create_pod_subnet_v6":    types.BoolType,
+		"pod_subnet_v6_id":        types.StringType,
 		"server_group_id":         types.StringType,
 	}
 }
