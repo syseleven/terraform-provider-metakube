@@ -28,6 +28,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 	var sgroupID string
 	clusterResourceName := "metakube_cluster.acctest_cluster"
 	distUpgradeOnBootPath := tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("operating_system").AtSliceIndex(0).AtMapKey("ubuntu").AtSliceIndex(0).AtMapKey("dist_upgrade_on_boot")
+	tagsPath := tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("cloud").AtSliceIndex(0).AtMapKey("openstack").AtSliceIndex(0).AtMapKey("tags")
 	resourceName := "metakube_node_deployment.acctest_nd"
 	serverGroupResourceName := "openstack_compute_servergroup_v2.acctest_sg"
 
@@ -45,6 +46,8 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 		NodeFlavor:                            os.Getenv(common.TestEnvOpenstackFlavor),
 		OSVersion:                             os.Getenv(common.TestEnvOpenstackImage),
 		UseFloatingIP:                         "false",
+		UserTagKey:                            "user-tag",
+		UserTagValue:                          "kept",
 	}
 
 	var config strings.Builder
@@ -58,9 +61,32 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 	data2.UseFloatingIP = "true"
 	data2.DiskSize = 8
 	data2.ServerGroupName = testutil.MakeRandomName() + "-os-servergroup"
+	data2.UserTagKey = data.UserTagKey
+	data2.UserTagValue = data.UserTagValue
 	if err := nodeDeploymentBasicTemplate.Execute(&config2, data2); err != nil {
 		t.Fatal(err)
 	}
+
+	var invalidTagConfig strings.Builder
+	invalidTagData := *data
+	invalidTagData.ReservedTagKey = "system-cluster"
+	invalidTagData.UserTagKey = ""
+	invalidTagData.UserTagValue = ""
+	invalidTagData.MinimalConfig = true
+	if err := nodeDeploymentBasicTemplate.Execute(&invalidTagConfig, &invalidTagData); err != nil {
+		t.Fatal(err)
+	}
+
+	var invalidLabelConfig strings.Builder
+	invalidLabelData := *data
+	invalidLabelData.ReservedLabelKey = "system/project"
+	invalidLabelData.UserTagKey = ""
+	invalidLabelData.UserTagValue = ""
+	invalidLabelData.MinimalConfig = true
+	if err := nodeDeploymentBasicTemplate.Execute(&invalidLabelConfig, &invalidLabelData); err != nil {
+		t.Fatal(err)
+	}
+
 	t.Log("Generated randomname: ", data.Name)
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
@@ -75,13 +101,28 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 		CheckDestroy: testAccCheckMetaKubeNodeDeploymentDestroy,
 		Steps: []resource.TestStep{
 			{
+				Config:      invalidTagConfig.String(),
+				ExpectError: regexp.MustCompile(`Reserved key |reserved pattern`),
+			},
+			{
+				Config:      invalidLabelConfig.String(),
+				ExpectError: regexp.MustCompile(`Reserved key |reserved pattern`),
+			},
+			{
 				Config: config.String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeNodeDeploymentExists(resourceName, &ndepl),
 					testAccCheckMetaKubeNodeDeploymentFields(&ndepl, data.NodeFlavor, data.OSVersion, data.KubeletVersion, 2, 0, false),
+					testAccCheckMetaKubeNodeDeploymentOpenstackUserTags(resourceName, data.UserTagKey, data.UserTagValue),
+					testAccCheckMetaKubeNodeDeploymentOpenstackAPIHasReservedPrefixTags(&ndepl),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.all_labels.%", "4"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.all_labels.a", "b"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.all_labels.c", "d"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.%", "1"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.user-tag", "kept"),
+					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.metakube-cluster"),
+					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.system-cluster"),
+					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.system-project"),
 					resource.TestMatchResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.server_group_id", regexp.MustCompile(`.+`)),
 				),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
@@ -146,6 +187,10 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 							"a": knownvalue.StringExact("b"),
 							"c": knownvalue.StringExact("d"),
 						})),
+					statecheck.ExpectKnownValue(resourceName, tagsPath,
+						knownvalue.MapExact(map[string]knownvalue.Check{
+							"user-tag": knownvalue.StringExact("kept"),
+						})),
 				},
 			},
 			{
@@ -180,6 +225,13 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 					}),
 					testAccCheckMetaKubeNodeDeploymentExists(resourceName, &ndepl),
 					testAccCheckMetaKubeNodeDeploymentFields(&ndepl, data2.NodeFlavor, data2.OSVersion, data2.KubeletVersion, 2, 8, false),
+					testAccCheckMetaKubeNodeDeploymentOpenstackUserTags(resourceName, data2.UserTagKey, data2.UserTagValue),
+					testAccCheckMetaKubeNodeDeploymentOpenstackAPIHasReservedPrefixTags(&ndepl),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.%", "1"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.user-tag", "kept"),
+					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.metakube-cluster"),
+					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.system-cluster"),
+					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.system-project"),
 					testMatchAndGetResourceAttr(serverGroupResourceName, "id", regexp.MustCompile(`.+`), &sgroupID),
 					resource.TestCheckResourceAttrPtr(resourceName, "spec.0.template.0.cloud.0.openstack.0.server_group_id", &sgroupID),
 				),
@@ -236,6 +288,10 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 							"a": knownvalue.StringExact("b"),
 							"c": knownvalue.StringExact("d"),
 						})),
+					statecheck.ExpectKnownValue(resourceName, tagsPath,
+						knownvalue.MapExact(map[string]knownvalue.Check{
+							"user-tag": knownvalue.StringExact("kept"),
+						})),
 				},
 			},
 			{
@@ -283,11 +339,17 @@ type nodeDeploymentBasicData struct {
 	NodeFlavor      string
 	OSVersion       string
 	UseFloatingIP   string
-	DiskSize        int
-	ServerGroupName string
+	DiskSize          int
+	ServerGroupName   string
+	UserTagKey        string
+	UserTagValue      string
+	ReservedTagKey    string
+	ReservedLabelKey  string
+	MinimalConfig     bool
 }
 
 var nodeDeploymentBasicTemplate = testutil.MustParseTemplate("nodeDeploymentBasic", `
+	{{ if not .MinimalConfig }}
 	terraform {
 		required_providers {
 			openstack = {
@@ -311,6 +373,7 @@ var nodeDeploymentBasicTemplate = testutil.MustParseTemplate("nodeDeploymentBasi
 		  os_version = "{{ .OSVersion }}"
 		}
 	}
+	{{ end }}
 
 	resource "metakube_cluster" "acctest_cluster" {
 		name = "{{ .Name }}"
@@ -352,15 +415,22 @@ var nodeDeploymentBasicTemplate = testutil.MustParseTemplate("nodeDeploymentBasi
 			delete = "40m"
 		}
 		spec {
-			replicas = 2
+			replicas = {{ if .MinimalConfig }}1{{ else }}2{{ end }}
 			template {
 				labels = {
+					{{ if .ReservedLabelKey }}
+					"{{ .ReservedLabelKey }}" = "forbidden"
+					{{ else }}
 					"a" = "b"
 					"c" = "d"
+					{{ end }}
 				}
 				cloud {
 					openstack {
 						flavor = "{{ .NodeFlavor }}"
+						{{ if .MinimalConfig }}
+						image = "Ubuntu {{ .OSVersion }}"
+						{{ else }}
 						image = data.openstack_images_image_v2.image.name
 						use_floating_ip = {{ .UseFloatingIP }}
 						{{ if .DiskSize }}
@@ -371,11 +441,22 @@ var nodeDeploymentBasicTemplate = testutil.MustParseTemplate("nodeDeploymentBasi
 						{{ if .ServerGroupName }}
 						server_group_id = openstack_compute_servergroup_v2.acctest_sg.id
 						{{ end }}
+						{{ end }}
+						{{ if or .UserTagKey .ReservedTagKey }}
+						tags = {
+							{{ if .ReservedTagKey }}
+							"{{ .ReservedTagKey }}" = "forbidden"
+							{{ else }}
+							"{{ .UserTagKey }}" = "{{ .UserTagValue }}"
+							{{ end }}
+						}
+						{{ end }}
 					}
 				}
 				operating_system {
 					ubuntu {}
 				}
+				{{ if not .MinimalConfig }}
 				node_annotations = {
 					"a" = "b"
 				}
@@ -383,6 +464,7 @@ var nodeDeploymentBasicTemplate = testutil.MustParseTemplate("nodeDeploymentBasi
 					"machines.metakube.syseleven.de/user-data-plugin" = "ubuntu-sysext"
 					"c" = "d"
 				}
+				{{ end }}
 				versions {
 					kubelet = "{{ .KubeletVersion }}"
 				}
@@ -478,6 +560,60 @@ func testAccCheckMetaKubeNodeDeploymentFields(rec *models.NodeDeployment, flavor
 		}
 
 		return nil
+	}
+}
+
+func testAccCheckMetaKubeNodeDeploymentOpenstackUserTags(resourceName, key, value string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[resourceName]
+		if !ok {
+			return fmt.Errorf("not found: %s", resourceName)
+		}
+
+		prefix := "spec.0.template.0.cloud.0.openstack.0.tags."
+		got, ok := rs.Primary.Attributes[prefix+key]
+		if !ok {
+			return fmt.Errorf("expected tag %q in state, got attributes: %#v", key, rs.Primary.Attributes)
+		}
+		if got != value {
+			return fmt.Errorf("tag %q: got %q, want %q", key, got, value)
+		}
+
+		for attrKey := range rs.Primary.Attributes {
+			if !strings.HasPrefix(attrKey, prefix) {
+				continue
+			}
+			tagKey := strings.TrimPrefix(attrKey, prefix)
+			if tagKey == "%" {
+				continue
+			}
+			if common.MetakubeResourceSystemLabelOrTag(tagKey) {
+				return fmt.Errorf("reserved-prefix tag %q must not appear in terraform state", tagKey)
+			}
+		}
+
+		return nil
+	}
+}
+
+func testAccCheckMetaKubeNodeDeploymentOpenstackAPIHasReservedPrefixTags(rec *models.NodeDeployment) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		if rec == nil || rec.Spec == nil || rec.Spec.Template == nil || rec.Spec.Template.Cloud == nil || rec.Spec.Template.Cloud.Openstack == nil {
+			return fmt.Errorf("no openstack cloud spec in API response")
+		}
+
+		tags := rec.Spec.Template.Cloud.Openstack.Tags
+		if len(tags) == 0 {
+			return fmt.Errorf("expected API to return tags including reserved-prefix keys, got none")
+		}
+
+		for key := range tags {
+			if common.MetakubeResourceSystemLabelOrTag(key) {
+				return nil
+			}
+		}
+
+		return fmt.Errorf("expected API tags to include at least one reserved-prefix key, got %#v", tags)
 	}
 }
 

@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/syseleven/terraform-provider-metakube/metakube/common"
 )
 
 type NodeDeploymentModel struct {
@@ -318,6 +319,9 @@ func nodeSpecAttributes() map[string]schema.Attribute {
 			Optional:    true,
 			ElementType: types.StringType,
 			Description: "Map of string keys and values that can be used to organize and categorize (scope and select) objects. It will be applied to Nodes allowing users run their apps on specific Node using labelSelector. Note: The server may add additional system labels (system/cluster, system/project) which are available in the `all_labels` attribute.",
+			Validators: []validator.Map{
+				noSystemManagedKeysValidator(),
+			},
 		},
 		"all_labels": schema.MapAttribute{
 			Computed:    true,
@@ -451,7 +455,10 @@ func awsCloudSpecAttributes() map[string]schema.Attribute {
 			Optional:    true,
 			Computed:    true,
 			ElementType: types.StringType,
-			Description: "Additional instance tags",
+			Description: "Additional instance tags. Keys matching reserved patterns are ignored in this attribute.",
+			Validators: []validator.Map{
+				noSystemManagedKeysValidator(),
+			},
 		},
 	}
 }
@@ -483,7 +490,10 @@ func openstackCloudSpecAttributes() map[string]schema.Attribute {
 			Optional:    true,
 			Computed:    true,
 			ElementType: types.StringType,
-			Description: "Additional instance tags",
+			Description: "Additional instance tags. Keys matching reserved prefix patterns are ignored in this attribute.",
+			Validators: []validator.Map{
+				noSystemManagedKeysValidator(),
+			},
 		},
 		"use_floating_ip": schema.BoolAttribute{
 			Optional:    true,
@@ -634,6 +644,35 @@ func (v durationValidator) ValidateString(ctx context.Context, req validator.Str
 	}
 }
 
+type noSystemManagedKeysMapValidator struct{}
+
+func (v noSystemManagedKeysMapValidator) Description(ctx context.Context) string {
+	return "Map keys must not use reserved patterns (metakube, system-, system/, kubernetes.io, labels.%)."
+}
+
+func (v noSystemManagedKeysMapValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v noSystemManagedKeysMapValidator) ValidateMap(ctx context.Context, req validator.MapRequest, resp *validator.MapResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+
+	for key := range req.ConfigValue.Elements() {
+		if common.MetakubeResourceSystemLabelOrTag(key) {
+			resp.Diagnostics.AddError(
+				"Reserved key prefix",
+				fmt.Sprintf("Key %q matches a reserved pattern and cannot be configured.", key),
+			)
+		}
+	}
+}
+
+func noSystemManagedKeysValidator() validator.Map {
+	return noSystemManagedKeysMapValidator{}
+}
+
 // serverGroupIDPlanModifier preserves state value when config is empty
 type serverGroupIDPlanModifier struct{}
 
@@ -674,15 +713,5 @@ func (m int64RequiresReplacePlanModifier) PlanModifyInt64(ctx context.Context, r
 
 	if !req.PlanValue.Equal(req.StateValue) {
 		resp.RequiresReplace = true
-	}
-}
-
-// isSystemKey checks for labels created by Metakube.
-func isSystemKey(key string) bool {
-	switch key {
-	case "system/cluster", "system/project":
-		return true
-	default:
-		return false
 	}
 }

@@ -195,6 +195,73 @@ func TestFlattenAndExpandRoundTrip(t *testing.T) {
 	}
 }
 
+func TestFlattenOpenStackCloudSpecFiltersSystemTags(t *testing.T) {
+	ctx := context.Background()
+
+	result, diags := flattenOpenStackCloudSpec(ctx, &models.OpenstackNodeSpec{
+		Flavor: ptr.To("m1.small"),
+		Image:  ptr.To("Ubuntu 22.04"),
+		Tags: map[string]string{
+			"user-tag":         "kept",
+			"metakube-cluster": "cluster-id",
+			"system-cluster":   "cluster-name",
+			"system-project":   "project-name",
+			"system/project":   "project-id",
+		},
+	})
+	if diags.HasError() {
+		t.Fatalf("flatten failed: %v", diags)
+	}
+
+	var flattened []OpenStackCloudSpecModel
+	diags = result.ElementsAs(ctx, &flattened, false)
+	if diags.HasError() {
+		t.Fatalf("failed to read flattened model: %v", diags)
+	}
+	if len(flattened) != 1 {
+		t.Fatalf("expected one openstack model, got %d", len(flattened))
+	}
+
+	tags := flattened[0].Tags.Elements()
+	if got := tags["user-tag"].(types.String).ValueString(); got != "kept" {
+		t.Fatalf("unexpected user tag value: got %q, want %q", got, "kept")
+	}
+	for _, key := range []string{"metakube-cluster", "system-cluster", "system-project", "system/project"} {
+		if _, ok := tags[key]; ok {
+			t.Fatalf("expected system tag %q to be filtered from user tags", key)
+		}
+	}
+}
+
+func TestFlattenOpenStackCloudSpecSetsTagsNullWhenOnlySystemTagsExist(t *testing.T) {
+	ctx := context.Background()
+
+	result, diags := flattenOpenStackCloudSpec(ctx, &models.OpenstackNodeSpec{
+		Flavor: ptr.To("m1.small"),
+		Image:  ptr.To("Ubuntu 22.04"),
+		Tags: map[string]string{
+			"metakube-cluster": "cluster-id",
+			"system-cluster":   "cluster-name",
+			"system-project":   "project-name",
+		},
+	})
+	if diags.HasError() {
+		t.Fatalf("flatten failed: %v", diags)
+	}
+
+	var flattened []OpenStackCloudSpecModel
+	diags = result.ElementsAs(ctx, &flattened, false)
+	if diags.HasError() {
+		t.Fatalf("failed to read flattened model: %v", diags)
+	}
+	if len(flattened) != 1 {
+		t.Fatalf("expected one openstack model, got %d", len(flattened))
+	}
+	if !flattened[0].Tags.IsNull() {
+		t.Fatalf("expected tags to be null when only system tags are returned, got %v", flattened[0].Tags)
+	}
+}
+
 func TestGetCloudProviderFromModel(t *testing.T) {
 	ctx := context.Background()
 

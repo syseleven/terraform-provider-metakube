@@ -13,6 +13,32 @@ import (
 
 // Framework flatten functions - convert API models to framework types
 
+func userTagValues(tags map[string]string) map[string]attr.Value {
+	userTags := make(map[string]attr.Value)
+	for k, v := range tags {
+		if !common.MetakubeResourceSystemLabelOrTag(k) {
+			userTags[k] = types.StringValue(v)
+		}
+	}
+	return userTags
+}
+
+func flattenUserTags(tags map[string]string) (types.Map, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	if len(tags) == 0 {
+		return types.MapNull(types.StringType), diags
+	}
+
+	userTags := userTagValues(tags)
+	if len(userTags) == 0 {
+		return types.MapNull(types.StringType), diags
+	}
+
+	tagsVal, d := types.MapValue(types.StringType, userTags)
+	diags.Append(d...)
+	return tagsVal, diags
+}
+
 func flattenNodeDeploymentSpec(ctx context.Context, in *models.NodeDeploymentSpec) (types.List, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
@@ -76,7 +102,7 @@ func flattenNodeSpec(ctx context.Context, in *models.NodeSpec) (types.List, diag
 
 		for k, v := range in.Labels {
 			allLabelsMap[k] = types.StringValue(v)
-			if !isSystemKey(k) {
+			if !common.MetakubeResourceSystemLabelOrTag(k) {
 				userLabelsMap[k] = types.StringValue(v)
 			}
 		}
@@ -254,17 +280,9 @@ func flattenAWSCloudSpec(ctx context.Context, in *models.AWSNodeSpec) (types.Lis
 		awsModel.AMI = types.StringNull()
 	}
 
-	if len(in.Tags) > 0 {
-		tagsMap := make(map[string]attr.Value, len(in.Tags))
-		for k, v := range in.Tags {
-			tagsMap[k] = types.StringValue(v)
-		}
-		tagsVal, d := types.MapValue(types.StringType, tagsMap)
-		diags.Append(d...)
-		awsModel.Tags = tagsVal
-	} else {
-		awsModel.Tags = types.MapNull(types.StringType)
-	}
+	tagsVal, d := flattenUserTags(in.Tags)
+	diags.Append(d...)
+	awsModel.Tags = tagsVal
 
 	objVal, d := types.ObjectValueFrom(ctx, awsCloudSpecAttrTypes(), awsModel)
 	diags.Append(d...)
@@ -329,17 +347,9 @@ func flattenOpenStackCloudSpec(ctx context.Context, in *models.OpenstackNodeSpec
 		osModel.ServerGroupID = types.StringNull()
 	}
 
-	if len(in.Tags) > 0 {
-		tagsMap := make(map[string]attr.Value, len(in.Tags))
-		for k, v := range in.Tags {
-			tagsMap[k] = types.StringValue(v)
-		}
-		tagsVal, d := types.MapValue(types.StringType, tagsMap)
-		diags.Append(d...)
-		osModel.Tags = tagsVal
-	} else {
-		osModel.Tags = types.MapNull(types.StringType)
-	}
+	tagsVal, d := flattenUserTags(in.Tags)
+	diags.Append(d...)
+	osModel.Tags = tagsVal
 
 	objVal, d := types.ObjectValueFrom(ctx, openstackCloudSpecAttrTypes(), osModel)
 	diags.Append(d...)
