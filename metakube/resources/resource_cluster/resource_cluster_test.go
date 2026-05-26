@@ -279,6 +279,12 @@ func TestAccMetakubeCluster_Openstack_ApplicationCredentials(t *testing.T) {
 	if err := clusterOpenstackApplicationCredentialsBasicTemplate.Execute(&config, data); err != nil {
 		t.Fatal(err)
 	}
+	dataWithoutSecret := *data
+	dataWithoutSecret.OmitApplicationCredentialSecret = true
+	var configWithoutSecret strings.Builder
+	if err := clusterOpenstackApplicationCredentialsBasicTemplate.Execute(&configWithoutSecret, &dataWithoutSecret); err != nil {
+		t.Fatal(err)
+	}
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testutil.TestAccPreCheckForOpenstack(t) },
@@ -308,6 +314,10 @@ func TestAccMetakubeCluster_Openstack_ApplicationCredentials(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "spec.cloud.openstack.application_credentials.id", data.OpenstackApplicationCredentialID),
 					resource.TestCheckResourceAttr(resourceName, "spec.cloud.openstack.application_credentials.secret", data.OpenstackApplicationCredentialSecret),
 				),
+			},
+			{
+				Config:   configWithoutSecret.String(),
+				PlanOnly: true,
 			},
 		},
 	})
@@ -528,6 +538,7 @@ type clusterOpenstackApplicationCredentailsData struct {
 	Version                              string
 	OpenstackApplicationCredentialID     string
 	OpenstackApplicationCredentialSecret string
+	OmitApplicationCredentialSecret      bool
 }
 
 var clusterOpenstackApplicationCredentialsBasicTemplate = testutil.MustParseTemplate("clusterOpenstackApplicationCredentials", `
@@ -559,7 +570,9 @@ resource "metakube_cluster" "acctest_cluster" {
 			openstack = {
 				application_credentials = {
 					id="{{ .OpenstackApplicationCredentialID }}"
+					{{ if not .OmitApplicationCredentialSecret }}
 					secret="{{ .OpenstackApplicationCredentialSecret }}"
+					{{ end }}
 				}
 			}
 		}
