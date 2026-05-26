@@ -418,6 +418,7 @@ func metakubeResourceClusterOpenstackCloudSpecUserCredentialsFields() map[string
 	return map[string]schema.Attribute{
 		"project_id": schema.StringAttribute{
 			Optional:    true,
+			Computed:    true,
 			Description: "The id of openstack project",
 			PlanModifiers: []planmodifier.String{
 				EnvDefaultWithDiffSuppress("OS_PROJECT_ID"),
@@ -425,6 +426,7 @@ func metakubeResourceClusterOpenstackCloudSpecUserCredentialsFields() map[string
 		},
 		"project_name": schema.StringAttribute{
 			Optional:           true,
+			Computed:           true,
 			DeprecationMessage: "use project_id or switch to application_credentials",
 			Description:        "The name of openstack project",
 			PlanModifiers: []planmodifier.String{
@@ -433,6 +435,7 @@ func metakubeResourceClusterOpenstackCloudSpecUserCredentialsFields() map[string
 		},
 		"username": schema.StringAttribute{
 			Optional:    true,
+			Computed:    true,
 			Sensitive:   true,
 			Description: "The openstack account's username",
 			PlanModifiers: []planmodifier.String{
@@ -441,6 +444,7 @@ func metakubeResourceClusterOpenstackCloudSpecUserCredentialsFields() map[string
 		},
 		"password": schema.StringAttribute{
 			Optional:    true,
+			Computed:    true,
 			Sensitive:   true,
 			Description: "The openstack account's password",
 			PlanModifiers: []planmodifier.String{
@@ -454,6 +458,7 @@ func metakubeResourceClusterOpenstackCloudSpecApplicationCredentialsFields() map
 	return map[string]schema.Attribute{
 		"id": schema.StringAttribute{
 			Optional:    true,
+			Computed:    true,
 			Description: "Openstack application credentials ID",
 			PlanModifiers: []planmodifier.String{
 				EnvDefaultWithDiffSuppress("OS_APPLICATION_CREDENTIAL_ID"),
@@ -461,6 +466,7 @@ func metakubeResourceClusterOpenstackCloudSpecApplicationCredentialsFields() map
 		},
 		"secret": schema.StringAttribute{
 			Optional:    true,
+			Computed:    true,
 			Sensitive:   true,
 			Description: "Openstack application credentials secret",
 			PlanModifiers: []planmodifier.String{
