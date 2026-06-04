@@ -1437,6 +1437,59 @@ func TestUpgradeClusterLegacyNestedSpecState_FromV5SDKClusterState(t *testing.T)
 	}
 }
 
+func TestClusterSpecPatchInclude(t *testing.T) {
+	ctx := context.Background()
+	createModel := func(version string) *ClusterModel {
+		return createTestClusterModel(ctx, t, ClusterSpecModel{
+			Version:           types.StringValue(version),
+			EnableSSHAgent:    types.BoolNull(),
+			AuditLogging:      types.BoolNull(),
+			PodSecurityPolicy: types.BoolValue(true),
+			PodNodeSelector:   types.BoolValue(true),
+			ServicesCIDR:      types.StringNull(),
+			PodsCIDR:          types.StringNull(),
+			IPFamily:          types.StringNull(),
+			UpdateWindow:      types.ObjectNull(updateWindowAttrTypes()),
+			CNIPlugin:         types.ObjectNull(cniPluginAttrTypes()),
+			Cloud:             types.ObjectNull(clusterCloudSpecAttrTypes()),
+			SyselevenAuth:     createSyselevenAuthList(ctx, t, "syseleven"),
+		})
+	}
+
+	state := createModel("1.28.0")
+	plan := createModel("1.29.0")
+	include := clusterSpecPatchInclude(ctx, plan, state)
+
+	if !include("version") {
+		t.Fatal("expected version to be included in patch")
+	}
+	if include("syseleven_auth") {
+		t.Fatal("expected unchanged syseleven_auth to be excluded from patch")
+	}
+
+	clusterSpec := metakubeResourceClusterExpandSpec(ctx, plan, "eu-west-1", include)
+	if clusterSpec.Sys11auth != nil {
+		t.Fatalf("expected unchanged Sys11 auth to be absent from expanded patch spec, got: %#v", clusterSpec.Sys11auth)
+	}
+
+	specPatch, err := clusterSpecPatchBodyForIncludedFields(clusterSpec, include)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := specPatch["sys11auth"]; ok {
+		t.Fatalf("expected sys11auth to be absent from patch body, got: %#v", specPatch["sys11auth"])
+	}
+	if _, ok := specPatch["usePodSecurityPolicyAdmissionPlugin"]; ok {
+		t.Fatalf("expected unchanged pod security policy to be absent from patch body, got: %#v", specPatch["usePodSecurityPolicyAdmissionPlugin"])
+	}
+	if _, ok := specPatch["usePodNodeSelectorAdmissionPlugin"]; ok {
+		t.Fatalf("expected unchanged pod node selector to be absent from patch body, got: %#v", specPatch["usePodNodeSelectorAdmissionPlugin"])
+	}
+	if got := specPatch["version"]; got != "1.29.0" {
+		t.Fatalf("unexpected version in patch body: got %v, want %v", got, "1.29.0")
+	}
+}
+
 func TestClusterSpecPatchBody(t *testing.T) {
 	t.Run("nil spec returns nil map", func(t *testing.T) {
 		got, err := clusterSpecPatchBody(nil)

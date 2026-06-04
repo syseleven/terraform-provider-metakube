@@ -35,6 +35,10 @@ func TestAccMetakubeRoleBinding(t *testing.T) {
 		UserSubjectName:  "foo.bar@mycompany.xyz",
 		GroupSubjectName: "support-team",
 	}
+	updatedParams := *params
+	updatedParams.UserSubjectName = "baz.qux@mycompany.xyz"
+	updatedParams.GroupSubjectName = "platform-team"
+
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testutil.TestAccPreCheck(t) },
 		ProtoV6ProviderFactories: testutil.TestAccProtoV6ProviderFactories,
@@ -62,6 +66,30 @@ func TestAccMetakubeRoleBinding(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "subject.0.name", params.UserSubjectName),
 					resource.TestCheckResourceAttr(resourceName, "subject.1.kind", "group"),
 					resource.TestCheckResourceAttr(resourceName, "subject.1.name", params.GroupSubjectName),
+				),
+			},
+			{
+				Config: testAccCheckMetaKubeRoleBindingBasicConfig(t, &updatedParams),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(clusterResourceName, plancheck.ResourceActionNoop),
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionDestroyBeforeCreate),
+					},
+					PostApplyPreRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "namespace", updatedParams.Namespace),
+					resource.TestCheckResourceAttr(resourceName, "role_name", updatedParams.RoleName),
+					resource.TestCheckResourceAttr(resourceName, "subject.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "subject.0.kind", "user"),
+					resource.TestCheckResourceAttr(resourceName, "subject.0.name", updatedParams.UserSubjectName),
+					resource.TestCheckResourceAttr(resourceName, "subject.1.kind", "group"),
+					resource.TestCheckResourceAttr(resourceName, "subject.1.name", updatedParams.GroupSubjectName),
 				),
 			},
 			{
