@@ -42,6 +42,10 @@ func TestAccMetakubeCluster_MaintenanceCronJob_Basic(t *testing.T) {
 		MaintenanceJobType:         "kubernetesPatchUpdate",
 		Schedule:                   "5 4 * * *",
 		UpdatedSchedule:            "0 2 * * *",
+		OptionKey:                  "create",
+		OptionValue:                "initial",
+		UpdatedOptionKey:           "update",
+		UpdatedOptionValue:         "changed",
 	}
 
 	resource.Test(t, resource.TestCase{
@@ -71,7 +75,7 @@ func TestAccMetakubeCluster_MaintenanceCronJob_Basic(t *testing.T) {
 				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeMaintenanceCronJobExists(&maintenanceCronJob),
-					testAccCheckMetaKubeMaintenanceCronJobFields(&maintenanceCronJob, params.MaintenanceCronJobName, params.Schedule, params.MaintenanceJobType),
+					testAccCheckMetaKubeMaintenanceCronJobFields(&maintenanceCronJob, params.MaintenanceCronJobName, params.Schedule, params.MaintenanceJobType, false, params.OptionKey, params.OptionValue),
 				),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
@@ -82,6 +86,12 @@ func TestAccMetakubeCluster_MaintenanceCronJob_Basic(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("maintenance_job_template").AtSliceIndex(0).AtMapKey("rollback"),
 						knownvalue.Bool(false),
+					),
+					statecheck.ExpectKnownValue(resourceName,
+						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("maintenance_job_template").AtSliceIndex(0).AtMapKey("options").AtSliceIndex(0).AtMapKey("options"),
+						knownvalue.MapExact(map[string]knownvalue.Check{
+							params.OptionKey: knownvalue.StringExact(params.OptionValue),
+						}),
 					),
 				},
 			},
@@ -105,7 +115,7 @@ func TestAccMetakubeCluster_MaintenanceCronJob_Basic(t *testing.T) {
 				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeMaintenanceCronJobExists(&maintenanceCronJob),
-					testAccCheckMetaKubeMaintenanceCronJobFields(&maintenanceCronJob, params.MaintenanceCronJobName, params.UpdatedSchedule, params.MaintenanceJobType),
+					testAccCheckMetaKubeMaintenanceCronJobFields(&maintenanceCronJob, params.MaintenanceCronJobName, params.UpdatedSchedule, params.MaintenanceJobType, false, params.UpdatedOptionKey, params.UpdatedOptionValue),
 				),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
@@ -116,6 +126,12 @@ func TestAccMetakubeCluster_MaintenanceCronJob_Basic(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("maintenance_job_template").AtSliceIndex(0).AtMapKey("rollback"),
 						knownvalue.Bool(false),
+					),
+					statecheck.ExpectKnownValue(resourceName,
+						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("maintenance_job_template").AtSliceIndex(0).AtMapKey("options").AtSliceIndex(0).AtMapKey("options"),
+						knownvalue.MapExact(map[string]knownvalue.Check{
+							params.UpdatedOptionKey: knownvalue.StringExact(params.UpdatedOptionValue),
+						}),
 					),
 				},
 			},
@@ -151,6 +167,10 @@ type testAccCheckMetaKubeMaintenanceCronJobBasicParams struct {
 	MaintenanceJobType         string
 	Schedule                   string
 	UpdatedSchedule            string
+	OptionKey                  string
+	OptionValue                string
+	UpdatedOptionKey           string
+	UpdatedOptionValue         string
 }
 
 func testAccCheckMetaKubeMaintenanceCronJobBasicConfig(t *testing.T, params *testAccCheckMetaKubeMaintenanceCronJobBasicParams) string {
@@ -184,8 +204,12 @@ func testAccCheckMetaKubeMaintenanceCronJobBasicConfig(t *testing.T, params *tes
 		spec {
 			schedule		= "{{ .Schedule }}"
 			maintenance_job_template {
-				rollback 	= false
 				type		= "{{ .MaintenanceJobType }}"
+				options {
+					options = {
+						"{{ .OptionKey }}" = "{{ .OptionValue }}"
+					}
+				}
 			}
 		}
 	}
@@ -227,8 +251,12 @@ func testAccCheckMetaKubeMaintenanceCronJobUpdateConfig(t *testing.T, params *te
 		spec {
 			schedule		= "{{ .UpdatedSchedule }}"
 			maintenance_job_template {
-				rollback 	= true
 				type		= "{{ .MaintenanceJobType }}"
+				options {
+					options = {
+						"{{ .UpdatedOptionKey }}" = "{{ .UpdatedOptionValue }}"
+					}
+				}
 			}
 		}
 	}
@@ -294,7 +322,7 @@ func testAccCheckMetaKubeMaintenanceCronJobExists(maintenanceCronJob *models.Mai
 	}
 }
 
-func testAccCheckMetaKubeMaintenanceCronJobFields(mcj *models.MaintenanceCronJob, name, schedule, maintenanceJobType string) resource.TestCheckFunc {
+func testAccCheckMetaKubeMaintenanceCronJobFields(mcj *models.MaintenanceCronJob, name, schedule, maintenanceJobType string, rollback bool, optionKey, optionValue string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		if mcj == nil {
 			return fmt.Errorf("No Record")
@@ -324,6 +352,14 @@ func testAccCheckMetaKubeMaintenanceCronJobFields(mcj *models.MaintenanceCronJob
 
 		if maintenanceJobTemplate.Type != maintenanceJobType {
 			return fmt.Errorf("want MaintenanceJobTemplate.Type=%s, got %s", maintenanceJobType, maintenanceJobTemplate.Type)
+		}
+
+		if maintenanceJobTemplate.Rollback != rollback {
+			return fmt.Errorf("want MaintenanceJobTemplate.Rollback=%v, got %v", rollback, maintenanceJobTemplate.Rollback)
+		}
+
+		if got := maintenanceJobTemplate.Options[optionKey]; got != optionValue {
+			return fmt.Errorf("want MaintenanceJobTemplate.Options[%q]=%q, got %q in %#v", optionKey, optionValue, got, maintenanceJobTemplate.Options)
 		}
 
 		return nil

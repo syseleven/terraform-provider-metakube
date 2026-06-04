@@ -195,6 +195,130 @@ func TestFlattenAndExpandRoundTrip(t *testing.T) {
 	}
 }
 
+func TestMarshalSpecToMapFWIncludesFalseOperatingSystemBooleans(t *testing.T) {
+	tests := []struct {
+		name      string
+		os        *models.OperatingSystemSpec
+		osKey     string
+		fieldKey  string
+		wantValue bool
+	}{
+		{
+			name: "ubuntu dist upgrade on boot",
+			os: &models.OperatingSystemSpec{
+				Ubuntu: &models.UbuntuSpec{
+					DistUpgradeOnBoot: false,
+				},
+			},
+			osKey:     "ubuntu",
+			fieldKey:  "distUpgradeOnBoot",
+			wantValue: false,
+		},
+		{
+			name: "flatcar disable auto update",
+			os: &models.OperatingSystemSpec{
+				Flatcar: &models.FlatcarSpec{
+					DisableAutoUpdate: false,
+				},
+			},
+			osKey:     "flatcar",
+			fieldKey:  "disableAutoUpdate",
+			wantValue: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			patch, err := marshalSpecToMapFW(&models.NodeDeploymentSpec{
+				Replicas: ptr.To(int32(1)),
+				Template: &models.NodeSpec{
+					OperatingSystem: tt.os,
+				},
+			})
+			if err != nil {
+				t.Fatalf("marshalSpecToMapFW failed: %v", err)
+			}
+
+			template, ok := patch["template"].(map[string]interface{})
+			if !ok {
+				t.Fatalf("expected template map, got %#v", patch["template"])
+			}
+			operatingSystem, ok := template["operatingSystem"].(map[string]interface{})
+			if !ok {
+				t.Fatalf("expected operatingSystem map, got %#v", template["operatingSystem"])
+			}
+			osMap, ok := operatingSystem[tt.osKey].(map[string]interface{})
+			if !ok {
+				t.Fatalf("expected %s map, got %#v", tt.osKey, operatingSystem[tt.osKey])
+			}
+			if got, ok := osMap[tt.fieldKey].(bool); !ok || got != tt.wantValue {
+				t.Fatalf("expected %s.%s=%v, got %#v", tt.osKey, tt.fieldKey, tt.wantValue, osMap[tt.fieldKey])
+			}
+		})
+	}
+}
+
+func TestBuildPatchWithDeletions(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name  string
+		setup func(t *testing.T) (config, plan, state *NodeDeploymentModel)
+		check func(t *testing.T, patch map[string]interface{})
+	}{
+		{
+			name: "removes openstack tags",
+			setup: func(t *testing.T) (config, plan, state *NodeDeploymentModel) {
+				plan = buildMockNodeDeploymentModel(ctx, t, CloudSpecModel{
+					OpenStack: buildMockOpenStackListWithTags(ctx, t, map[string]string{"updated-user-tag": "changed"}),
+				})
+				state = buildMockNodeDeploymentModel(ctx, t, CloudSpecModel{
+					OpenStack: buildMockOpenStackListWithTags(ctx, t, map[string]string{"user-tag": "kept"}),
+				})
+				return plan, plan, state
+			},
+			check: func(t *testing.T, patch map[string]interface{}) {
+				tagsPatch := cloudTagsPatch(t, patch, "openstack")
+				if got := tagsPatch["updated-user-tag"]; got != "changed" {
+					t.Fatalf("expected updated tag in patch, got %#v", tagsPatch)
+				}
+				if got, ok := tagsPatch["user-tag"]; !ok || got != nil {
+					t.Fatalf("expected removed tag to be patched as null, got %#v", tagsPatch)
+				}
+			},
+		},
+		{
+			name: "clears omitted openstack serverGroupID",
+			setup: func(t *testing.T) (config, plan, state *NodeDeploymentModel) {
+				config = buildMockNodeDeploymentModel(ctx, t, CloudSpecModel{
+					OpenStack: buildMockOpenStackListWithServerGroupID(ctx, t, types.StringNull()),
+				})
+				plan = buildMockNodeDeploymentModel(ctx, t, CloudSpecModel{
+					OpenStack: buildMockOpenStackListWithServerGroupID(ctx, t, types.StringUnknown()),
+				})
+				state = buildMockNodeDeploymentModel(ctx, t, CloudSpecModel{
+					OpenStack: buildMockOpenStackListWithServerGroupID(ctx, t, types.StringValue("old-server-group-id")),
+				})
+				return config, plan, state
+			},
+			check: func(t *testing.T, patch map[string]interface{}) {
+				openStackPatch := cloudProviderPatch(t, patch, "openstack")
+				if got, ok := openStackPatch["serverGroupID"]; !ok || got != nil {
+					t.Fatalf("expected omitted serverGroupID to be patched as null, got %#v", openStackPatch)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config, plan, state := tt.setup(t)
+			patch := buildNodeDeploymentPatchWithConfig(t, ctx, config, plan, state)
+			tt.check(t, patch)
+		})
+	}
+}
+
 func TestFlattenOpenStackCloudSpecFiltersSystemTags(t *testing.T) {
 	ctx := context.Background()
 
@@ -271,17 +395,8 @@ func TestGetCloudProviderFromModel(t *testing.T) {
 		wantProvider string
 	}{
 		{
-			name: "AWS",
-			cloudModel: CloudSpecModel{
-				AWS:       buildMockAWSList(ctx, t),
-				OpenStack: types.ListNull(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}),
-			},
-			wantProvider: "aws",
-		},
-		{
 			name: "OpenStack",
 			cloudModel: CloudSpecModel{
-				AWS:       types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}),
 				OpenStack: buildMockOpenStackList(ctx, t),
 			},
 			wantProvider: "openstack",
@@ -305,29 +420,6 @@ func TestGetCloudProviderFromModel(t *testing.T) {
 
 // Helpers
 
-func buildMockAWSList(ctx context.Context, t *testing.T) types.List {
-	t.Helper()
-	awsModel := AWSCloudSpecModel{
-		InstanceType:     types.StringValue("t3.medium"),
-		DiskSize:         types.Int64Value(50),
-		VolumeType:       types.StringValue("gp2"),
-		AvailabilityZone: types.StringValue("us-east-1a"),
-		SubnetID:         types.StringValue("subnet-123"),
-		AssignPublicIP:   types.BoolValue(true),
-		AMI:              types.StringNull(),
-		Tags:             types.MapNull(types.StringType),
-	}
-	objVal, diags := types.ObjectValueFrom(ctx, awsCloudSpecAttrTypes(), awsModel)
-	if diags.HasError() {
-		t.Fatalf("failed to build AWS object: %v", diags)
-	}
-	list, diags := types.ListValue(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}, []attr.Value{objVal})
-	if diags.HasError() {
-		t.Fatalf("failed to build AWS list: %v", diags)
-	}
-	return list
-}
-
 func buildMockOpenStackList(ctx context.Context, t *testing.T) types.List {
 	t.Helper()
 	osModel := OpenStackCloudSpecModel{
@@ -349,6 +441,119 @@ func buildMockOpenStackList(ctx context.Context, t *testing.T) types.List {
 		t.Fatalf("failed to build OpenStack list: %v", diags)
 	}
 	return list
+}
+
+func buildMockOpenStackListWithTags(ctx context.Context, t *testing.T, tags map[string]string) types.List {
+	t.Helper()
+	osModel := OpenStackCloudSpecModel{
+		Flavor:                    types.StringValue("m1.small"),
+		Image:                     types.StringValue("Ubuntu 22.04"),
+		DiskSize:                  types.Int64Null(),
+		Tags:                      stringMapValue(t, tags),
+		UseFloatingIP:             types.BoolValue(true),
+		InstanceReadyCheckPeriod:  types.StringValue("5s"),
+		InstanceReadyCheckTimeout: types.StringValue("120s"),
+		ServerGroupID:             types.StringNull(),
+	}
+	objVal, diags := types.ObjectValueFrom(ctx, openstackCloudSpecAttrTypes(), osModel)
+	if diags.HasError() {
+		t.Fatalf("failed to build OpenStack object: %v", diags)
+	}
+	list, diags := types.ListValue(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}, []attr.Value{objVal})
+	if diags.HasError() {
+		t.Fatalf("failed to build OpenStack list: %v", diags)
+	}
+	return list
+}
+
+func buildMockOpenStackListWithServerGroupID(ctx context.Context, t *testing.T, serverGroupID types.String) types.List {
+	t.Helper()
+	osModel := OpenStackCloudSpecModel{
+		Flavor:                    types.StringValue("m1.small"),
+		Image:                     types.StringValue("Ubuntu 22.04"),
+		DiskSize:                  types.Int64Null(),
+		Tags:                      types.MapNull(types.StringType),
+		UseFloatingIP:             types.BoolValue(true),
+		InstanceReadyCheckPeriod:  types.StringValue("5s"),
+		InstanceReadyCheckTimeout: types.StringValue("120s"),
+		ServerGroupID:             serverGroupID,
+	}
+	objVal, diags := types.ObjectValueFrom(ctx, openstackCloudSpecAttrTypes(), osModel)
+	if diags.HasError() {
+		t.Fatalf("failed to build OpenStack object: %v", diags)
+	}
+	list, diags := types.ListValue(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}, []attr.Value{objVal})
+	if diags.HasError() {
+		t.Fatalf("failed to build OpenStack list: %v", diags)
+	}
+	return list
+}
+
+func stringMapValue(t *testing.T, values map[string]string) types.Map {
+	t.Helper()
+	if values == nil {
+		return types.MapNull(types.StringType)
+	}
+
+	elements := make(map[string]attr.Value, len(values))
+	for key, value := range values {
+		elements[key] = types.StringValue(value)
+	}
+
+	result, diags := types.MapValue(types.StringType, elements)
+	if diags.HasError() {
+		t.Fatalf("failed to build string map: %v", diags)
+	}
+	return result
+}
+
+func buildNodeDeploymentPatchWithConfig(t *testing.T, ctx context.Context, config, plan, state *NodeDeploymentModel) map[string]interface{} {
+	t.Helper()
+
+	spec, diags := expandNodeDeploymentSpec(ctx, plan.Spec, false)
+	if diags.HasError() {
+		t.Fatalf("failed to expand plan spec: %v", diags)
+	}
+
+	patch, err := (&nodeDeploymentResource{}).buildPatchWithDeletions(ctx, config, plan, state, &models.NodeDeployment{Spec: spec})
+	if err != nil {
+		t.Fatalf("failed to build patch: %v", err)
+	}
+
+	return patch
+}
+
+func cloudTagsPatch(t *testing.T, patch map[string]interface{}, provider string) map[string]interface{} {
+	t.Helper()
+
+	providerPatch := cloudProviderPatch(t, patch, provider)
+	tagsPatch, ok := providerPatch["tags"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected tags patch map, got %#v", providerPatch["tags"])
+	}
+	return tagsPatch
+}
+
+func cloudProviderPatch(t *testing.T, patch map[string]interface{}, provider string) map[string]interface{} {
+	t.Helper()
+
+	specPatch, ok := patch["spec"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected spec patch map, got %#v", patch["spec"])
+	}
+	templatePatch, ok := specPatch["template"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected template patch map, got %#v", specPatch["template"])
+	}
+	cloudPatch, ok := templatePatch["cloud"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected cloud patch map, got %#v", templatePatch["cloud"])
+	}
+	providerPatch, ok := cloudPatch[provider].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected %s patch map, got %#v", provider, cloudPatch[provider])
+	}
+	return providerPatch
 }
 
 func buildMockNodeDeploymentModel(ctx context.Context, t *testing.T, cloudModel CloudSpecModel) *NodeDeploymentModel {

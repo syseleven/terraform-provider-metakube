@@ -45,9 +45,21 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 		KubeletVersion:                        os.Getenv(common.TestEnvK8sOlderVersion),
 		NodeFlavor:                            os.Getenv(common.TestEnvOpenstackFlavor),
 		OSVersion:                             os.Getenv(common.TestEnvOpenstackImage),
+		Replicas:                              2,
+		LabelKey:                              "a",
+		LabelValue:                            "b",
+		SecondLabelKey:                        "c",
+		SecondLabelValue:                      "d",
 		UseFloatingIP:                         "false",
+		InstanceReadyCheckPeriod:              "10s",
+		InstanceReadyCheckTimeout:             "4m",
+		NodeAnnotationKey:                     "a",
+		NodeAnnotationValue:                   "b",
+		MachineAnnotationKey:                  "c",
+		MachineAnnotationValue:                "d",
 		UserTagKey:                            "user-tag",
 		UserTagValue:                          "kept",
+		DistUpgradeOnBoot:                     true,
 	}
 
 	var config strings.Builder
@@ -58,12 +70,30 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 	data2 := *data
 	data2.KubeletVersion = os.Getenv(common.TestEnvK8sVersionOpenstack)
 	data2.OSVersion = os.Getenv(common.TestEnvOpenstackImage2)
+	data2.Replicas = 1
+	data2.LabelKey = "e"
+	data2.LabelValue = "f"
+	data2.SecondLabelKey = "g"
+	data2.SecondLabelValue = "h"
 	data2.UseFloatingIP = "true"
 	data2.DiskSize = 8
+	data2.InstanceReadyCheckPeriod = "15s"
+	data2.InstanceReadyCheckTimeout = "5m"
 	data2.ServerGroupName = testutil.MakeRandomName() + "-os-servergroup"
-	data2.UserTagKey = data.UserTagKey
-	data2.UserTagValue = data.UserTagValue
-	if err := nodeDeploymentBasicTemplate.Execute(&config2, data2); err != nil {
+	data2.UserTagKey = "updated-user-tag"
+	data2.UserTagValue = "changed"
+	data2.NodeAnnotationKey = "i"
+	data2.NodeAnnotationValue = "j"
+	data2.MachineAnnotationKey = "k"
+	data2.MachineAnnotationValue = "l"
+	data2.DistUpgradeOnBoot = false
+	if err := nodeDeploymentBasicTemplate.Execute(&config2, &data2); err != nil {
+		t.Fatal(err)
+	}
+
+	var config3 strings.Builder
+	data3 := *data
+	if err := nodeDeploymentBasicTemplate.Execute(&config3, &data3); err != nil {
 		t.Fatal(err)
 	}
 
@@ -112,14 +142,14 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 				Config: config.String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeNodeDeploymentExists(resourceName, &ndepl),
-					testAccCheckMetaKubeNodeDeploymentFields(&ndepl, data.NodeFlavor, data.OSVersion, data.KubeletVersion, 2, 0, false),
+					testAccCheckMetaKubeNodeDeploymentFields(&ndepl, data.NodeFlavor, data.OSVersion, data.KubeletVersion, data.Replicas, data.DiskSize, data.DistUpgradeOnBoot),
 					testAccCheckMetaKubeNodeDeploymentOpenstackUserTags(resourceName, data.UserTagKey, data.UserTagValue),
 					testAccCheckMetaKubeNodeDeploymentOpenstackAPIHasReservedPrefixTags(&ndepl),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.all_labels.%", "4"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.all_labels.a", "b"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.all_labels.c", "d"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.all_labels."+data.LabelKey, data.LabelValue),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.all_labels."+data.SecondLabelKey, data.SecondLabelValue),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.%", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.user-tag", "kept"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags."+data.UserTagKey, data.UserTagValue),
 					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.metakube-cluster"),
 					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.system-cluster"),
 					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.system-project"),
@@ -129,27 +159,27 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 					PreApply: []plancheck.PlanCheck{
 						plancheck.ExpectResourceAction(clusterResourceName, plancheck.ResourceActionCreate),
 						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionCreate),
-						plancheck.ExpectKnownValue(resourceName, distUpgradeOnBootPath, knownvalue.Bool(false)),
+						plancheck.ExpectKnownValue(resourceName, distUpgradeOnBootPath, knownvalue.Bool(true)),
 					},
 					PostApplyPreRefresh: []plancheck.PlanCheck{
 						plancheck.ExpectEmptyPlan(),
-						plancheck.ExpectKnownValue(resourceName, distUpgradeOnBootPath, knownvalue.Bool(false)),
+						plancheck.ExpectKnownValue(resourceName, distUpgradeOnBootPath, knownvalue.Bool(true)),
 					},
 					PostApplyPostRefresh: []plancheck.PlanCheck{
 						plancheck.ExpectEmptyPlan(),
-						plancheck.ExpectKnownValue(resourceName, distUpgradeOnBootPath, knownvalue.Bool(false)),
+						plancheck.ExpectKnownValue(resourceName, distUpgradeOnBootPath, knownvalue.Bool(true)),
 					},
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("replicas"),
-						knownvalue.Int64Exact(2)),
+						knownvalue.Int64Exact(int64(data.Replicas))),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("labels"),
 						knownvalue.MapExact(map[string]knownvalue.Check{
-							"a": knownvalue.StringExact("b"),
-							"c": knownvalue.StringExact("d"),
+							data.LabelKey:       knownvalue.StringExact(data.LabelValue),
+							data.SecondLabelKey: knownvalue.StringExact(data.SecondLabelValue),
 						})),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("cloud").AtSliceIndex(0).AtMapKey("openstack").AtSliceIndex(0).AtMapKey("flavor"),
@@ -162,21 +192,26 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 						knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("cloud").AtSliceIndex(0).AtMapKey("openstack").AtSliceIndex(0).AtMapKey("instance_ready_check_period"),
-						knownvalue.StringExact("10s")),
+						knownvalue.StringExact(data.InstanceReadyCheckPeriod)),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("cloud").AtSliceIndex(0).AtMapKey("openstack").AtSliceIndex(0).AtMapKey("instance_ready_check_timeout"),
-						knownvalue.StringExact("4m")),
+						knownvalue.StringExact(data.InstanceReadyCheckTimeout)),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("operating_system").AtSliceIndex(0).AtMapKey("ubuntu"),
 						knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("operating_system").AtSliceIndex(0).AtMapKey("ubuntu").AtSliceIndex(0).AtMapKey("dist_upgrade_on_boot"),
-						knownvalue.Bool(false)),
+						knownvalue.Bool(data.DistUpgradeOnBoot)),
+					statecheck.ExpectKnownValue(resourceName,
+						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("node_annotations"),
+						knownvalue.MapExact(map[string]knownvalue.Check{
+							data.NodeAnnotationKey: knownvalue.StringExact(data.NodeAnnotationValue),
+						})),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("machine_annotations"),
 						knownvalue.MapExact(map[string]knownvalue.Check{
 							"machines.metakube.syseleven.de/user-data-plugin": knownvalue.StringExact("ubuntu-sysext"),
-							"c": knownvalue.StringExact("d"),
+							data.MachineAnnotationKey:                         knownvalue.StringExact(data.MachineAnnotationValue),
 						})),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("versions").AtSliceIndex(0).AtMapKey("kubelet"),
@@ -184,12 +219,12 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("all_labels"),
 						knownvalue.MapPartial(map[string]knownvalue.Check{
-							"a": knownvalue.StringExact("b"),
-							"c": knownvalue.StringExact("d"),
+							data.LabelKey:       knownvalue.StringExact(data.LabelValue),
+							data.SecondLabelKey: knownvalue.StringExact(data.SecondLabelValue),
 						})),
 					statecheck.ExpectKnownValue(resourceName, tagsPath,
 						knownvalue.MapExact(map[string]knownvalue.Check{
-							"user-tag": knownvalue.StringExact("kept"),
+							data.UserTagKey: knownvalue.StringExact(data.UserTagValue),
 						})),
 				},
 			},
@@ -224,11 +259,12 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 						return nil
 					}),
 					testAccCheckMetaKubeNodeDeploymentExists(resourceName, &ndepl),
-					testAccCheckMetaKubeNodeDeploymentFields(&ndepl, data2.NodeFlavor, data2.OSVersion, data2.KubeletVersion, 2, 8, false),
+					testAccCheckMetaKubeNodeDeploymentFields(&ndepl, data2.NodeFlavor, data2.OSVersion, data2.KubeletVersion, data2.Replicas, data2.DiskSize, data2.DistUpgradeOnBoot),
 					testAccCheckMetaKubeNodeDeploymentOpenstackUserTags(resourceName, data2.UserTagKey, data2.UserTagValue),
 					testAccCheckMetaKubeNodeDeploymentOpenstackAPIHasReservedPrefixTags(&ndepl),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.%", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.user-tag", "kept"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags."+data2.UserTagKey, data2.UserTagValue),
+					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags."+data.UserTagKey),
 					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.metakube-cluster"),
 					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.system-cluster"),
 					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.system-project"),
@@ -239,12 +275,12 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("replicas"),
-						knownvalue.Int64Exact(2)),
+						knownvalue.Int64Exact(int64(data2.Replicas))),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("labels"),
 						knownvalue.MapExact(map[string]knownvalue.Check{
-							"a": knownvalue.StringExact("b"),
-							"c": knownvalue.StringExact("d"),
+							data2.LabelKey:       knownvalue.StringExact(data2.LabelValue),
+							data2.SecondLabelKey: knownvalue.StringExact(data2.SecondLabelValue),
 						})),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("cloud").AtSliceIndex(0).AtMapKey("openstack").AtSliceIndex(0).AtMapKey("flavor"),
@@ -260,10 +296,10 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 						knownvalue.Int64Exact(8)),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("cloud").AtSliceIndex(0).AtMapKey("openstack").AtSliceIndex(0).AtMapKey("instance_ready_check_period"),
-						knownvalue.StringExact("10s")),
+						knownvalue.StringExact(data2.InstanceReadyCheckPeriod)),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("cloud").AtSliceIndex(0).AtMapKey("openstack").AtSliceIndex(0).AtMapKey("instance_ready_check_timeout"),
-						knownvalue.StringExact("4m")),
+						knownvalue.StringExact(data2.InstanceReadyCheckTimeout)),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("cloud").AtSliceIndex(0).AtMapKey("openstack").AtSliceIndex(0).AtMapKey("server_group_id"),
 						knownvalue.NotNull()),
@@ -272,12 +308,17 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 						knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("operating_system").AtSliceIndex(0).AtMapKey("ubuntu").AtSliceIndex(0).AtMapKey("dist_upgrade_on_boot"),
-						knownvalue.Bool(false)),
+						knownvalue.Bool(data2.DistUpgradeOnBoot)),
+					statecheck.ExpectKnownValue(resourceName,
+						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("node_annotations"),
+						knownvalue.MapExact(map[string]knownvalue.Check{
+							data2.NodeAnnotationKey: knownvalue.StringExact(data2.NodeAnnotationValue),
+						})),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("machine_annotations"),
 						knownvalue.MapExact(map[string]knownvalue.Check{
 							"machines.metakube.syseleven.de/user-data-plugin": knownvalue.StringExact("ubuntu-sysext"),
-							"c": knownvalue.StringExact("d"),
+							data2.MachineAnnotationKey:                        knownvalue.StringExact(data2.MachineAnnotationValue),
 						})),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("versions").AtSliceIndex(0).AtMapKey("kubelet"),
@@ -285,17 +326,113 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("all_labels"),
 						knownvalue.MapPartial(map[string]knownvalue.Check{
-							"a": knownvalue.StringExact("b"),
-							"c": knownvalue.StringExact("d"),
+							data2.LabelKey:       knownvalue.StringExact(data2.LabelValue),
+							data2.SecondLabelKey: knownvalue.StringExact(data2.SecondLabelValue),
 						})),
 					statecheck.ExpectKnownValue(resourceName, tagsPath,
 						knownvalue.MapExact(map[string]knownvalue.Check{
-							"user-tag": knownvalue.StringExact("kept"),
+							data2.UserTagKey: knownvalue.StringExact(data2.UserTagValue),
 						})),
 				},
 			},
 			{
 				Config:   config2.String(),
+				PlanOnly: true,
+			},
+			{
+				Config: config3.String(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(clusterResourceName, plancheck.ResourceActionNoop),
+						plancheck.ExpectResourceAction(serverGroupResourceName, plancheck.ResourceActionDestroy),
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionUpdate),
+						plancheck.ExpectKnownValue(resourceName, distUpgradeOnBootPath, knownvalue.Bool(true)),
+					},
+					PostApplyPreRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+						plancheck.ExpectKnownValue(resourceName, distUpgradeOnBootPath, knownvalue.Bool(true)),
+					},
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+						plancheck.ExpectKnownValue(resourceName, distUpgradeOnBootPath, knownvalue.Bool(true)),
+					},
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testAccCheckMetaKubeNodeDeploymentExists(resourceName, &ndepl),
+					testAccCheckMetaKubeNodeDeploymentFields(&ndepl, data3.NodeFlavor, data3.OSVersion, data3.KubeletVersion, data3.Replicas, data3.DiskSize, data3.DistUpgradeOnBoot),
+					testAccCheckMetaKubeNodeDeploymentOpenstackUserTags(resourceName, data3.UserTagKey, data3.UserTagValue),
+					testAccCheckMetaKubeNodeDeploymentOpenstackAPIHasReservedPrefixTags(&ndepl),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.all_labels.%", "4"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.all_labels."+data3.LabelKey, data3.LabelValue),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.all_labels."+data3.SecondLabelKey, data3.SecondLabelValue),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.%", "1"),
+					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags."+data3.UserTagKey, data3.UserTagValue),
+					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags."+data2.UserTagKey),
+					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.metakube-cluster"),
+					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.system-cluster"),
+					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.system-project"),
+					resource.TestMatchResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.server_group_id", regexp.MustCompile(`.+`)),
+				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName,
+						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("replicas"),
+						knownvalue.Int64Exact(int64(data3.Replicas))),
+					statecheck.ExpectKnownValue(resourceName,
+						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("labels"),
+						knownvalue.MapExact(map[string]knownvalue.Check{
+							data3.LabelKey:       knownvalue.StringExact(data3.LabelValue),
+							data3.SecondLabelKey: knownvalue.StringExact(data3.SecondLabelValue),
+						})),
+					statecheck.ExpectKnownValue(resourceName,
+						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("cloud").AtSliceIndex(0).AtMapKey("openstack").AtSliceIndex(0).AtMapKey("flavor"),
+						knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName,
+						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("cloud").AtSliceIndex(0).AtMapKey("openstack").AtSliceIndex(0).AtMapKey("image"),
+						knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName,
+						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("cloud").AtSliceIndex(0).AtMapKey("openstack").AtSliceIndex(0).AtMapKey("use_floating_ip"),
+						knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName,
+						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("cloud").AtSliceIndex(0).AtMapKey("openstack").AtSliceIndex(0).AtMapKey("instance_ready_check_period"),
+						knownvalue.StringExact(data3.InstanceReadyCheckPeriod)),
+					statecheck.ExpectKnownValue(resourceName,
+						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("cloud").AtSliceIndex(0).AtMapKey("openstack").AtSliceIndex(0).AtMapKey("instance_ready_check_timeout"),
+						knownvalue.StringExact(data3.InstanceReadyCheckTimeout)),
+					statecheck.ExpectKnownValue(resourceName,
+						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("operating_system").AtSliceIndex(0).AtMapKey("ubuntu"),
+						knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName,
+						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("operating_system").AtSliceIndex(0).AtMapKey("ubuntu").AtSliceIndex(0).AtMapKey("dist_upgrade_on_boot"),
+						knownvalue.Bool(data3.DistUpgradeOnBoot)),
+					statecheck.ExpectKnownValue(resourceName,
+						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("node_annotations"),
+						knownvalue.MapExact(map[string]knownvalue.Check{
+							data3.NodeAnnotationKey: knownvalue.StringExact(data3.NodeAnnotationValue),
+						})),
+					statecheck.ExpectKnownValue(resourceName,
+						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("machine_annotations"),
+						knownvalue.MapExact(map[string]knownvalue.Check{
+							"machines.metakube.syseleven.de/user-data-plugin": knownvalue.StringExact("ubuntu-sysext"),
+							data3.MachineAnnotationKey:                        knownvalue.StringExact(data3.MachineAnnotationValue),
+						})),
+					statecheck.ExpectKnownValue(resourceName,
+						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("versions").AtSliceIndex(0).AtMapKey("kubelet"),
+						knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName,
+						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("all_labels"),
+						knownvalue.MapPartial(map[string]knownvalue.Check{
+							data3.LabelKey:       knownvalue.StringExact(data3.LabelValue),
+							data3.SecondLabelKey: knownvalue.StringExact(data3.SecondLabelValue),
+						})),
+					statecheck.ExpectKnownValue(resourceName, tagsPath,
+						knownvalue.MapExact(map[string]knownvalue.Check{
+							data3.UserTagKey: knownvalue.StringExact(data3.UserTagValue),
+						})),
+				},
+			},
+			{
+				Config:   config3.String(),
 				PlanOnly: true,
 			},
 			{
@@ -331,21 +468,34 @@ type nodeDeploymentBasicData struct {
 	OpenstackProjectID                    string
 	OpenstackRegion                       string
 
-	Name            string
-	DatacenterName  string
-	ProjectID       string
-	ClusterVersion  string
-	KubeletVersion  string
-	NodeFlavor      string
-	OSVersion       string
-	UseFloatingIP   string
-	DiskSize          int
-	ServerGroupName   string
-	UserTagKey        string
-	UserTagValue      string
-	ReservedTagKey    string
-	ReservedLabelKey  string
-	MinimalConfig     bool
+	Name                      string
+	DatacenterName            string
+	ProjectID                 string
+	ClusterVersion            string
+	KubeletVersion            string
+	NodeFlavor                string
+	OSVersion                 string
+	Replicas                  int
+	LabelKey                  string
+	LabelValue                string
+	SecondLabelKey            string
+	SecondLabelValue          string
+	UseFloatingIP             string
+	DiskSize                  int
+	InstanceReadyCheckPeriod  string
+	InstanceReadyCheckTimeout string
+	ServerGroupName           string
+	UserTagKey                string
+	UserTagValue              string
+	NodeAnnotationKey         string
+	NodeAnnotationValue       string
+	MachineAnnotationKey      string
+	MachineAnnotationValue    string
+	ReservedTagKey            string
+	ReservedLabelKey          string
+	MinimalConfig             bool
+
+	DistUpgradeOnBoot bool
 }
 
 var nodeDeploymentBasicTemplate = testutil.MustParseTemplate("nodeDeploymentBasic", `
@@ -415,14 +565,13 @@ var nodeDeploymentBasicTemplate = testutil.MustParseTemplate("nodeDeploymentBasi
 			delete = "40m"
 		}
 		spec {
-			replicas = {{ if .MinimalConfig }}1{{ else }}2{{ end }}
+			replicas = {{ if .MinimalConfig }}1{{ else }}{{ .Replicas }}{{ end }}
 			template {
 				labels = {
+					"{{ .LabelKey }}" = "{{ .LabelValue }}"
+					"{{ .SecondLabelKey }}" = "{{ .SecondLabelValue }}"
 					{{ if .ReservedLabelKey }}
 					"{{ .ReservedLabelKey }}" = "forbidden"
-					{{ else }}
-					"a" = "b"
-					"c" = "d"
 					{{ end }}
 				}
 				cloud {
@@ -436,8 +585,8 @@ var nodeDeploymentBasicTemplate = testutil.MustParseTemplate("nodeDeploymentBasi
 						{{ if .DiskSize }}
 						disk_size  = {{ .DiskSize }}
 						{{ end }}
-						instance_ready_check_period = "10s"
-						instance_ready_check_timeout = "4m"
+						instance_ready_check_period = "{{ .InstanceReadyCheckPeriod }}"
+						instance_ready_check_timeout = "{{ .InstanceReadyCheckTimeout }}"
 						{{ if .ServerGroupName }}
 						server_group_id = openstack_compute_servergroup_v2.acctest_sg.id
 						{{ end }}
@@ -454,15 +603,17 @@ var nodeDeploymentBasicTemplate = testutil.MustParseTemplate("nodeDeploymentBasi
 					}
 				}
 				operating_system {
-					ubuntu {}
+					ubuntu {
+						dist_upgrade_on_boot = {{ .DistUpgradeOnBoot }}
+					}
 				}
 				{{ if not .MinimalConfig }}
 				node_annotations = {
-					"a" = "b"
+					"{{ .NodeAnnotationKey }}" = "{{ .NodeAnnotationValue }}"
 				}
 				machine_annotations = {
 					"machines.metakube.syseleven.de/user-data-plugin" = "ubuntu-sysext"
-					"c" = "d"
+					"{{ .MachineAnnotationKey }}" = "{{ .MachineAnnotationValue }}"
 				}
 				{{ end }}
 				versions {

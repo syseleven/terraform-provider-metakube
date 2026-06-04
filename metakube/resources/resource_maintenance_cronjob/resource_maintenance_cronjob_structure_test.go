@@ -312,3 +312,69 @@ func TestMetakubeMaintenanceCronJobExpandMaintenanceJobTemplate(t *testing.T) {
 		}
 	})
 }
+
+func TestMetakubeMaintenanceCronJobOptionsChanged(t *testing.T) {
+	ctx := context.Background()
+
+	planSpec := buildMaintenanceCronJobSpecList(t, ctx, "0 2 * * *", map[string]attr.Value{
+		"update": types.StringValue("changed"),
+	})
+	stateSpec := buildMaintenanceCronJobSpecList(t, ctx, "5 4 * * *", map[string]attr.Value{
+		"create": types.StringValue("initial"),
+	})
+
+	if !metakubeMaintenanceCronJobOptionsChanged(ctx, planSpec, stateSpec) {
+		t.Fatal("expected options to be detected as changed")
+	}
+
+	sameSpec := buildMaintenanceCronJobSpecList(t, ctx, "5 4 * * *", map[string]attr.Value{
+		"create": types.StringValue("initial"),
+	})
+	if metakubeMaintenanceCronJobOptionsChanged(ctx, sameSpec, stateSpec) {
+		t.Fatal("expected identical options not to trigger replacement")
+	}
+}
+
+func buildMaintenanceCronJobSpecList(t *testing.T, ctx context.Context, schedule string, options map[string]attr.Value) types.List {
+	t.Helper()
+
+	optionsMap, diags := types.MapValue(types.StringType, options)
+	if diags.HasError() {
+		t.Fatalf("error creating options map: %v", diags.Errors())
+	}
+	optObj, diags := types.ObjectValueFrom(ctx, optionsBlockAttrTypes(), OptionsBlockModel{Options: optionsMap})
+	if diags.HasError() {
+		t.Fatalf("error creating options object: %v", diags.Errors())
+	}
+	optList, diags := types.ListValue(types.ObjectType{AttrTypes: optionsBlockAttrTypes()}, []attr.Value{optObj})
+	if diags.HasError() {
+		t.Fatalf("error creating options list: %v", diags.Errors())
+	}
+
+	tmplObj, diags := types.ObjectValueFrom(ctx, maintenanceJobTemplateAttrTypes(), MaintenanceJobTemplateModel{
+		Options:  optList,
+		Rollback: types.BoolValue(false),
+		Type:     types.StringValue("kubernetesPatchUpdate"),
+	})
+	if diags.HasError() {
+		t.Fatalf("error creating template object: %v", diags.Errors())
+	}
+	tmplList, diags := types.ListValue(types.ObjectType{AttrTypes: maintenanceJobTemplateAttrTypes()}, []attr.Value{tmplObj})
+	if diags.HasError() {
+		t.Fatalf("error creating template list: %v", diags.Errors())
+	}
+
+	specObj, diags := types.ObjectValueFrom(ctx, specAttrTypes(), SpecModel{
+		Schedule:               types.StringValue(schedule),
+		MaintenanceJobTemplate: tmplList,
+	})
+	if diags.HasError() {
+		t.Fatalf("error creating spec object: %v", diags.Errors())
+	}
+	specList, diags := types.ListValue(types.ObjectType{AttrTypes: specAttrTypes()}, []attr.Value{specObj})
+	if diags.HasError() {
+		t.Fatalf("error creating spec list: %v", diags.Errors())
+	}
+
+	return specList
+}
