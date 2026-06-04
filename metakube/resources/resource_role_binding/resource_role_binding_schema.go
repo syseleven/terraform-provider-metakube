@@ -8,6 +8,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -59,12 +62,18 @@ func metakubeRoleBindingAttributes() map[string]schema.Attribute {
 			Validators: []validator.String{
 				stringvalidator.LengthAtLeast(1),
 			},
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.RequiresReplace(),
+			},
 			Description: "The id of the project resource belongs to",
 		},
 		"cluster_id": schema.StringAttribute{
 			Required: true,
 			Validators: []validator.String{
 				stringvalidator.LengthAtLeast(1),
+			},
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.RequiresReplace(),
 			},
 			Description: "The id of the cluster resource belongs to",
 		},
@@ -73,12 +82,18 @@ func metakubeRoleBindingAttributes() map[string]schema.Attribute {
 			Validators: []validator.String{
 				stringvalidator.LengthAtLeast(1),
 			},
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.RequiresReplace(),
+			},
 			Description: "The name of the namespace",
 		},
 		"role_name": schema.StringAttribute{
 			Required: true,
 			Validators: []validator.String{
 				stringvalidator.LengthAtLeast(1),
+			},
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.RequiresReplace(),
 			},
 			Description: "The name of the role to bind to",
 		},
@@ -90,6 +105,9 @@ func metakubeRoleBindingSubjectBlock() map[string]schema.Block {
 		"subject": schema.ListNestedBlock{
 			Validators: []validator.List{
 				listvalidator.SizeAtLeast(1),
+			},
+			PlanModifiers: []planmodifier.List{
+				listplanmodifier.RequiresReplace(),
 			},
 			Description: "Users and groups to bind for",
 			NestedObject: schema.NestedBlockObject{
