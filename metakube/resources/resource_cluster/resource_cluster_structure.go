@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/syseleven/go-metakube/models"
+	"github.com/syseleven/terraform-provider-metakube/metakube/common"
 	"k8s.io/utils/ptr"
 )
 
@@ -813,11 +814,14 @@ func upgradeSingleItemListToObject(parent map[string]any, key string) {
 	}
 }
 
-// TODO: Remove this workaround once go-metakube uses pointers for
+// TODO: Remove this workaround once go-metakube can handle
 // nullable patch-relevant fields, so falsey fields are serialized without forcing keys.
-func clusterSpecPatchBody(spec *models.ClusterSpec) (map[string]any, error) {
+func clusterSpecPatchBody(spec *models.ClusterSpec, include func(string) bool) (map[string]any, error) {
 	if spec == nil {
 		return nil, nil
+	}
+	if include == nil {
+		include = func(string) bool { return true }
 	}
 
 	raw, err := json.Marshal(spec)
@@ -829,18 +833,22 @@ func clusterSpecPatchBody(spec *models.ClusterSpec) (map[string]any, error) {
 		return nil, fmt.Errorf("unmarshal cluster spec: %w", err)
 	}
 
-	m["usePodNodeSelectorAdmissionPlugin"] = spec.UsePodNodeSelectorAdmissionPlugin
-	m["usePodSecurityPolicyAdmissionPlugin"] = spec.UsePodSecurityPolicyAdmissionPlugin
+	if include("pod_node_selector") {
+		m["usePodNodeSelectorAdmissionPlugin"] = spec.UsePodNodeSelectorAdmissionPlugin
+	}
+	if include("pod_security_policy") {
+		m["usePodSecurityPolicyAdmissionPlugin"] = spec.UsePodSecurityPolicyAdmissionPlugin
+	}
 
 	if spec.AuditLogging != nil {
-		al := asJSONObject(m["auditLogging"])
+		al := common.AsObject(m["auditLogging"])
 		al["enabled"] = spec.AuditLogging.Enabled
 		m["auditLogging"] = al
 	}
 
 	if spec.CniPlugin != nil && spec.CniPlugin.Cilium != nil {
-		cni := asJSONObject(m["cniPlugin"])
-		cilium := asJSONObject(cni["cilium"])
+		cni := common.AsObject(m["cniPlugin"])
+		cilium := common.AsObject(cni["cilium"])
 		cilium["enableHubble"] = spec.CniPlugin.Cilium.EnableHubble
 		cilium["enableL7Proxy"] = spec.CniPlugin.Cilium.EnableL7Proxy
 		cni["cilium"] = cilium
@@ -848,11 +856,4 @@ func clusterSpecPatchBody(spec *models.ClusterSpec) (map[string]any, error) {
 	}
 
 	return m, nil
-}
-
-func asJSONObject(v any) map[string]any {
-	if m, ok := v.(map[string]any); ok {
-		return m
-	}
-	return map[string]any{}
 }
