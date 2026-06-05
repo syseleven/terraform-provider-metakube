@@ -205,14 +205,7 @@ func flattenCloudSpec(ctx context.Context, in *models.NodeCloudSpec) (types.List
 	}
 
 	cloudModel := CloudSpecModel{
-		AWS:       types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}),
 		OpenStack: types.ListNull(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}),
-	}
-
-	if in.Aws != nil {
-		awsList, d := flattenAWSCloudSpec(ctx, in.Aws)
-		diags.Append(d...)
-		cloudModel.AWS = awsList
 	}
 
 	if in.Openstack != nil {
@@ -228,69 +221,6 @@ func flattenCloudSpec(ctx context.Context, in *models.NodeCloudSpec) (types.List
 	}
 
 	listVal, d := types.ListValue(types.ObjectType{AttrTypes: cloudSpecAttrTypes()}, []attr.Value{objVal})
-	diags.Append(d...)
-
-	return listVal, diags
-}
-
-func flattenAWSCloudSpec(ctx context.Context, in *models.AWSNodeSpec) (types.List, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	if in == nil {
-		return types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}), diags
-	}
-
-	awsModel := AWSCloudSpecModel{
-		AssignPublicIP: types.BoolValue(in.AssignPublicIP),
-	}
-
-	if in.InstanceType != nil {
-		awsModel.InstanceType = types.StringValue(*in.InstanceType)
-	} else {
-		awsModel.InstanceType = types.StringNull()
-	}
-
-	if in.VolumeSize != nil {
-		awsModel.DiskSize = types.Int64Value(int64(*in.VolumeSize))
-	} else {
-		awsModel.DiskSize = types.Int64Null()
-	}
-
-	if in.VolumeType != nil {
-		awsModel.VolumeType = types.StringValue(*in.VolumeType)
-	} else {
-		awsModel.VolumeType = types.StringNull()
-	}
-
-	if in.AvailabilityZone != "" {
-		awsModel.AvailabilityZone = types.StringValue(in.AvailabilityZone)
-	} else {
-		awsModel.AvailabilityZone = types.StringNull()
-	}
-
-	if in.SubnetID != "" {
-		awsModel.SubnetID = types.StringValue(in.SubnetID)
-	} else {
-		awsModel.SubnetID = types.StringNull()
-	}
-
-	if in.AMI != "" {
-		awsModel.AMI = types.StringValue(in.AMI)
-	} else {
-		awsModel.AMI = types.StringNull()
-	}
-
-	tagsVal, d := flattenUserTags(in.Tags)
-	diags.Append(d...)
-	awsModel.Tags = tagsVal
-
-	objVal, d := types.ObjectValueFrom(ctx, awsCloudSpecAttrTypes(), awsModel)
-	diags.Append(d...)
-	if diags.HasError() {
-		return types.ListNull(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}), diags
-	}
-
-	listVal, d := types.ListValue(types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}, []attr.Value{objVal})
 	diags.Append(d...)
 
 	return listVal, diags
@@ -643,75 +573,11 @@ func expandCloudSpec(ctx context.Context, cloudList types.List) (*models.NodeClo
 	cloud := cloudModels[0]
 	obj := &models.NodeCloudSpec{}
 
-	// AWS
-	if !cloud.AWS.IsNull() && !cloud.AWS.IsUnknown() && len(cloud.AWS.Elements()) > 0 {
-		aws, d := expandAWSCloudSpec(ctx, cloud.AWS)
-		diags.Append(d...)
-		obj.Aws = aws
-	}
-
 	// OpenStack
 	if !cloud.OpenStack.IsNull() && !cloud.OpenStack.IsUnknown() && len(cloud.OpenStack.Elements()) > 0 {
 		openstack, d := expandOpenStackCloudSpec(ctx, cloud.OpenStack)
 		diags.Append(d...)
 		obj.Openstack = openstack
-	}
-
-	return obj, diags
-}
-
-func expandAWSCloudSpec(ctx context.Context, awsList types.List) (*models.AWSNodeSpec, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	if awsList.IsNull() || awsList.IsUnknown() || len(awsList.Elements()) == 0 {
-		return nil, diags
-	}
-
-	var awsModels []AWSCloudSpecModel
-	diags.Append(awsList.ElementsAs(ctx, &awsModels, false)...)
-	if diags.HasError() || len(awsModels) == 0 {
-		return nil, diags
-	}
-
-	aws := awsModels[0]
-	obj := &models.AWSNodeSpec{}
-
-	if !aws.InstanceType.IsNull() && !aws.InstanceType.IsUnknown() {
-		obj.InstanceType = common.StrToPtr(aws.InstanceType.ValueString())
-	}
-
-	if !aws.DiskSize.IsNull() && !aws.DiskSize.IsUnknown() {
-		obj.VolumeSize = ptr.To(int32(aws.DiskSize.ValueInt64()))
-	}
-
-	if !aws.VolumeType.IsNull() && !aws.VolumeType.IsUnknown() {
-		obj.VolumeType = common.StrToPtr(aws.VolumeType.ValueString())
-	}
-
-	if !aws.AvailabilityZone.IsNull() && !aws.AvailabilityZone.IsUnknown() {
-		obj.AvailabilityZone = aws.AvailabilityZone.ValueString()
-	}
-
-	if !aws.SubnetID.IsNull() && !aws.SubnetID.IsUnknown() {
-		obj.SubnetID = aws.SubnetID.ValueString()
-	}
-
-	if !aws.AssignPublicIP.IsNull() && !aws.AssignPublicIP.IsUnknown() {
-		obj.AssignPublicIP = aws.AssignPublicIP.ValueBool()
-	}
-
-	if !aws.AMI.IsNull() && !aws.AMI.IsUnknown() {
-		obj.AMI = aws.AMI.ValueString()
-	}
-
-	if !aws.Tags.IsNull() && !aws.Tags.IsUnknown() {
-		obj.Tags = make(map[string]string)
-		tagsMap := aws.Tags.Elements()
-		for k, v := range tagsMap {
-			if strVal, ok := v.(types.String); ok && !strVal.IsNull() && !strVal.IsUnknown() {
-				obj.Tags[k] = strVal.ValueString()
-			}
-		}
 	}
 
 	return obj, diags
@@ -947,9 +813,6 @@ func getCloudProviderFromModel(ctx context.Context, model *NodeDeploymentModel) 
 
 	cloud := cloudModels[0]
 
-	if !cloud.AWS.IsNull() && !cloud.AWS.IsUnknown() && len(cloud.AWS.Elements()) > 0 {
-		return "aws", diags
-	}
 	if !cloud.OpenStack.IsNull() && !cloud.OpenStack.IsUnknown() && len(cloud.OpenStack.Elements()) > 0 {
 		return "openstack", diags
 	}

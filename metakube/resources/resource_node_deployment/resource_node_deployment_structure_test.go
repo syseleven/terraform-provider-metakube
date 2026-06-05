@@ -229,14 +229,14 @@ func TestMarshalSpecToMapFWIncludesFalseOperatingSystemBooleans(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			patch, err := marshalSpecToMapFW(&models.NodeDeploymentSpec{
+			patch, err := nodeDeploymentSpecPatchBody(&models.NodeDeploymentSpec{
 				Replicas: ptr.To(int32(1)),
 				Template: &models.NodeSpec{
 					OperatingSystem: tt.os,
 				},
 			})
 			if err != nil {
-				t.Fatalf("marshalSpecToMapFW failed: %v", err)
+				t.Fatalf("nodeDeploymentSpecPatchBody failed: %v", err)
 			}
 
 			template, ok := patch["template"].(map[string]interface{})
@@ -313,7 +313,7 @@ func TestBuildPatchWithDeletions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config, plan, state := tt.setup(t)
-			patch := buildNodeDeploymentPatchWithConfig(t, ctx, config, plan, state)
+			patch := buildNodeDeploymentPatch(t, ctx, config, plan, state)
 			tt.check(t, patch)
 		})
 	}
@@ -507,7 +507,7 @@ func stringMapValue(t *testing.T, values map[string]string) types.Map {
 	return result
 }
 
-func buildNodeDeploymentPatchWithConfig(t *testing.T, ctx context.Context, config, plan, state *NodeDeploymentModel) map[string]interface{} {
+func buildNodeDeploymentPatch(t *testing.T, ctx context.Context, config, plan, state *NodeDeploymentModel) map[string]interface{} {
 	t.Helper()
 
 	spec, diags := expandNodeDeploymentSpec(ctx, plan.Spec, false)
@@ -515,7 +515,7 @@ func buildNodeDeploymentPatchWithConfig(t *testing.T, ctx context.Context, confi
 		t.Fatalf("failed to expand plan spec: %v", diags)
 	}
 
-	patch, err := (&nodeDeploymentResource{}).buildPatchWithDeletions(ctx, config, plan, state, &models.NodeDeployment{Spec: spec})
+	patch, err := (&nodeDeploymentResource{}).buildPatchWithDeletions(config, plan, state, &models.NodeDeployment{Spec: spec})
 	if err != nil {
 		t.Fatalf("failed to build patch: %v", err)
 	}
