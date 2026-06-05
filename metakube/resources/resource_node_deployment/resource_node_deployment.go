@@ -5,12 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"reflect"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-version"
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -234,9 +232,11 @@ func (r *nodeDeploymentResource) Read(ctx context.Context, req resource.ReadRequ
 }
 
 func (r *nodeDeploymentResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan, state NodeDeploymentModel
+	var config, plan, state NodeDeploymentModel
 
-	diags := req.Plan.Get(ctx, &plan)
+	diags := req.Config.Get(ctx, &config)
+	resp.Diagnostics.Append(diags...)
+	diags = req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	diags = req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -268,7 +268,7 @@ func (r *nodeDeploymentResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
-	patch, err := r.buildPatchWithDeletions(ctx, &plan, &state, nodeDeployment)
+	patch, err := r.buildPatchWithDeletions(&config, &plan, &state, nodeDeployment)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to build patch", err.Error())
 		return
@@ -592,8 +592,6 @@ func (r *nodeDeploymentResource) validateProviderMatchesCluster(ctx context.Cont
 
 	var clusterProvider string
 	switch {
-	case cluster.Spec.Cloud.Aws != nil:
-		clusterProvider = "aws"
 	case cluster.Spec.Cloud.Openstack != nil:
 		clusterProvider = "openstack"
 	default:
@@ -696,105 +694,33 @@ func (r *nodeDeploymentResource) validateVersionCompatibleWithCluster(ctx contex
 	return fmt.Errorf("unknown version for node deployment %s, available versions %v", kubeletVersion, availableVersions)
 }
 
-// buildPatchWithDeletions builds a patch that includes null values for deleted map keys
-func (r *nodeDeploymentResource) buildPatchWithDeletions(ctx context.Context, plan, state *NodeDeploymentModel, nd *models.NodeDeployment) (map[string]interface{}, error) {
-	specPatch, err := marshalSpecToMapFW(nd.Spec)
+// buildPatchWithDeletions builds the SET patch from the expanded API spec and overlays
+// merge-patch deletions inferred from framework plan/state map values.
+func (r *nodeDeploymentResource) buildPatchWithDeletions(config, plan, state *NodeDeploymentModel, nd *models.NodeDeployment) (map[string]interface{}, error) {
+	specPatch, err := nodeDeploymentSpecPatchBody(nd.Spec)
 	if err != nil {
 		return nil, fmt.Errorf("marshal node deployment spec: %w", err)
 	}
-
 	if specPatch == nil {
 		specPatch = make(map[string]interface{})
 	}
 
-	templatePatch, ok := specPatch["template"].(map[string]interface{})
-	if !ok || templatePatch == nil {
-		templatePatch = make(map[string]interface{})
-		specPatch["template"] = templatePatch
-	}
+	common.AddMergePatchDeletions(
+		specPatch,
+		config.Spec,
+		plan.Spec,
+		state.Spec,
+		models.NodeDeploymentSpec{},
+		NodeDeploymentSpecModel{},
+		NodeSpecModel{},
+		CloudSpecModel{},
+		OpenStackCloudSpecModel{},
+	)
 
-	var planSpecModels, stateSpecModels []NodeDeploymentSpecModel
-	if !plan.Spec.IsNull() && !plan.Spec.IsUnknown() {
-		plan.Spec.ElementsAs(ctx, &planSpecModels, false)
-	}
-	if !state.Spec.IsNull() && !state.Spec.IsUnknown() {
-		state.Spec.ElementsAs(ctx, &stateSpecModels, false)
-	}
-
-	if len(planSpecModels) > 0 && len(stateSpecModels) > 0 {
-		var planTemplateModels, stateTemplateModels []NodeSpecModel
-		if !planSpecModels[0].Template.IsNull() && !planSpecModels[0].Template.IsUnknown() {
-			planSpecModels[0].Template.ElementsAs(ctx, &planTemplateModels, false)
-		}
-		if !stateSpecModels[0].Template.IsNull() && !stateSpecModels[0].Template.IsUnknown() {
-			stateSpecModels[0].Template.ElementsAs(ctx, &stateTemplateModels, false)
-		}
-
-		if len(planTemplateModels) > 0 && len(stateTemplateModels) > 0 {
-			planTmpl := planTemplateModels[0]
-			stateTmpl := stateTemplateModels[0]
-
-			if !planTmpl.Labels.Equal(stateTmpl.Labels) {
-				labelsPatch := buildMapPatchFromTypes(planTmpl.Labels, stateTmpl.Labels)
-				jsonKey := getJSONKeyForField(reflect.TypeOf(models.NodeSpec{}), "Labels")
-				if jsonKey != "" {
-					templatePatch[jsonKey] = labelsPatch
-				}
-			}
-
-			if !planTmpl.NodeAnnotations.Equal(stateTmpl.NodeAnnotations) {
-				annoPatch := buildMapPatchFromTypes(planTmpl.NodeAnnotations, stateTmpl.NodeAnnotations)
-				jsonKey := getJSONKeyForField(reflect.TypeOf(models.NodeSpec{}), "NodeAnnotations")
-				if jsonKey != "" {
-					templatePatch[jsonKey] = annoPatch
-				}
-			}
-
-			if !planTmpl.MachineAnnotations.Equal(stateTmpl.MachineAnnotations) {
-				annoPatch := buildMapPatchFromTypes(planTmpl.MachineAnnotations, stateTmpl.MachineAnnotations)
-				jsonKey := getJSONKeyForField(reflect.TypeOf(models.NodeSpec{}), "MachineAnnotations")
-				if jsonKey != "" {
-					templatePatch[jsonKey] = annoPatch
-				}
-			}
-		}
-	}
-
-	return map[string]interface{}{
-		"spec": specPatch,
-	}, nil
+	return map[string]interface{}{"spec": specPatch}, nil
 }
 
-// buildMapPatchFromTypes builds a patch map from plan and state types.Map
-func buildMapPatchFromTypes(planMap, stateMap types.Map) map[string]interface{} {
-	result := make(map[string]interface{})
-
-	if !planMap.IsNull() && !planMap.IsUnknown() {
-		for k, v := range planMap.Elements() {
-			if strVal, ok := v.(types.String); ok && !strVal.IsNull() && !strVal.IsUnknown() {
-				result[k] = strVal.ValueString()
-			}
-		}
-	}
-
-	if !stateMap.IsNull() && !stateMap.IsUnknown() {
-		planElements := make(map[string]attr.Value)
-		if !planMap.IsNull() && !planMap.IsUnknown() {
-			planElements = planMap.Elements()
-		}
-
-		for k := range stateMap.Elements() {
-			if _, exists := planElements[k]; !exists {
-				result[k] = nil
-			}
-		}
-	}
-
-	return result
-}
-
-// marshalSpecToMapFW marshals a NodeDeploymentSpec to a map for patching
-func marshalSpecToMapFW(spec *models.NodeDeploymentSpec) (map[string]interface{}, error) {
+func nodeDeploymentSpecPatchBody(spec *models.NodeDeploymentSpec) (map[string]interface{}, error) {
 	if spec == nil {
 		return map[string]interface{}{}, nil
 	}
@@ -809,25 +735,31 @@ func marshalSpecToMapFW(spec *models.NodeDeploymentSpec) (map[string]interface{}
 		return nil, err
 	}
 
+	addExplicitOperatingSystemBoolFields(out, spec)
+
 	return out, nil
 }
 
-// getJSONKeyForField gets the JSON key for a struct field
-func getJSONKeyForField(t reflect.Type, fieldName string) string {
-	field, ok := t.FieldByName(fieldName)
-	if !ok {
-		return ""
+func addExplicitOperatingSystemBoolFields(specMap map[string]interface{}, spec *models.NodeDeploymentSpec) {
+	if specMap == nil || spec == nil || spec.Template == nil || spec.Template.OperatingSystem == nil {
+		return
 	}
 
-	tag := field.Tag.Get("json")
-	if tag == "" {
-		return ""
+	templateMap := common.AsObject(specMap["template"])
+	operatingSystemMap := common.AsObject(templateMap["operatingSystem"])
+
+	if ubuntu := spec.Template.OperatingSystem.Ubuntu; ubuntu != nil {
+		ubuntuMap := common.AsObject(operatingSystemMap["ubuntu"])
+		ubuntuMap["distUpgradeOnBoot"] = ubuntu.DistUpgradeOnBoot
+		operatingSystemMap["ubuntu"] = ubuntuMap
 	}
 
-	jsonKey := strings.Split(tag, ",")[0]
-	if jsonKey == "-" || jsonKey == "" {
-		return ""
+	if flatcar := spec.Template.OperatingSystem.Flatcar; flatcar != nil {
+		flatcarMap := common.AsObject(operatingSystemMap["flatcar"])
+		flatcarMap["disableAutoUpdate"] = flatcar.DisableAutoUpdate
+		operatingSystemMap["flatcar"] = flatcarMap
 	}
 
-	return jsonKey
+	templateMap["operatingSystem"] = operatingSystemMap
+	specMap["template"] = templateMap
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -50,19 +51,7 @@ type NodeSpecModel struct {
 }
 
 type CloudSpecModel struct {
-	AWS       types.List `tfsdk:"aws"`
 	OpenStack types.List `tfsdk:"openstack"`
-}
-
-type AWSCloudSpecModel struct {
-	InstanceType     types.String `tfsdk:"instance_type"`
-	DiskSize         types.Int64  `tfsdk:"disk_size"`
-	VolumeType       types.String `tfsdk:"volume_type"`
-	AvailabilityZone types.String `tfsdk:"availability_zone"`
-	SubnetID         types.String `tfsdk:"subnet_id"`
-	AssignPublicIP   types.Bool   `tfsdk:"assign_public_ip"`
-	AMI              types.String `tfsdk:"ami"`
-	Tags             types.Map    `tfsdk:"tags"`
 }
 
 type OpenStackCloudSpecModel struct {
@@ -125,21 +114,7 @@ func nodeSpecAttrTypes() map[string]attr.Type {
 
 func cloudSpecAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"aws":       types.ListType{ElemType: types.ObjectType{AttrTypes: awsCloudSpecAttrTypes()}},
 		"openstack": types.ListType{ElemType: types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}},
-	}
-}
-
-func awsCloudSpecAttrTypes() map[string]attr.Type {
-	return map[string]attr.Type{
-		"instance_type":     types.StringType,
-		"disk_size":         types.Int64Type,
-		"volume_type":       types.StringType,
-		"availability_zone": types.StringType,
-		"subnet_id":         types.StringType,
-		"assign_public_ip":  types.BoolType,
-		"ami":               types.StringType,
-		"tags":              types.MapType{ElemType: types.StringType},
 	}
 }
 
@@ -383,15 +358,6 @@ func nodeSpecBlocks() map[string]schema.Block {
 
 func cloudSpecBlocks() map[string]schema.Block {
 	return map[string]schema.Block{
-		"aws": schema.ListNestedBlock{
-			Description: "AWS node deployment specification",
-			Validators: []validator.List{
-				listvalidator.SizeAtMost(1),
-			},
-			NestedObject: schema.NestedBlockObject{
-				Attributes: awsCloudSpecAttributes(),
-			},
-		},
 		"openstack": schema.ListNestedBlock{
 			Description: "OpenStack node deployment specification",
 			Validators: []validator.List{
@@ -399,65 +365,6 @@ func cloudSpecBlocks() map[string]schema.Block {
 			},
 			NestedObject: schema.NestedBlockObject{
 				Attributes: openstackCloudSpecAttributes(),
-			},
-		},
-	}
-}
-
-func awsCloudSpecAttributes() map[string]schema.Attribute {
-	return map[string]schema.Attribute{
-		"instance_type": schema.StringAttribute{
-			Required:    true,
-			Description: "EC2 instance type",
-			Validators: []validator.String{
-				stringvalidator.LengthAtLeast(1),
-			},
-		},
-		"disk_size": schema.Int64Attribute{
-			Required:    true,
-			Description: "Size of the volume in GBs. Only one volume will be created",
-			Validators: []validator.Int64{
-				int64validator.AtLeast(1),
-			},
-		},
-		"volume_type": schema.StringAttribute{
-			Required:    true,
-			Description: "EBS volume type",
-			Validators: []validator.String{
-				stringvalidator.LengthAtLeast(1),
-			},
-		},
-		"availability_zone": schema.StringAttribute{
-			Required:    true,
-			Description: "Availability zone in which to place the node. It is coupled with the subnet to which the node will belong",
-			Validators: []validator.String{
-				stringvalidator.LengthAtLeast(1),
-			},
-		},
-		"subnet_id": schema.StringAttribute{
-			Required:    true,
-			Description: "The VPC subnet to which the node shall be connected",
-			Validators: []validator.String{
-				stringvalidator.LengthAtLeast(1),
-			},
-		},
-		"assign_public_ip": schema.BoolAttribute{
-			Optional:    true,
-			Computed:    true,
-			Default:     booldefault.StaticBool(true),
-			Description: "Flag which controls a property of the AWS instance. When set the AWS instance will get a public IP address assigned during launch overriding a possible setting in the used AWS subnet.",
-		},
-		"ami": schema.StringAttribute{
-			Optional:    true,
-			Description: "Amazon Machine Image to use. Will be defaulted to an AMI of your selected operating system and region",
-		},
-		"tags": schema.MapAttribute{
-			Optional:    true,
-			Computed:    true,
-			ElementType: types.StringType,
-			Description: "Additional instance tags. Keys matching reserved patterns are ignored in this attribute.",
-			Validators: []validator.Map{
-				noSystemManagedKeysValidator(),
 			},
 		},
 	}
@@ -494,6 +401,9 @@ func openstackCloudSpecAttributes() map[string]schema.Attribute {
 			Validators: []validator.Map{
 				noSystemManagedKeysValidator(),
 			},
+			PlanModifiers: []planmodifier.Map{
+				mapplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"use_floating_ip": schema.BoolAttribute{
 			Optional:    true,
@@ -518,14 +428,14 @@ func openstackCloudSpecAttributes() map[string]schema.Attribute {
 			Validators: []validator.String{
 				durationValidator{},
 			},
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"server_group_id": schema.StringAttribute{
 			Optional:    true,
 			Computed:    true,
 			Description: "Specifies the ID of the server group for nodes in the nodes deployment. Defaults to the cluster setting",
-			PlanModifiers: []planmodifier.String{
-				serverGroupIDPlanModifier{},
-			},
 		},
 	}
 }
@@ -671,28 +581,6 @@ func (v noSystemManagedKeysMapValidator) ValidateMap(ctx context.Context, req va
 
 func noSystemManagedKeysValidator() validator.Map {
 	return noSystemManagedKeysMapValidator{}
-}
-
-// serverGroupIDPlanModifier preserves state value when config is empty
-type serverGroupIDPlanModifier struct{}
-
-func (m serverGroupIDPlanModifier) Description(ctx context.Context) string {
-	return "Preserves state value when config is empty"
-}
-
-func (m serverGroupIDPlanModifier) MarkdownDescription(ctx context.Context) string {
-	return m.Description(ctx)
-}
-
-func (m serverGroupIDPlanModifier) PlanModifyString(ctx context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
-	if req.ConfigValue.IsUnknown() {
-		return
-	}
-
-	if (req.ConfigValue.IsNull() || req.ConfigValue.ValueString() == "") &&
-		!req.StateValue.IsNull() && req.StateValue.ValueString() != "" {
-		resp.PlanValue = req.StateValue
-	}
 }
 
 // int64RequiresReplacePlanModifier forces replacement when value changes
