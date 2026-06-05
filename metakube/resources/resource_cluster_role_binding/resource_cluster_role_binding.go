@@ -224,6 +224,7 @@ func (r *metakubeClusterRoleBinding) ImportState(ctx context.Context, req resour
 }
 
 func (r *metakubeClusterRoleBinding) Update(_ context.Context, _ resource.UpdateRequest, _ *resource.UpdateResponse) {
+	// All configurable attributes require replacement, so Update is never called.
 }
 
 func clusterRoleBindingAlreadyConnected(err error) bool {
