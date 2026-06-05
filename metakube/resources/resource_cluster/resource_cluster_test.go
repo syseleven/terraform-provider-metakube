@@ -2,10 +2,12 @@ package resource_cluster_test
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -43,6 +45,15 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 		DatacenterName:                        os.Getenv(common.TestEnvOpenstackNodeDC),
 		ProjectID:                             os.Getenv(common.TestEnvProjectID),
 		Version:                               os.Getenv(common.TestEnvK8sVersionOpenstack),
+		LabelKey:                              "a",
+		LabelValue:                            "b",
+		SecondLabelKey:                        "c",
+		SecondLabelValue:                      "d",
+		UpdateWindowStart:                     "Tue 02:00",
+		UpdateWindowLength:                    "2h",
+		ServicesCIDR:                          "10.240.16.0/18",
+		PodsCIDR:                              "172.25.0.0/18",
+		SubnetCIDR:                            "192.168.2.0/24",
 	}
 	var config strings.Builder
 	if err := clusterOpenstackBasicTemplate.Execute(&config, data); err != nil {
@@ -54,6 +65,10 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 	data2.CNIPlugin = "cilium"
 	data2.Cilium = true
 	data2.Clustermesh = true
+	data2.CiliumEnableHubble = true
+	data2.CiliumEnableL7Proxy = true
+	data2.ClustermeshClusterID = 1
+	data2.ClustermeshIPv4NativeRoutingCIDR = "172.0.0.0/15"
 	if err := clusterOpenstackBasicTemplate.Execute(&config2, &data2); err != nil {
 		t.Fatal(err)
 	}
@@ -63,11 +78,22 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 	data3.CNIPlugin = "cilium"
 	data3.Cilium = true
 	data3.Clustermesh = false
+	data3.CiliumEnableHubble = false
+	data3.CiliumEnableL7Proxy = false
+	data3.ClustermeshClusterID = 2
+	data3.ClustermeshIPv4NativeRoutingCIDR = "172.2.0.0/16"
 	data3.IPFamily = "IPv4"
 	data3.SyselevenAuth = true
+	data3.SyselevenRealm = "syseleven"
 	data3.IAMAuthentication = true
 	data3.AuditLogging = true
 	data3.PodNodeSelector = true
+	data3.LabelKey = "e"
+	data3.LabelValue = "f"
+	data3.SecondLabelKey = "g"
+	data3.SecondLabelValue = "h"
+	data3.UpdateWindowStart = "Wed 03:00"
+	data3.UpdateWindowLength = "3h"
 	if err := clusterOpenstackBasicTemplate.Execute(&config3, &data3); err != nil {
 		t.Fatal(err)
 	}
@@ -109,19 +135,19 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "dc_name", data.DatacenterName),
 					resource.TestCheckResourceAttr(resourceName, "name", data.Name),
 					resource.TestCheckResourceAttr(resourceName, "labels.%", "2"),
-					resource.TestCheckResourceAttr(resourceName, "labels.a", "b"),
-					resource.TestCheckResourceAttr(resourceName, "labels.c", "d"),
+					resource.TestCheckResourceAttr(resourceName, "labels."+data.LabelKey, data.LabelValue),
+					resource.TestCheckResourceAttr(resourceName, "labels."+data.SecondLabelKey, data.SecondLabelValue),
 					resource.TestCheckResourceAttr(resourceName, "spec.version", data.Version),
-					resource.TestCheckResourceAttr(resourceName, "spec.update_window.start", "Tue 02:00"),
-					resource.TestCheckResourceAttr(resourceName, "spec.update_window.length", "2h"),
-					resource.TestCheckResourceAttr(resourceName, "spec.services_cidr", "10.240.16.0/18"),
-					resource.TestCheckResourceAttr(resourceName, "spec.pods_cidr", "172.25.0.0/18"),
+					resource.TestCheckResourceAttr(resourceName, "spec.update_window.start", data.UpdateWindowStart),
+					resource.TestCheckResourceAttr(resourceName, "spec.update_window.length", data.UpdateWindowLength),
+					resource.TestCheckResourceAttr(resourceName, "spec.services_cidr", data.ServicesCIDR),
+					resource.TestCheckResourceAttr(resourceName, "spec.pods_cidr", data.PodsCIDR),
 					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.type", "cilium"),
 					resource.TestCheckResourceAttr(resourceName, "spec.ip_family", "IPv4"),
 					resource.TestCheckResourceAttrSet(resourceName, "spec.cloud.openstack.security_group"),
 					resource.TestCheckResourceAttrSet(resourceName, "spec.cloud.openstack.network"),
 					resource.TestCheckResourceAttrSet(resourceName, "spec.cloud.openstack.subnet_id"),
-					resource.TestCheckResourceAttr(resourceName, "spec.cloud.openstack.subnet_cidr", "192.168.2.0/24"),
+					resource.TestCheckResourceAttr(resourceName, "spec.cloud.openstack.subnet_cidr", data.SubnetCIDR),
 					resource.TestCheckResourceAttrSet(resourceName, "kube_config"),
 					resource.TestCheckResourceAttr(resourceName, "spec.audit_logging", "false"),
 					resource.TestCheckResourceAttrSet(resourceName, "creation_timestamp"),
@@ -139,8 +165,10 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 					testAccCheckMetaKubeClusterExists(&cluster),
 					testAccCheckMetaKubeClusterOpenstackAttributes(&cluster, data2.Name, data2.DatacenterName, data2.Version, false),
 					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.cilium.clustermesh.enable", "true"),
-					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.cilium.clustermesh.cluster_id", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.cilium.clustermesh.ipv4_native_routing_cidr", "172.0.0.0/15"),
+					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.cilium.enable_hubble", "true"),
+					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.cilium.enable_l7_proxy", "true"),
+					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.cilium.clustermesh.cluster_id", fmt.Sprintf("%d", data2.ClustermeshClusterID)),
+					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.cilium.clustermesh.ipv4_native_routing_cidr", data2.ClustermeshIPv4NativeRoutingCIDR),
 				),
 			},
 			{
@@ -156,23 +184,30 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "dc_name", data.DatacenterName),
 					resource.TestCheckResourceAttr(resourceName, "name", data.Name),
 					resource.TestCheckResourceAttr(resourceName, "labels.%", "2"),
-					resource.TestCheckResourceAttr(resourceName, "labels.a", "b"),
-					resource.TestCheckResourceAttr(resourceName, "labels.c", "d"),
+					resource.TestCheckResourceAttr(resourceName, "labels."+data3.LabelKey, data3.LabelValue),
+					resource.TestCheckResourceAttr(resourceName, "labels."+data3.SecondLabelKey, data3.SecondLabelValue),
+					resource.TestCheckNoResourceAttr(resourceName, "labels."+data.LabelKey),
+					resource.TestCheckNoResourceAttr(resourceName, "labels."+data.SecondLabelKey),
 					resource.TestCheckResourceAttr(resourceName, "spec.version", data.Version),
-					resource.TestCheckResourceAttr(resourceName, "spec.update_window.start", "Tue 02:00"),
-					resource.TestCheckResourceAttr(resourceName, "spec.update_window.length", "2h"),
-					resource.TestCheckResourceAttr(resourceName, "spec.services_cidr", "10.240.16.0/18"),
-					resource.TestCheckResourceAttr(resourceName, "spec.pods_cidr", "172.25.0.0/18"),
+					resource.TestCheckResourceAttr(resourceName, "spec.update_window.start", data3.UpdateWindowStart),
+					resource.TestCheckResourceAttr(resourceName, "spec.update_window.length", data3.UpdateWindowLength),
+					resource.TestCheckResourceAttr(resourceName, "spec.services_cidr", data3.ServicesCIDR),
+					resource.TestCheckResourceAttr(resourceName, "spec.pods_cidr", data3.PodsCIDR),
 					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.type", "cilium"),
+					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.cilium.enable_hubble", "false"),
+					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.cilium.enable_l7_proxy", "false"),
+					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.cilium.clustermesh.enable", "false"),
+					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.cilium.clustermesh.cluster_id", fmt.Sprintf("%d", data3.ClustermeshClusterID)),
+					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.cilium.clustermesh.ipv4_native_routing_cidr", data3.ClustermeshIPv4NativeRoutingCIDR),
 					resource.TestCheckResourceAttr(resourceName, "spec.ip_family", "IPv4"),
 					resource.TestCheckResourceAttrSet(resourceName, "spec.cloud.openstack.security_group"),
 					resource.TestCheckResourceAttrSet(resourceName, "spec.cloud.openstack.network"),
 					resource.TestCheckResourceAttrSet(resourceName, "spec.cloud.openstack.subnet_id"),
-					resource.TestCheckResourceAttr(resourceName, "spec.cloud.openstack.subnet_cidr", "192.168.2.0/24"),
+					resource.TestCheckResourceAttr(resourceName, "spec.cloud.openstack.subnet_cidr", data3.SubnetCIDR),
 					resource.TestCheckResourceAttrSet(resourceName, "kube_config"),
 					resource.TestCheckResourceAttr(resourceName, "spec.audit_logging", "true"),
 					resource.TestCheckResourceAttr(resourceName, "spec.pod_node_selector", "true"),
-					resource.TestCheckResourceAttr(resourceName, "spec.syseleven_auth.realm", "syseleven"),
+					resource.TestCheckResourceAttr(resourceName, "spec.syseleven_auth.realm", data3.SyselevenRealm),
 					resource.TestCheckResourceAttr(resourceName, "spec.syseleven_auth.iam_authentication", "true"),
 					resource.TestCheckResourceAttrSet(resourceName, "creation_timestamp"),
 					resource.TestCheckResourceAttrSet(resourceName, "deletion_timestamp"),
@@ -327,9 +362,10 @@ func TestAccMetakubeCluster_Openstack_UpgradeVersion(t *testing.T) {
 	t.Parallel()
 	var cluster models.Cluster
 	resourceName := "metakube_cluster.acctest_cluster"
+	name := testutil.MakeRandomName() + "-cluster-os-upgrade"
 	versionedConfig := func(version string) string {
 		data := &clusterOpenstackBasicData{
-			Name:                                  testutil.MakeRandomName() + "-cluster-os-upgrade",
+			Name:                                  name,
 			Version:                               version,
 			OpenstackAuthURL:                      os.Getenv(common.TestEnvOpenstackAuthURL),
 			OpenstackApplicationCredentialsID:     common.GetSACredentialId(),
@@ -338,6 +374,15 @@ func TestAccMetakubeCluster_Openstack_UpgradeVersion(t *testing.T) {
 			DatacenterName:                        os.Getenv(common.TestEnvOpenstackNodeDC),
 			ProjectID:                             os.Getenv(common.TestEnvProjectID),
 			OpenstackRegion:                       os.Getenv(common.TestEnvOpenstackRegion),
+			LabelKey:                              "a",
+			LabelValue:                            "b",
+			SecondLabelKey:                        "c",
+			SecondLabelValue:                      "d",
+			UpdateWindowStart:                     "Tue 02:00",
+			UpdateWindowLength:                    "2h",
+			ServicesCIDR:                          "10.240.16.0/18",
+			PodsCIDR:                              "172.25.0.0/18",
+			SubnetCIDR:                            "192.168.2.0/24",
 		}
 		var result strings.Builder
 		if err := clusterOpenstackBasicTemplate.Execute(&result, data); err != nil {
@@ -374,6 +419,7 @@ func TestAccMetakubeCluster_Openstack_UpgradeVersion(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeClusterExists(&cluster),
 					resource.TestCheckResourceAttr(resourceName, "spec.version", versionK8s1),
+					testAccPatchMetaKubeClusterOIDC(resourceName),
 				),
 			},
 			{
@@ -392,6 +438,7 @@ func TestAccMetakubeCluster_Openstack_UpgradeVersion(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeClusterExists(&cluster),
 					resource.TestCheckResourceAttr(resourceName, "spec.version", versionK8s2),
+					testAccCheckMetaKubeClusterOIDC(resourceName),
 				),
 			},
 		},
@@ -405,18 +452,32 @@ type clusterOpenstackBasicData struct {
 	OpenstackProjectID                    string
 	OpenstackRegion                       string
 
-	Name              string
-	DatacenterName    string
-	ProjectID         string
-	Version           string
-	CNIPlugin         string
-	Cilium            bool
-	Clustermesh       bool
-	IPFamily          string
-	SyselevenAuth     bool
-	AuditLogging      bool
-	PodNodeSelector   bool
-	IAMAuthentication bool
+	Name                             string
+	DatacenterName                   string
+	ProjectID                        string
+	Version                          string
+	LabelKey                         string
+	LabelValue                       string
+	SecondLabelKey                   string
+	SecondLabelValue                 string
+	CNIPlugin                        string
+	Cilium                           bool
+	Clustermesh                      bool
+	CiliumEnableHubble               bool
+	CiliumEnableL7Proxy              bool
+	ClustermeshClusterID             int
+	ClustermeshIPv4NativeRoutingCIDR string
+	IPFamily                         string
+	SyselevenAuth                    bool
+	SyselevenRealm                   string
+	AuditLogging                     bool
+	PodNodeSelector                  bool
+	IAMAuthentication                bool
+	UpdateWindowStart                string
+	UpdateWindowLength               string
+	ServicesCIDR                     string
+	PodsCIDR                         string
+	SubnetCIDR                       string
 }
 
 var clusterOpenstackBasicTemplate = testutil.MustParseTemplate("clusterOpenstackBasic", `
@@ -441,8 +502,8 @@ resource "metakube_cluster" "acctest_cluster" {
 	project_id = "{{ .ProjectID }}"
 
 	labels = {
-		"a" = "b"
-		"c" = "d"
+		"{{ .LabelKey }}" = "{{ .LabelValue }}"
+		"{{ .SecondLabelKey }}" = "{{ .SecondLabelValue }}"
 	}
 
     timeouts {
@@ -454,8 +515,8 @@ resource "metakube_cluster" "acctest_cluster" {
 	spec = {
 		version = "{{ .Version }}"
 		update_window = {
-		  start = "Tue 02:00"
-		  length = "2h"
+		  start = "{{ .UpdateWindowStart }}"
+		  length = "{{ .UpdateWindowLength }}"
 		}
 		cloud = {
 			openstack = {
@@ -467,13 +528,13 @@ resource "metakube_cluster" "acctest_cluster" {
 				security_group = openstack_networking_secgroup_v2.cluster-net.name
 				network = openstack_networking_network_v2.network_tf_test.name
 				subnet_id = openstack_networking_subnet_v2.subnet_tf_test.id
-				subnet_cidr = "192.168.2.0/24"
+				subnet_cidr = "{{ .SubnetCIDR }}"
 			}
 		}
 
 		{{ if .SyselevenAuth }}
 		syseleven_auth = {
-			realm = "syseleven"
+			realm = "{{ .SyselevenRealm }}"
 			iam_authentication = {{ .IAMAuthentication }}
 		}
 		{{ end }}
@@ -486,18 +547,20 @@ resource "metakube_cluster" "acctest_cluster" {
 		pod_node_selector = true
 		{{ end }}
 
-		services_cidr = "10.240.16.0/18"
-		pods_cidr = "172.25.0.0/18"
+		services_cidr = "{{ .ServicesCIDR }}"
+		pods_cidr = "{{ .PodsCIDR }}"
 		
 		{{ if .CNIPlugin }}
 		cni_plugin = {
 			type = "{{ .CNIPlugin }}"
 			{{ if .Cilium }}
 			cilium = {
+				enable_hubble = {{ .CiliumEnableHubble }}
+				enable_l7_proxy = {{ .CiliumEnableL7Proxy }}
 				clustermesh = {
 					enable = {{ .Clustermesh }}
-					cluster_id = 1
-					ipv4_native_routing_cidr = "172.0.0.0/15"
+					cluster_id = {{ .ClustermeshClusterID }}
+					ipv4_native_routing_cidr = "{{ .ClustermeshIPv4NativeRoutingCIDR }}"
 				}
 			}
 			{{ end }}
@@ -614,6 +677,80 @@ func testAccCheckMetaKubeClusterOpenstackAttributes(cluster *models.Cluster, nam
 
 		if cniPlugin == nil {
 			return fmt.Errorf("CNI plugin is not specified")
+		}
+
+		return nil
+	}
+}
+
+func testAccPatchMetaKubeClusterOIDC(resourceName string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[resourceName]
+		if !ok {
+			return fmt.Errorf("Not found: %s", resourceName)
+		}
+
+		k, err := testutil.GetTestClient()
+		if err != nil {
+			return fmt.Errorf("failed to get test client: %v", err)
+		}
+
+		p := project.NewPatchClusterV2Params().
+			WithProjectID(rs.Primary.Attributes["project_id"]).
+			WithClusterID(rs.Primary.ID).
+			WithPatch(map[string]any{
+				"spec": map[string]any{
+					"oidc": map[string]any{
+						"issuerUrl":     "https://accounts.google.com",
+						"clientId":      "terraform-provider-metakube-acceptance-test",
+						"usernameClaim": "email",
+					},
+				},
+			})
+
+		deadline := time.Now().Add(2 * time.Minute)
+		for {
+			if _, err := k.Client.Project.PatchClusterV2(p, k.Auth); err != nil {
+				if e, ok := err.(*project.PatchClusterV2Default); ok && e.Code() == http.StatusConflict && time.Now().Before(deadline) {
+					time.Sleep(5 * time.Second)
+					continue
+				}
+				return fmt.Errorf("patch cluster OIDC settings: %s", common.StringifyResponseError(err))
+			}
+			break
+		}
+
+		return nil
+	}
+}
+
+func testAccCheckMetaKubeClusterOIDC(resourceName string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[resourceName]
+		if !ok {
+			return fmt.Errorf("Not found: %s", resourceName)
+		}
+
+		k, err := testutil.GetTestClient()
+		if err != nil {
+			return fmt.Errorf("failed to get test client: %v", err)
+		}
+
+		p := project.NewGetClusterV2Params().
+			WithProjectID(rs.Primary.Attributes["project_id"]).
+			WithClusterID(rs.Primary.ID)
+		ret, err := k.Client.Project.GetClusterV2(p, k.Auth)
+		if err != nil {
+			return fmt.Errorf("GetCluster %v", err)
+		}
+		if ret.Payload == nil || ret.Payload.Spec == nil || ret.Payload.Spec.Oidc == nil {
+			return fmt.Errorf("expected cluster OIDC settings to be preserved")
+		}
+		if got := ret.Payload.Spec.Oidc.IssuerURL; got != "https://accounts.google.com" {
+			return fmt.Errorf("want OIDC issuerUrl=%q, got %q", "https://accounts.google.com", got)
+		}
+		if got := ret.Payload.Spec.Oidc.ClientID; got != "terraform-provider-metakube-acceptance-test" {
+			return fmt.Errorf("want OIDC clientId=%q, got %q", "terraform-provider-metakube-acceptance-test", got)
 		}
 
 		return nil
