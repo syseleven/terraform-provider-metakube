@@ -1458,7 +1458,7 @@ func TestClusterSpecPatchInclude(t *testing.T) {
 
 	state := createModel("1.28.0")
 	plan := createModel("1.29.0")
-	include := clusterSpecPatchInclude(ctx, plan, state)
+	include := changedClusterSpecField(ctx, plan, state)
 
 	if !include("version") {
 		t.Fatal("expected version to be included in patch")
@@ -1472,7 +1472,7 @@ func TestClusterSpecPatchInclude(t *testing.T) {
 		t.Fatalf("expected unchanged Sys11 auth to be absent from expanded patch spec, got: %#v", clusterSpec.Sys11auth)
 	}
 
-	specPatch, err := clusterSpecPatchBodyForIncludedFields(clusterSpec, include)
+	specPatch, err := clusterSpecPatchBody(clusterSpec, include)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1492,7 +1492,7 @@ func TestClusterSpecPatchInclude(t *testing.T) {
 
 func TestClusterSpecPatchBody(t *testing.T) {
 	t.Run("nil spec returns nil map", func(t *testing.T) {
-		got, err := clusterSpecPatchBody(nil)
+		got, err := clusterSpecPatchBody(nil, func(string) bool { return true })
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -1515,7 +1515,7 @@ func TestClusterSpecPatchBody(t *testing.T) {
 			},
 		}
 
-		got, err := clusterSpecPatchBody(spec)
+		got, err := clusterSpecPatchBody(spec, func(string) bool { return true })
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -1565,7 +1565,7 @@ func TestClusterSpecPatchBody(t *testing.T) {
 			},
 		}
 
-		got, err := clusterSpecPatchBody(spec)
+		got, err := clusterSpecPatchBody(spec, func(string) bool { return true })
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -1597,7 +1597,7 @@ func TestClusterSpecPatchBody(t *testing.T) {
 			UsePodSecurityPolicyAdmissionPlugin: true,
 		}
 
-		got, err := clusterSpecPatchBody(spec)
+		got, err := clusterSpecPatchBody(spec, func(string) bool { return true })
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -1623,7 +1623,7 @@ func TestClusterSpecPatchBody(t *testing.T) {
 			},
 		}
 
-		got, err := clusterSpecPatchBody(spec)
+		got, err := clusterSpecPatchBody(spec, func(string) bool { return true })
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}

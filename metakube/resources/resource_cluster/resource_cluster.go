@@ -698,20 +698,31 @@ func (r *clusterResource) sendPatchRequest(ctx context.Context, plan, state *Clu
 	p.SetProjectID(projectID)
 	p.SetClusterID(clusterID)
 
-	name := plan.Name.ValueString()
-	labels := getLabelsChange(plan, state)
-	clusterSpec := metakubeResourceClusterExpandSpec(ctx, plan, plan.DCName.ValueString(), func(_ string) bool { return true })
+	patch := make(map[string]any)
 
-	specPatch, err := clusterSpecPatchBody(clusterSpec)
-	if err != nil {
-		return err
+	if !plan.Name.Equal(state.Name) {
+		patch["name"] = plan.Name.ValueString()
 	}
 
-	p.SetPatch(map[string]any{
-		"name":   name,
-		"labels": labels,
-		"spec":   specPatch,
-	})
+	if !plan.Labels.Equal(state.Labels) {
+		patch["labels"] = common.MapMergePatch(plan.Labels, state.Labels)
+	}
+
+	if !plan.Spec.Equal(state.Spec) {
+		include := changedClusterSpecField(ctx, plan, state)
+		clusterSpec := metakubeResourceClusterExpandSpec(ctx, plan, plan.DCName.ValueString(), include)
+		specPatch, err := clusterSpecPatchBody(clusterSpec, include)
+		if err != nil {
+			return err
+		}
+		patch["spec"] = specPatch
+	}
+
+	if len(patch) == 0 {
+		return nil
+	}
+
+	p.SetPatch(patch)
 
 	timeout := 20 * time.Minute
 	deadline := time.Now().Add(timeout)
@@ -730,6 +741,41 @@ func (r *clusterResource) sendPatchRequest(ctx context.Context, plan, state *Clu
 	}
 
 	return fmt.Errorf("timeout patching cluster '%s'", clusterID)
+}
+
+func changedClusterSpecField(ctx context.Context, plan, state *ClusterModel) func(string) bool {
+	planSpec, planOk := getClusterSpecModel(ctx, plan)
+	stateSpec, stateOk := getClusterSpecModel(ctx, state)
+	if !planOk || !stateOk {
+		return func(string) bool { return true }
+	}
+
+	changed := map[string]bool{
+		"version":             !planSpec.Version.Equal(stateSpec.Version),
+		"update_window":       !planSpec.UpdateWindow.Equal(stateSpec.UpdateWindow),
+		"enable_ssh_agent":    !planSpec.EnableSSHAgent.Equal(stateSpec.EnableSSHAgent),
+		"audit_logging":       !planSpec.AuditLogging.Equal(stateSpec.AuditLogging),
+		"pod_security_policy": !planSpec.PodSecurityPolicy.Equal(stateSpec.PodSecurityPolicy),
+		"pod_node_selector":   !planSpec.PodNodeSelector.Equal(stateSpec.PodNodeSelector),
+		"services_cidr":       !planSpec.ServicesCIDR.Equal(stateSpec.ServicesCIDR),
+		"pods_cidr":           !planSpec.PodsCIDR.Equal(stateSpec.PodsCIDR),
+		"cni_plugin":          !planSpec.CNIPlugin.Equal(stateSpec.CNIPlugin),
+		"ip_family":           !planSpec.IPFamily.Equal(stateSpec.IPFamily),
+		"cloud":               !planSpec.Cloud.Equal(stateSpec.Cloud),
+		"syseleven_auth":      !planSpec.SyselevenAuth.Equal(stateSpec.SyselevenAuth),
+	}
+
+	return func(field string) bool {
+		if changed[field] {
+			return true
+		}
+
+		if dot := strings.Index(field, "."); dot > 0 {
+			return changed[field[:dot]]
+		}
+
+		return false
+	}
 }
 
 func (r *clusterResource) updateClusterSSHKeys(ctx context.Context, plan, state *ClusterModel) error {
@@ -847,24 +893,5 @@ func expandSSHKeysFromModel(sshkeys types.Set) []string {
 			result = append(result, sv.ValueString())
 		}
 	}
-	return result
-}
-
-func getLabelsChange(plan, state *ClusterModel) map[string]interface{} {
-	oldLabels := expandLabelsFromModel(state.Labels)
-	newLabels := expandLabelsFromModel(plan.Labels)
-
-	result := make(map[string]interface{})
-	for k, v := range newLabels {
-		result[k] = v
-	}
-
-	// Mark removed labels as nil for API
-	for k := range oldLabels {
-		if _, ok := newLabels[k]; !ok {
-			result[k] = nil
-		}
-	}
-
 	return result
 }
