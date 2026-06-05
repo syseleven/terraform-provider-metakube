@@ -97,6 +97,16 @@ func (m rollbackUseAPIValue) MarkdownDescription(ctx context.Context) string {
 }
 
 func (m rollbackUseAPIValue) PlanModifyBool(_ context.Context, req planmodifier.BoolRequest, resp *planmodifier.BoolResponse) {
+	if !req.ConfigValue.IsNull() && !req.ConfigValue.IsUnknown() {
+		resp.PlanValue = req.StateValue
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
+			"Invalid rollback value",
+			"Rollback is controlled by the Metakube API and cannot be configured.",
+		)
+		return
+	}
+
 	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
 		return
 	}
@@ -138,16 +148,10 @@ func maintenanceCronJobAttributes() map[string]schema.Attribute {
 		"creation_timestamp": schema.StringAttribute{
 			Computed:    true,
 			Description: "Creation timestamp",
-			PlanModifiers: []planmodifier.String{
-				stringplanmodifier.UseStateForUnknown(),
-			},
 		},
 		"deletion_timestamp": schema.StringAttribute{
 			Computed:    true,
 			Description: "Deletion timestamp",
-			PlanModifiers: []planmodifier.String{
-				stringplanmodifier.UseStateForUnknown(),
-			},
 		},
 	}
 }

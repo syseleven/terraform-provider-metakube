@@ -2,6 +2,7 @@ package resource_maintenance_cronjob
 
 import (
 	"context"
+	"maps"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -108,14 +109,14 @@ func metakubeMaintenanceCronJobFlattenOptions(ctx context.Context, tmplModel *Ma
 	return diags
 }
 
-// metakubeMaintenanceCronJobBuildPatch builds a map[string]any patch from the plan spec
-func metakubeMaintenanceCronJobBuildPatch(ctx context.Context, specList types.List) map[string]any {
-	if specList.IsNull() || specList.IsUnknown() || len(specList.Elements()) == 0 {
+// metakubeMaintenanceCronJobBuildPatch builds a map[string]any patch from the plan spec.
+func metakubeMaintenanceCronJobBuildPatch(ctx context.Context, planSpecList types.List) map[string]any {
+	if planSpecList.IsNull() || planSpecList.IsUnknown() || len(planSpecList.Elements()) == 0 {
 		return map[string]any{}
 	}
 
 	var specModels []SpecModel
-	if diags := specList.ElementsAs(ctx, &specModels, false); diags.HasError() || len(specModels) == 0 {
+	if diags := planSpecList.ElementsAs(ctx, &specModels, false); diags.HasError() || len(specModels) == 0 {
 		return map[string]any{}
 	}
 
@@ -142,6 +143,21 @@ func metakubeMaintenanceCronJobBuildPatch(ctx context.Context, specList types.Li
 			"maintenanceJobTemplate": tmpl,
 		},
 	}
+}
+
+func metakubeMaintenanceCronJobOptionsChanged(ctx context.Context, planSpecList, stateSpecList types.List) bool {
+	planSpec := metakubeMaintenanceCronJobExpandSpec(ctx, planSpecList)
+	stateSpec := metakubeMaintenanceCronJobExpandSpec(ctx, stateSpecList)
+
+	var planOptions, stateOptions map[string]string
+	if planSpec != nil && planSpec.MaintenanceJobTemplate != nil {
+		planOptions = planSpec.MaintenanceJobTemplate.Options
+	}
+	if stateSpec != nil && stateSpec.MaintenanceJobTemplate != nil {
+		stateOptions = stateSpec.MaintenanceJobTemplate.Options
+	}
+
+	return !maps.Equal(planOptions, stateOptions)
 }
 
 // expanders
