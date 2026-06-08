@@ -24,6 +24,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
+	t.Parallel()
 	var ndepl models.NodeDeployment
 	var sgroupID string
 	clusterResourceName := "metakube_cluster.acctest_cluster"
