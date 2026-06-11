@@ -437,7 +437,7 @@ func upgradeNodeDeploymentStateToV1(_ context.Context, req resource.UpgradeState
 		return
 	}
 
-	upgradeNodeDeploymentLegacyAzureState(rawState)
+	upgradeNodeDeploymentLegacyUnsupportedCloudState(rawState)
 
 	upgradedJSON, err := json.Marshal(rawState)
 	if err != nil {

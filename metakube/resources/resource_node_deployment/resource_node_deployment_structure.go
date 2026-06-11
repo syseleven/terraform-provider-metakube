@@ -820,7 +820,7 @@ func getCloudProviderFromModel(ctx context.Context, model *NodeDeploymentModel) 
 	return "", diags
 }
 
-func upgradeNodeDeploymentLegacyAzureState(rawState map[string]any) {
+func upgradeNodeDeploymentLegacyUnsupportedCloudState(rawState map[string]any) {
 	spec, ok := rawState["spec"]
 	if !ok {
 		return
@@ -869,8 +869,9 @@ func upgradeNodeDeploymentLegacyAzureState(rawState map[string]any) {
 					continue
 				}
 
-				// Legacy SDK state may contain a now-unsupported cloud.azure block.
+				// Legacy SDK state may contain now-unsupported cloud provider blocks.
 				delete(cloudMap, "azure")
+				delete(cloudMap, "aws")
 			}
 		}
 	}

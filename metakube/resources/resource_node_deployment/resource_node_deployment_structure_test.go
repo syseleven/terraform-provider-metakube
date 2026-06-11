@@ -616,7 +616,7 @@ func buildMockNodeDeploymentModel(ctx context.Context, t *testing.T, cloudModel 
 	}
 }
 
-func TestUpgradeNodeDeploymentLegacyAzureState_RemovesAzureCloud(t *testing.T) {
+func TestUpgradeNodeDeploymentLegacyUnsupportedCloudState_RemovesUnsupportedClouds(t *testing.T) {
 	rawState := map[string]any{
 		"spec": []any{
 			map[string]any{
@@ -630,6 +630,11 @@ func TestUpgradeNodeDeploymentLegacyAzureState_RemovesAzureCloud(t *testing.T) {
 										"size": "legacy",
 									},
 								},
+								"aws": []any{
+									map[string]any{
+										"instance_type": "legacy",
+									},
+								},
 							},
 						},
 					},
@@ -638,12 +643,15 @@ func TestUpgradeNodeDeploymentLegacyAzureState_RemovesAzureCloud(t *testing.T) {
 		},
 	}
 
-	upgradeNodeDeploymentLegacyAzureState(rawState)
+	upgradeNodeDeploymentLegacyUnsupportedCloudState(rawState)
 
 	specMap := rawState["spec"].([]any)[0].(map[string]any)
 	templateMap := specMap["template"].([]any)[0].(map[string]any)
 	cloudMap := templateMap["cloud"].([]any)[0].(map[string]any)
 	if _, ok := cloudMap["azure"]; ok {
 		t.Fatalf("expected legacy cloud.azure to be removed, got: %#v", cloudMap["azure"])
+	}
+	if _, ok := cloudMap["aws"]; ok {
+		t.Fatalf("expected legacy cloud.aws to be removed, got: %#v", cloudMap["aws"])
 	}
 }
