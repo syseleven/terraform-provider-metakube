@@ -421,6 +421,7 @@ func (r *nodeDeploymentResource) UpgradeState(_ context.Context) map[int64]resou
 			StateUpgrader: upgradeNodeDeploymentStateToV2,
 		},
 		1: {
+			//same as v1 since both old schema shapes can be converted directly to v2 using the same logic
 			StateUpgrader: upgradeNodeDeploymentStateToV2,
 		},
 	}
