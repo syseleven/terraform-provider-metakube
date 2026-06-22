@@ -418,12 +418,16 @@ func (r *nodeDeploymentResource) ImportState(ctx context.Context, req resource.I
 func (r *nodeDeploymentResource) UpgradeState(_ context.Context) map[int64]resource.StateUpgrader {
 	return map[int64]resource.StateUpgrader{
 		0: {
-			StateUpgrader: upgradeNodeDeploymentStateToV1,
+			StateUpgrader: upgradeNodeDeploymentStateToV2,
+		},
+		1: {
+			//same as v1 since both old schema shapes can be converted directly to v2 using the same logic
+			StateUpgrader: upgradeNodeDeploymentStateToV2,
 		},
 	}
 }
 
-func upgradeNodeDeploymentStateToV1(_ context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
+func upgradeNodeDeploymentStateToV2(_ context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
 	if req.RawState == nil || len(req.RawState.JSON) == 0 {
 		return
 	}
