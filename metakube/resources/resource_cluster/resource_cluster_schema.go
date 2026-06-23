@@ -579,8 +579,8 @@ type ClusterSpecModel struct {
 	AuditLogging      types.Bool   `tfsdk:"audit_logging"`
 	PodSecurityPolicy types.Bool   `tfsdk:"pod_security_policy"`
 	PodNodeSelector   types.Bool   `tfsdk:"pod_node_selector"`
-	ServicesCIDR      types.String `tfsdk:"services_cidr"`
-	PodsCIDR          types.String `tfsdk:"pods_cidr"`
+	ServicesCIDR      types.String `tfsdk:"services_cidr"` // TODO also add v6 services CIDR
+	PodsCIDR          types.String `tfsdk:"pods_cidr"`     // TODO also add v6 pods CIDR
 	IPFamily          types.String `tfsdk:"ip_family"`
 	UpdateWindow      types.Object `tfsdk:"update_window"`  // UpdateWindowModel
 	CNIPlugin         types.Object `tfsdk:"cni_plugin"`     // CNIPluginModel
