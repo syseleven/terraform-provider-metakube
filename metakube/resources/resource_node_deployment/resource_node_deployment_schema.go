@@ -7,11 +7,11 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
-	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
@@ -21,39 +21,44 @@ import (
 	"github.com/syseleven/terraform-provider-metakube/metakube/common"
 )
 
+// NodeDeploymentModel represents the Terraform state for a node deployment.
 type NodeDeploymentModel struct {
 	ID                types.String   `tfsdk:"id"`
 	ProjectID         types.String   `tfsdk:"project_id"`
 	ClusterID         types.String   `tfsdk:"cluster_id"`
 	Name              types.String   `tfsdk:"name"`
-	Spec              types.List     `tfsdk:"spec"`
+	Spec              types.Object   `tfsdk:"spec"`
 	CreationTimestamp types.String   `tfsdk:"creation_timestamp"`
 	DeletionTimestamp types.String   `tfsdk:"deletion_timestamp"`
 	Timeouts          timeouts.Value `tfsdk:"timeouts"`
 }
 
+// NodeDeploymentSpecModel represents the node deployment spec object.
 type NodeDeploymentSpecModel struct {
-	Replicas    types.Int64 `tfsdk:"replicas"`
-	MinReplicas types.Int64 `tfsdk:"min_replicas"`
-	MaxReplicas types.Int64 `tfsdk:"max_replicas"`
-	Template    types.List  `tfsdk:"template"`
+	Replicas    types.Int64  `tfsdk:"replicas"`
+	MinReplicas types.Int64  `tfsdk:"min_replicas"`
+	MaxReplicas types.Int64  `tfsdk:"max_replicas"`
+	Template    types.Object `tfsdk:"template"`
 }
 
+// NodeSpecModel represents the machine template within a node deployment.
 type NodeSpecModel struct {
-	Cloud              types.List `tfsdk:"cloud"`
-	OperatingSystem    types.List `tfsdk:"operating_system"`
-	Versions           types.List `tfsdk:"versions"`
-	Labels             types.Map  `tfsdk:"labels"`
-	AllLabels          types.Map  `tfsdk:"all_labels"`
-	Taints             types.List `tfsdk:"taints"`
-	NodeAnnotations    types.Map  `tfsdk:"node_annotations"`
-	MachineAnnotations types.Map  `tfsdk:"machine_annotations"`
+	Cloud              types.Object `tfsdk:"cloud"`
+	OperatingSystem    types.Object `tfsdk:"operating_system"`
+	Versions           types.Object `tfsdk:"versions"`
+	Labels             types.Map    `tfsdk:"labels"`
+	AllLabels          types.Map    `tfsdk:"all_labels"`
+	Taints             types.List   `tfsdk:"taints"`
+	NodeAnnotations    types.Map    `tfsdk:"node_annotations"`
+	MachineAnnotations types.Map    `tfsdk:"machine_annotations"`
 }
 
+// CloudSpecModel represents the cloud-provider configuration.
 type CloudSpecModel struct {
-	OpenStack types.List `tfsdk:"openstack"`
+	OpenStack types.Object `tfsdk:"openstack"`
 }
 
+// OpenStackCloudSpecModel represents the OpenStack machine configuration.
 type OpenStackCloudSpecModel struct {
 	Flavor                    types.String `tfsdk:"flavor"`
 	Image                     types.String `tfsdk:"image"`
@@ -65,45 +70,50 @@ type OpenStackCloudSpecModel struct {
 	ServerGroupID             types.String `tfsdk:"server_group_id"`
 }
 
+// OperatingSystemModel represents the selectable operating-system settings.
 type OperatingSystemModel struct {
-	Ubuntu  types.List `tfsdk:"ubuntu"`
-	Flatcar types.List `tfsdk:"flatcar"`
+	Ubuntu  types.Object `tfsdk:"ubuntu"`
+	Flatcar types.Object `tfsdk:"flatcar"`
 }
 
+// UbuntuModel represents Ubuntu-specific machine settings.
 type UbuntuModel struct {
 	DistUpgradeOnBoot types.Bool `tfsdk:"dist_upgrade_on_boot"`
 }
 
+// FlatcarModel represents Flatcar-specific machine settings.
 type FlatcarModel struct {
 	DisableAutoUpdate types.Bool `tfsdk:"disable_auto_update"`
 }
 
+// VersionsModel represents component-version overrides for worker nodes.
 type VersionsModel struct {
 	Kubelet types.String `tfsdk:"kubelet"`
 }
 
+// TaintModel represents one Kubernetes taint applied to worker nodes.
 type TaintModel struct {
 	Effect types.String `tfsdk:"effect"`
 	Key    types.String `tfsdk:"key"`
 	Value  types.String `tfsdk:"value"`
 }
 
-// Attr type helpers for constructing types.Object and types.List values
+// Attribute type helpers mirror the nested model shapes above.
 
 func nodeDeploymentSpecAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"replicas":     types.Int64Type,
 		"min_replicas": types.Int64Type,
 		"max_replicas": types.Int64Type,
-		"template":     types.ListType{ElemType: types.ObjectType{AttrTypes: nodeSpecAttrTypes()}},
+		"template":     types.ObjectType{AttrTypes: nodeSpecAttrTypes()},
 	}
 }
 
 func nodeSpecAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"cloud":               types.ListType{ElemType: types.ObjectType{AttrTypes: cloudSpecAttrTypes()}},
-		"operating_system":    types.ListType{ElemType: types.ObjectType{AttrTypes: operatingSystemAttrTypes()}},
-		"versions":            types.ListType{ElemType: types.ObjectType{AttrTypes: versionsAttrTypes()}},
+		"cloud":               types.ObjectType{AttrTypes: cloudSpecAttrTypes()},
+		"operating_system":    types.ObjectType{AttrTypes: operatingSystemAttrTypes()},
+		"versions":            types.ObjectType{AttrTypes: versionsAttrTypes()},
 		"labels":              types.MapType{ElemType: types.StringType},
 		"all_labels":          types.MapType{ElemType: types.StringType},
 		"taints":              types.ListType{ElemType: types.ObjectType{AttrTypes: taintAttrTypes()}},
@@ -114,7 +124,7 @@ func nodeSpecAttrTypes() map[string]attr.Type {
 
 func cloudSpecAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"openstack": types.ListType{ElemType: types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}},
+		"openstack": types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()},
 	}
 }
 
@@ -133,8 +143,8 @@ func openstackCloudSpecAttrTypes() map[string]attr.Type {
 
 func operatingSystemAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"ubuntu":  types.ListType{ElemType: types.ObjectType{AttrTypes: ubuntuAttrTypes()}},
-		"flatcar": types.ListType{ElemType: types.ObjectType{AttrTypes: flatcarAttrTypes()}},
+		"ubuntu":  types.ObjectType{AttrTypes: ubuntuAttrTypes()},
+		"flatcar": types.ObjectType{AttrTypes: flatcarAttrTypes()},
 	}
 }
 
@@ -164,20 +174,20 @@ func taintAttrTypes() map[string]attr.Type {
 	}
 }
 
-// NodeDeploymentSchema returns the framework schema for metakube_node_deployment
+// NodeDeploymentSchema returns the framework schema for
+// metakube_node_deployment.
 func NodeDeploymentSchema(ctx context.Context) schema.Schema {
-	blocks := nodeDeploymentBlocks()
-	blocks["timeouts"] = timeouts.Block(ctx, timeouts.Opts{
-		Create: true,
-		Update: true,
-		Delete: true,
-	})
-
 	return schema.Schema{
 		Description: "Node deployment resource for MetaKube clusters",
-		Version:     2,
+		Version:     3,
 		Attributes:  nodeDeploymentAttributes(),
-		Blocks:      blocks,
+		Blocks: map[string]schema.Block{
+			"timeouts": timeouts.Block(ctx, timeouts.Opts{
+				Create: true,
+				Update: true,
+				Delete: true,
+			}),
+		},
 	}
 }
 
@@ -217,6 +227,11 @@ func nodeDeploymentAttributes() map[string]schema.Attribute {
 				stringplanmodifier.UseStateForUnknown(),
 			},
 		},
+		"spec": schema.SingleNestedAttribute{
+			Required:    true,
+			Description: "Node deployment specification",
+			Attributes:  nodeDeploymentSpecAttributes(),
+		},
 		"creation_timestamp": schema.StringAttribute{
 			Computed:    true,
 			Description: "Creation timestamp",
@@ -227,22 +242,6 @@ func nodeDeploymentAttributes() map[string]schema.Attribute {
 		"deletion_timestamp": schema.StringAttribute{
 			Computed:    true,
 			Description: "Deletion timestamp",
-		},
-	}
-}
-
-func nodeDeploymentBlocks() map[string]schema.Block {
-	return map[string]schema.Block{
-		"spec": schema.ListNestedBlock{
-			Description: "Node deployment specification",
-			Validators: []validator.List{
-				listvalidator.SizeAtMost(1),
-				listvalidator.SizeAtLeast(1),
-			},
-			NestedObject: schema.NestedBlockObject{
-				Attributes: nodeDeploymentSpecAttributes(),
-				Blocks:     nodeDeploymentSpecBlocks(),
-			},
 		},
 	}
 }
@@ -269,21 +268,10 @@ func nodeDeploymentSpecAttributes() map[string]schema.Attribute {
 				int64validator.AtLeast(1),
 			},
 		},
-	}
-}
-
-func nodeDeploymentSpecBlocks() map[string]schema.Block {
-	return map[string]schema.Block{
-		"template": schema.ListNestedBlock{
+		"template": schema.SingleNestedAttribute{
+			Required:    true,
 			Description: "Template specification",
-			Validators: []validator.List{
-				listvalidator.SizeAtMost(1),
-				listvalidator.SizeAtLeast(1),
-			},
-			NestedObject: schema.NestedBlockObject{
-				Attributes: nodeSpecAttributes(),
-				Blocks:     nodeSpecBlocks(),
-			},
+			Attributes:  nodeSpecAttributes(),
 		},
 	}
 }
@@ -292,7 +280,9 @@ func nodeSpecAttributes() map[string]schema.Attribute {
 	return map[string]schema.Attribute{
 		"labels": schema.MapAttribute{
 			Optional:    true,
+			Computed:    true,
 			ElementType: types.StringType,
+			Default:     mapdefault.StaticValue(types.MapValueMust(types.StringType, map[string]attr.Value{})),
 			Description: "Map of string keys and values that can be used to organize and categorize (scope and select) objects. It will be applied to Nodes allowing users run their apps on specific Node using labelSelector. Note: The server may add additional system labels (system/cluster, system/project) which are available in the `all_labels` attribute.",
 			Validators: []validator.Map{
 				noSystemManagedKeysValidator(),
@@ -305,67 +295,50 @@ func nodeSpecAttributes() map[string]schema.Attribute {
 		},
 		"node_annotations": schema.MapAttribute{
 			Optional:    true,
+			Computed:    true,
 			ElementType: types.StringType,
+			Default:     mapdefault.StaticValue(types.MapValueMust(types.StringType, map[string]attr.Value{})),
 			Description: "Map of annotations to set on nodes.",
 		},
 		"machine_annotations": schema.MapAttribute{
 			Optional:    true,
+			Computed:    true,
 			ElementType: types.StringType,
+			Default:     mapdefault.StaticValue(types.MapValueMust(types.StringType, map[string]attr.Value{})),
 			Description: "Map of annotations to set on machine objects.",
 		},
-	}
-}
-
-func nodeSpecBlocks() map[string]schema.Block {
-	return map[string]schema.Block{
-		"cloud": schema.ListNestedBlock{
+		"cloud": schema.SingleNestedAttribute{
+			Required:    true,
 			Description: "Cloud specification",
-			Validators: []validator.List{
-				listvalidator.SizeAtMost(1),
-				listvalidator.SizeAtLeast(1),
-			},
-			NestedObject: schema.NestedBlockObject{
-				Blocks: cloudSpecBlocks(),
-			},
+			Attributes:  cloudSpecAttributes(),
 		},
-		"operating_system": schema.ListNestedBlock{
+		"operating_system": schema.SingleNestedAttribute{
+			Required:    true,
 			Description: "Operating system",
-			Validators: []validator.List{
-				listvalidator.SizeAtMost(1),
-				listvalidator.SizeAtLeast(1),
-			},
-			NestedObject: schema.NestedBlockObject{
-				Blocks: operatingSystemBlocks(),
-			},
+			Attributes:  operatingSystemAttributes(),
 		},
-		"versions": schema.ListNestedBlock{
+		"versions": schema.SingleNestedAttribute{
+			Optional:    true,
+			Computed:    true,
 			Description: "Cloud components versions",
-			Validators: []validator.List{
-				listvalidator.SizeAtMost(1),
-			},
-			NestedObject: schema.NestedBlockObject{
-				Attributes: versionsAttributes(),
-			},
+			Attributes:  versionsAttributes(),
 		},
-		"taints": schema.ListNestedBlock{
+		"taints": schema.ListNestedAttribute{
+			Optional:    true,
 			Description: "List of taints to set on new nodes",
-			NestedObject: schema.NestedBlockObject{
+			NestedObject: schema.NestedAttributeObject{
 				Attributes: taintAttributes(),
 			},
 		},
 	}
 }
 
-func cloudSpecBlocks() map[string]schema.Block {
-	return map[string]schema.Block{
-		"openstack": schema.ListNestedBlock{
+func cloudSpecAttributes() map[string]schema.Attribute {
+	return map[string]schema.Attribute{
+		"openstack": schema.SingleNestedAttribute{
+			Optional:    true,
 			Description: "OpenStack node deployment specification",
-			Validators: []validator.List{
-				listvalidator.SizeAtMost(1),
-			},
-			NestedObject: schema.NestedBlockObject{
-				Attributes: openstackCloudSpecAttributes(),
-			},
+			Attributes:  openstackCloudSpecAttributes(),
 		},
 	}
 }
@@ -397,6 +370,7 @@ func openstackCloudSpecAttributes() map[string]schema.Attribute {
 			Optional:    true,
 			Computed:    true,
 			ElementType: types.StringType,
+			Default:     mapdefault.StaticValue(types.MapValueMust(types.StringType, map[string]attr.Value{})),
 			Description: "Additional instance tags. Keys matching reserved prefix patterns are ignored in this attribute.",
 			Validators: []validator.Map{
 				noSystemManagedKeysValidator(),
@@ -440,25 +414,17 @@ func openstackCloudSpecAttributes() map[string]schema.Attribute {
 	}
 }
 
-func operatingSystemBlocks() map[string]schema.Block {
-	return map[string]schema.Block{
-		"ubuntu": schema.ListNestedBlock{
+func operatingSystemAttributes() map[string]schema.Attribute {
+	return map[string]schema.Attribute{
+		"ubuntu": schema.SingleNestedAttribute{
+			Optional:    true,
 			Description: "Ubuntu operating system",
-			Validators: []validator.List{
-				listvalidator.SizeAtMost(1),
-			},
-			NestedObject: schema.NestedBlockObject{
-				Attributes: ubuntuAttributes(),
-			},
+			Attributes:  ubuntuAttributes(),
 		},
-		"flatcar": schema.ListNestedBlock{
+		"flatcar": schema.SingleNestedAttribute{
+			Optional:    true,
 			Description: "Flatcar operating system",
-			Validators: []validator.List{
-				listvalidator.SizeAtMost(1),
-			},
-			NestedObject: schema.NestedBlockObject{
-				Attributes: flatcarAttributes(),
-			},
+			Attributes:  flatcarAttributes(),
 		},
 	}
 }
