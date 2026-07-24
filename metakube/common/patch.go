@@ -4,8 +4,64 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
+
+// ObjectAs converts a known Terraform object into its model. Null and unknown
+// objects return the model's zero value without diagnostics.
+func ObjectAs[T any](ctx context.Context, value types.Object) (T, diag.Diagnostics) {
+	var result T
+	if value.IsNull() || value.IsUnknown() {
+		return result, nil
+	}
+	diags := value.As(ctx, &result, basetypes.ObjectAsOptions{})
+	return result, diags
+}
+
+// SetChangedString adds a known changed string to a JSON merge patch. Null
+// deletes a known prior value, while unknown values are omitted.
+func SetChangedString(target map[string]any, key string, plan, state types.String) {
+	if plan.IsUnknown() || plan.Equal(state) {
+		return
+	}
+	if plan.IsNull() {
+		if !state.IsNull() && !state.IsUnknown() {
+			target[key] = nil
+		}
+		return
+	}
+	target[key] = plan.ValueString()
+}
+
+// SetChangedBool applies the same merge-patch rules as SetChangedString.
+func SetChangedBool(target map[string]any, key string, plan, state types.Bool) {
+	if plan.IsUnknown() || plan.Equal(state) {
+		return
+	}
+	if plan.IsNull() {
+		if !state.IsNull() && !state.IsUnknown() {
+			target[key] = nil
+		}
+		return
+	}
+	target[key] = plan.ValueBool()
+}
+
+// SetChangedInt64 applies the same merge-patch rules as SetChangedString.
+func SetChangedInt64(target map[string]any, key string, plan, state types.Int64) {
+	if plan.IsUnknown() || plan.Equal(state) {
+		return
+	}
+	if plan.IsNull() {
+		if !state.IsNull() && !state.IsUnknown() {
+			target[key] = nil
+		}
+		return
+	}
+	target[key] = plan.ValueInt64()
+}
 
 // StringMapMergePatch builds an RFC 7396 JSON merge patch for a string map.
 // Keys in the plan are set to their planned values, while keys present only in

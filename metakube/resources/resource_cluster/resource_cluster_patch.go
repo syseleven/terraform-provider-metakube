@@ -5,24 +5,8 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/syseleven/terraform-provider-metakube/metakube/common"
 )
-
-func clusterSpecModel(ctx context.Context, model ClusterModel) (ClusterSpecModel, diag.Diagnostics) {
-	var result ClusterSpecModel
-	if model.Spec.IsNull() || model.Spec.IsUnknown() {
-		return result, nil
-	}
-	diags := model.Spec.As(ctx, &result, basetypes.ObjectAsOptions{})
-	return result, diags
-}
-
-func objectAs[T any](ctx context.Context, value types.Object) (T, diag.Diagnostics) {
-	var result T
-	diags := value.As(ctx, &result, basetypes.ObjectAsOptions{})
-	return result, diags
-}
 
 // buildClusterPatch derives an RFC 7396 JSON merge patch from the planned and
 // prior Terraform values. Nulls delete API fields, while omitted fields remain
@@ -46,18 +30,18 @@ func buildClusterPatch(ctx context.Context, plan, state ClusterModel) (map[strin
 		return patch, diags
 	}
 
-	planSpec, childDiags := clusterSpecModel(ctx, plan)
+	planSpec, childDiags := common.ObjectAs[ClusterSpecModel](ctx, plan.Spec)
 	diags.Append(childDiags...)
-	stateSpec, childDiags := clusterSpecModel(ctx, state)
+	stateSpec, childDiags := common.ObjectAs[ClusterSpecModel](ctx, state.Spec)
 	diags.Append(childDiags...)
 	if diags.HasError() {
 		return nil, diags
 	}
 	spec := make(map[string]any)
-	setChangedString(spec, "version", planSpec.Version, stateSpec.Version)
-	setChangedBool(spec, "enableUserSSHKeyAgent", planSpec.EnableSSHAgent, stateSpec.EnableSSHAgent)
-	setChangedBool(spec, "usePodSecurityPolicyAdmissionPlugin", planSpec.PodSecurityPolicy, stateSpec.PodSecurityPolicy)
-	setChangedBool(spec, "usePodNodeSelectorAdmissionPlugin", planSpec.PodNodeSelector, stateSpec.PodNodeSelector)
+	common.SetChangedString(spec, "version", planSpec.Version, stateSpec.Version)
+	common.SetChangedBool(spec, "enableUserSSHKeyAgent", planSpec.EnableSSHAgent, stateSpec.EnableSSHAgent)
+	common.SetChangedBool(spec, "usePodSecurityPolicyAdmissionPlugin", planSpec.PodSecurityPolicy, stateSpec.PodSecurityPolicy)
+	common.SetChangedBool(spec, "usePodNodeSelectorAdmissionPlugin", planSpec.PodNodeSelector, stateSpec.PodNodeSelector)
 
 	if !planSpec.AuditLogging.Equal(stateSpec.AuditLogging) {
 		if planSpec.AuditLogging.IsNull() {
@@ -108,7 +92,7 @@ func buildClusterPatch(ctx context.Context, plan, state ClusterModel) (map[strin
 			network["pods"] = patchCIDR(planSpec.PodsCIDR)
 		}
 	}
-	setChangedString(network, "ipFamily", planSpec.IPFamily, stateSpec.IPFamily)
+	common.SetChangedString(network, "ipFamily", planSpec.IPFamily, stateSpec.IPFamily)
 	if len(network) > 0 {
 		spec["clusterNetwork"] = network
 	}
@@ -139,7 +123,7 @@ func patchUpdateWindow(ctx context.Context, value types.Object) (any, diag.Diagn
 	if value.IsUnknown() {
 		return nil, nil
 	}
-	model, diags := objectAs[UpdateWindowModel](ctx, value)
+	model, diags := common.ObjectAs[UpdateWindowModel](ctx, value)
 	if diags.HasError() {
 		return nil, diags
 	}
@@ -156,7 +140,7 @@ func patchCNIPlugin(ctx context.Context, value types.Object) (any, diag.Diagnost
 	if value.IsUnknown() {
 		return nil, nil
 	}
-	model, diags := objectAs[CNIPluginModel](ctx, value)
+	model, diags := common.ObjectAs[CNIPluginModel](ctx, value)
 	if diags.HasError() {
 		return nil, diags
 	}
@@ -173,7 +157,7 @@ func patchCNIPlugin(ctx context.Context, value types.Object) (any, diag.Diagnost
 	if model.Cilium.IsUnknown() {
 		return result, diags
 	}
-	cilium, childDiags := objectAs[CiliumModel](ctx, model.Cilium)
+	cilium, childDiags := common.ObjectAs[CiliumModel](ctx, model.Cilium)
 	diags.Append(childDiags...)
 	if diags.HasError() {
 		return nil, diags
@@ -184,7 +168,7 @@ func patchCNIPlugin(ctx context.Context, value types.Object) (any, diag.Diagnost
 	if cilium.Clustermesh.IsNull() {
 		ciliumPatch["clustermesh"] = nil
 	} else if !cilium.Clustermesh.IsUnknown() {
-		mesh, meshDiags := objectAs[CiliumClustermeshModel](ctx, cilium.Clustermesh)
+		mesh, meshDiags := common.ObjectAs[CiliumClustermeshModel](ctx, cilium.Clustermesh)
 		diags.Append(meshDiags...)
 		meshPatch := make(map[string]any)
 		setConfiguredBool(meshPatch, "enable", mesh.Enable)
@@ -203,7 +187,7 @@ func patchSyselevenAuth(ctx context.Context, value types.Object) (any, diag.Diag
 	if value.IsUnknown() {
 		return nil, nil
 	}
-	model, diags := objectAs[SyselevenAuthModel](ctx, value)
+	model, diags := common.ObjectAs[SyselevenAuthModel](ctx, value)
 	if diags.HasError() {
 		return nil, diags
 	}
@@ -220,14 +204,14 @@ func patchCloud(ctx context.Context, plan, state types.Object) (any, diag.Diagno
 	if plan.IsUnknown() {
 		return nil, nil
 	}
-	planModel, diags := objectAs[ClusterCloudSpecModel](ctx, plan)
+	planModel, diags := common.ObjectAs[ClusterCloudSpecModel](ctx, plan)
 	if diags.HasError() {
 		return nil, diags
 	}
 	var stateModel ClusterCloudSpecModel
 	if !state.IsNull() && !state.IsUnknown() {
 		var childDiags diag.Diagnostics
-		stateModel, childDiags = objectAs[ClusterCloudSpecModel](ctx, state)
+		stateModel, childDiags = common.ObjectAs[ClusterCloudSpecModel](ctx, state)
 		diags.Append(childDiags...)
 	}
 	openstack, childDiags := patchOpenstack(ctx, planModel.Openstack, stateModel.Openstack)
@@ -248,23 +232,23 @@ func patchOpenstack(ctx context.Context, plan, state types.Object) (any, diag.Di
 	if plan.IsUnknown() {
 		return nil, nil
 	}
-	planModel, diags := objectAs[OpenstackCloudSpecModel](ctx, plan)
+	planModel, diags := common.ObjectAs[OpenstackCloudSpecModel](ctx, plan)
 	if diags.HasError() {
 		return nil, diags
 	}
 	var stateModel OpenstackCloudSpecModel
 	if !state.IsNull() && !state.IsUnknown() {
 		var childDiags diag.Diagnostics
-		stateModel, childDiags = objectAs[OpenstackCloudSpecModel](ctx, state)
+		stateModel, childDiags = common.ObjectAs[OpenstackCloudSpecModel](ctx, state)
 		diags.Append(childDiags...)
 	}
 	result := make(map[string]any)
-	setChangedString(result, "floatingIPPool", planModel.FloatingIPPool, stateModel.FloatingIPPool)
-	setChangedString(result, "securityGroups", planModel.SecurityGroup, stateModel.SecurityGroup)
-	setChangedString(result, "network", planModel.Network, stateModel.Network)
-	setChangedString(result, "subnetID", planModel.SubnetID, stateModel.SubnetID)
-	setChangedString(result, "subnetCIDR", planModel.SubnetCIDR, stateModel.SubnetCIDR)
-	setChangedString(result, "serverGroupID", planModel.ServerGroupID, stateModel.ServerGroupID)
+	common.SetChangedString(result, "floatingIPPool", planModel.FloatingIPPool, stateModel.FloatingIPPool)
+	common.SetChangedString(result, "securityGroups", planModel.SecurityGroup, stateModel.SecurityGroup)
+	common.SetChangedString(result, "network", planModel.Network, stateModel.Network)
+	common.SetChangedString(result, "subnetID", planModel.SubnetID, stateModel.SubnetID)
+	common.SetChangedString(result, "subnetCIDR", planModel.SubnetCIDR, stateModel.SubnetCIDR)
+	common.SetChangedString(result, "serverGroupID", planModel.ServerGroupID, stateModel.ServerGroupID)
 
 	userPatch, childDiags := patchUserCredentials(ctx, planModel.UserCredentials, stateModel.UserCredentials)
 	diags.Append(childDiags...)
@@ -292,21 +276,21 @@ func patchUserCredentials(ctx context.Context, plan, state types.Object) (map[st
 	if plan.IsUnknown() {
 		return nil, nil
 	}
-	planModel, diags := objectAs[OpenstackUserCredentialsModel](ctx, plan)
+	planModel, diags := common.ObjectAs[OpenstackUserCredentialsModel](ctx, plan)
 	if diags.HasError() {
 		return nil, diags
 	}
 	var stateModel OpenstackUserCredentialsModel
 	if !state.IsNull() && !state.IsUnknown() {
 		var childDiags diag.Diagnostics
-		stateModel, childDiags = objectAs[OpenstackUserCredentialsModel](ctx, state)
+		stateModel, childDiags = common.ObjectAs[OpenstackUserCredentialsModel](ctx, state)
 		diags.Append(childDiags...)
 	}
 	result := make(map[string]any)
-	setChangedString(result, "projectID", planModel.ProjectID, stateModel.ProjectID)
-	setChangedString(result, "project", planModel.ProjectName, stateModel.ProjectName)
-	setChangedString(result, "username", planModel.Username, stateModel.Username)
-	setChangedString(result, "password", planModel.Password, stateModel.Password)
+	common.SetChangedString(result, "projectID", planModel.ProjectID, stateModel.ProjectID)
+	common.SetChangedString(result, "project", planModel.ProjectName, stateModel.ProjectName)
+	common.SetChangedString(result, "username", planModel.Username, stateModel.Username)
+	common.SetChangedString(result, "password", planModel.Password, stateModel.Password)
 	return result, diags
 }
 
@@ -323,19 +307,19 @@ func patchApplicationCredentials(ctx context.Context, plan, state types.Object) 
 	if plan.IsUnknown() {
 		return nil, nil
 	}
-	planModel, diags := objectAs[OpenstackApplicationCredentialsModel](ctx, plan)
+	planModel, diags := common.ObjectAs[OpenstackApplicationCredentialsModel](ctx, plan)
 	if diags.HasError() {
 		return nil, diags
 	}
 	var stateModel OpenstackApplicationCredentialsModel
 	if !state.IsNull() && !state.IsUnknown() {
 		var childDiags diag.Diagnostics
-		stateModel, childDiags = objectAs[OpenstackApplicationCredentialsModel](ctx, state)
+		stateModel, childDiags = common.ObjectAs[OpenstackApplicationCredentialsModel](ctx, state)
 		diags.Append(childDiags...)
 	}
 	result := make(map[string]any)
-	setChangedString(result, "applicationCredentialID", planModel.ID, stateModel.ID)
-	setChangedString(result, "applicationCredentialSecret", planModel.Secret, stateModel.Secret)
+	common.SetChangedString(result, "applicationCredentialID", planModel.ID, stateModel.ID)
+	common.SetChangedString(result, "applicationCredentialSecret", planModel.Secret, stateModel.Secret)
 	return result, diags
 }
 
@@ -353,37 +337,6 @@ func patchCIDR(value types.String) any {
 		return nil
 	}
 	return map[string]any{"cidrBlocks": []string{value.ValueString()}}
-}
-
-// setChangedString adds a string only when plan differs from state. A null plan
-// value is encoded as a JSON merge-patch deletion, while unknown values are
-// omitted.
-func setChangedString(target map[string]any, key string, plan, state types.String) {
-	if plan.Equal(state) {
-		return
-	}
-	if plan.IsNull() {
-		target[key] = nil
-		return
-	}
-	if !plan.IsUnknown() {
-		target[key] = mergePatchString(plan)
-	}
-}
-
-// setChangedBool applies the same tri-state merge-patch rules as
-// setChangedString for boolean values.
-func setChangedBool(target map[string]any, key string, plan, state types.Bool) {
-	if plan.Equal(state) {
-		return
-	}
-	if plan.IsNull() {
-		target[key] = nil
-		return
-	}
-	if !plan.IsUnknown() {
-		target[key] = mergePatchBool(plan)
-	}
 }
 
 // setConfiguredBool writes every configured child of an object being replaced.
