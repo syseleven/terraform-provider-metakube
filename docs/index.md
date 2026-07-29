@@ -40,6 +40,8 @@ resource "metakube_cluster" "cluster" {
 }
 ```
 
+> For more detailed usage example, see the [documentation](https://documentation.syseleven.de/en/how-to/kubernetes/metakube-terraform-example).
+
 ## Authentication
 
 The provider tries to read a token from `~/.metakube/auth` by default,
