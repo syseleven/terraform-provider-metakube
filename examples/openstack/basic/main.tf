@@ -83,11 +83,11 @@ resource "local_file" "kubeconfig" {
 
 resource "metakube_node_deployment" "node_deployment" {
   cluster_id = metakube_cluster.cluster.id
-  spec {
+  spec = {
     replicas = var.node_replicas
-    template {
-      cloud {
-        openstack {
+    template = {
+      cloud = {
+        openstack = {
           flavor                       = var.node_flavor
           image                        = var.node_image != null ? var.node_image : data.openstack_images_image_v2.image.name
           use_floating_ip              = var.use_floating_ip
@@ -95,11 +95,11 @@ resource "metakube_node_deployment" "node_deployment" {
           instance_ready_check_timeout = "100s"
         }
       }
-      operating_system {
-        ubuntu {
+      operating_system = {
+        ubuntu = {
         }
       }
-      versions {
+      versions = {
         kubelet = data.metakube_k8s_version.cluster.version
       }
     }

@@ -11,26 +11,22 @@ resource "metakube_cluster" "example_cluster" {
 
 resource "metakube_node_deployment" "example_node" {
   cluster_id = metakube_cluster.example_cluster.id
-  spec {
+  spec = {
     replicas = 1
-    template {
-      cloud {
-        aws {
-          instance_type     = "t3.small"
-          disk_size         = 25
-          volume_type       = "standard"
-          subnet_id         = "subnet-04f2f551bbc697db3"
-          availability_zone = "eu-central-1c"
-          assign_public_ip  = true
+    template = {
+      cloud = {
+        openstack = {
+          flavor = "m1.small"
+          image  = "Ubuntu 24.04"
         }
       }
-      operating_system {
-        ubuntu {
+      operating_system = {
+        ubuntu = {
           dist_upgrade_on_boot = true
         }
       }
-      versions {
-        kubelet = "1.21.3"
+      versions = {
+        kubelet = "1.32.0"
       }
     }
   }
@@ -44,17 +40,17 @@ To configure the user-data plugin for Ubuntu nodes with sysext:
 ```hcl
 resource "metakube_node_deployment" "example_with_annotations" {
   cluster_id = metakube_cluster.example_cluster.id
-  spec {
+  spec = {
     replicas = 1
-    template {
-      cloud {
-        openstack {
+    template = {
+      cloud = {
+        openstack = {
           flavor = "m1.small"
           image  = "Ubuntu 24.04"
         }
       }
-      operating_system {
-        ubuntu {
+      operating_system = {
+        ubuntu = {
           dist_upgrade_on_boot = false
         }
       }
@@ -101,7 +97,7 @@ resource "metakube_node_deployment" "example" {
 * `creation_timestamp` - Timestamp of resource creation.
 * `deletion_timestamp` - Timestamp of resource deletion.
 
-## Nested Blocks
+## Nested attributes
 
 ### `spec`
 
@@ -134,7 +130,6 @@ One of the following must be selected.
 #### Arguments
 
 * `openstack` - (Optional) Openstack node deployment specification.
-* `aws` - (Optional) AWS node deployment specification.
 
 ### `operating_system`
 
@@ -168,19 +163,6 @@ One of the following must be selected.
 * `instance_ready_check_period` - (Optional) Specify custom value for how often to check if instance is ready before timing out.
 * `instance_ready_check_timeout` - (Optional) Specifies custom value for how long to check if instance is ready before timing out.
 * `server_group_id` - (Optional) Specifies custom value for the Openstack server group ID to use for the nodes. Defaults to a cluster-wide group.
-
-### `aws`
-
-#### Arguments
-
-* `instance_type` - (Required) EC2 instance type
-* `disk_size` - (Required) Size of the volume in GBs.
-* `volume_type` -  (Required) EBS volume type.
-* `availability_zone` - (Required) Availability zone in which to place the node. It is coupled with the subnet to which the node will belong.
-* `subnet_id` - (Required) The VPC subnet to which the node shall be connected.
-* `assign_public_ip` - (Optional) When set the AWS instance will get a public IP address assigned during launch overriding a possible setting in the used AWS subnet.
-* `ami` - (Optional) Amazon Machine Image to use. Will be defaulted to an AMI of your selected operating system and region.
-* `tags`- (Optional) Additional EC2 instance tags.
 
 ### `ubuntu`
 
