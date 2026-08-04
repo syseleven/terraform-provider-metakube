@@ -150,7 +150,6 @@ func singleObjectAttributes(isNull, isUnknown bool, elems []attr.Value) (map[str
 	return obj.Attributes(), true
 }
 
-
 // True when an optional computed string was removed from config but still has a value in state.
 func shouldClearOmittedOptionalComputedString(configVal, planVal, stateVal attr.Value) bool {
 	if configVal == nil || planVal == nil || stateVal == nil {
@@ -201,7 +200,6 @@ func frameworkModelTypes(models []any) []reflect.Type {
 	}
 	return result
 }
-
 
 // HACK: pick the framework model whose fields best match apiType when multiple types are passed.
 func bestFrameworkType(apiType reflect.Type, fwTypes []reflect.Type) reflect.Type {

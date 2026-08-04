@@ -488,7 +488,7 @@ func (r *nodeDeploymentResource) readIntoModel(ctx context.Context, model *NodeD
 
 	model.Name = types.StringValue(nd.Name)
 
-	specList, d := flattenNodeDeploymentSpec(ctx, nd.Spec)
+	specList, d := flattenNodeDeploymentSpec(ctx, nd.Spec, model.Spec)
 	result.Append(d...)
 	if result.HasError() {
 		return result

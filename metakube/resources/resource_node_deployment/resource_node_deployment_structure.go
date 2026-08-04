@@ -39,7 +39,7 @@ func flattenUserTags(tags map[string]string) (types.Map, diag.Diagnostics) {
 	return tagsVal, diags
 }
 
-func flattenNodeDeploymentSpec(ctx context.Context, in *models.NodeDeploymentSpec) (types.List, diag.Diagnostics) {
+func flattenNodeDeploymentSpec(ctx context.Context, in *models.NodeDeploymentSpec, priorSpec ...types.List) (types.List, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	if in == nil {
@@ -67,7 +67,8 @@ func flattenNodeDeploymentSpec(ctx context.Context, in *models.NodeDeploymentSpe
 	}
 
 	if in.Template != nil {
-		templateList, d := flattenNodeSpec(ctx, in.Template)
+		preserveEmptyMachineAnnotations := len(priorSpec) > 0 && hasKnownEmptyMachineAnnotations(ctx, priorSpec[0])
+		templateList, d := flattenNodeSpec(ctx, in.Template, preserveEmptyMachineAnnotations)
 		diags.Append(d...)
 		specModel.Template = templateList
 	} else {
@@ -86,7 +87,7 @@ func flattenNodeDeploymentSpec(ctx context.Context, in *models.NodeDeploymentSpe
 	return specList, diags
 }
 
-func flattenNodeSpec(ctx context.Context, in *models.NodeSpec) (types.List, diag.Diagnostics) {
+func flattenNodeSpec(ctx context.Context, in *models.NodeSpec, preserveEmptyMachineAnnotations bool) (types.List, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	if in == nil {
@@ -145,6 +146,10 @@ func flattenNodeSpec(ctx context.Context, in *models.NodeSpec) (types.List, diag
 		annoVal, d := types.MapValue(types.StringType, annoMap)
 		diags.Append(d...)
 		nodeSpecModel.MachineAnnotations = annoVal
+	} else if preserveEmptyMachineAnnotations {
+		annoVal, d := types.MapValue(types.StringType, map[string]attr.Value{})
+		diags.Append(d...)
+		nodeSpecModel.MachineAnnotations = annoVal
 	} else {
 		nodeSpecModel.MachineAnnotations = types.MapNull(types.StringType)
 	}
@@ -195,6 +200,30 @@ func flattenNodeSpec(ctx context.Context, in *models.NodeSpec) (types.List, diag
 	diags.Append(d...)
 
 	return listVal, diags
+}
+
+func hasKnownEmptyMachineAnnotations(ctx context.Context, specList types.List) bool {
+	if specList.IsNull() || specList.IsUnknown() || len(specList.Elements()) != 1 {
+		return false
+	}
+
+	var specs []NodeDeploymentSpecModel
+	if d := specList.ElementsAs(ctx, &specs, false); d.HasError() || len(specs) != 1 {
+		return false
+	}
+
+	templateList := specs[0].Template
+	if templateList.IsNull() || templateList.IsUnknown() || len(templateList.Elements()) != 1 {
+		return false
+	}
+
+	var templates []NodeSpecModel
+	if d := templateList.ElementsAs(ctx, &templates, false); d.HasError() || len(templates) != 1 {
+		return false
+	}
+
+	annotations := templates[0].MachineAnnotations
+	return !annotations.IsNull() && !annotations.IsUnknown() && len(annotations.Elements()) == 0
 }
 
 func flattenCloudSpec(ctx context.Context, in *models.NodeCloudSpec) (types.List, diag.Diagnostics) {
