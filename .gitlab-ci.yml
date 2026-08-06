@@ -40,6 +40,8 @@ env:
 
 test:
   stage: test
+  tags:
+    - $RUNNER_ID
   timeout: 3h
   script:
     - source test.env
