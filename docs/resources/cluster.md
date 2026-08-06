@@ -169,6 +169,10 @@ Currently, can be configured as `IPv4` or `IPv4+IPv6`.
 * `network` - (Optional) When specified, all worker nodes will be attached to this network. If not specified, a network, subnet & router will be created.
 * `subnet_id` - (Optional) When specified, all worker nodes will be attached to this subnet of specified network. If not specified, a network, subnet & router will be created.
 * `subnet_cidr` - (Optional) Change this to configure a different internal IP range for Nodes. Default: `192.168.1.0/24`.
+* `subnet_v6_id` - (Optional) When specified, all worker nodes will be attached to this IPv6 subnet of specified network.
+* `subnet_v6_cidr` - (Optional) Change this to configure a different internal IPv6 range for Nodes.
+* `create_pod_subnet_v6` - (Optional) Whether to create a public IPv6 subnet for pods when `pod_subnet_v6_id` is not set.
+* `pod_subnet_v6_id` - (Optional) IPv6 subnet to use for pods. If not specified, pods use an internal CIDR unless `create_pod_subnet_v6` is enabled.
 When using password based auth
 * `server_group_id` - (Optional) Server group id to use for all machines within a cluster. You can use openstack server groups to group or seperate servers using soft/hard affinity/anti-affinity rules. When not set explicitly, the default soft anti-affinity server group will be created and used. 
 * `application_credentials` - (Conditional) connect to Openstack using Application Credentials. Required at cluster create unless `user_credentials` used. Required when switching from `user_credentials` or when explicitly updating to new values. May be omitted for imported clusters. May be omitted if `user_credentials` being used.

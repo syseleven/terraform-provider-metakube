@@ -27,6 +27,7 @@ type metakubeResourceClusterOpenstackValidationData struct {
 	applicationCredentialsSecret *string
 	network                      *string
 	subnetID                     *string
+	// TODO add IPv6-related fields
 }
 
 type metakubeResourceClusterGeneralOpenstackRequestParams interface {

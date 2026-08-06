@@ -361,10 +361,30 @@ func flattenOpenstackSpec(ctx context.Context, cloudModel *ClusterCloudSpecModel
 		osModel.SubnetID = types.StringNull()
 	}
 
+	if in.SubnetV6ID != "" {
+		osModel.SubnetV6ID = types.StringValue(in.SubnetV6ID)
+	} else {
+		osModel.SubnetV6ID = types.StringNull()
+	}
+
 	if in.SubnetCIDR != "" {
 		osModel.SubnetCIDR = types.StringValue(in.SubnetCIDR)
 	} else {
 		osModel.SubnetCIDR = types.StringNull()
+	}
+
+	if in.SubnetV6CIDR != "" {
+		osModel.SubnetV6CIDR = types.StringValue(in.SubnetV6CIDR)
+	} else {
+		osModel.SubnetV6CIDR = types.StringNull()
+	}
+
+	osModel.CreatePodSubnetV6 = types.BoolValue(in.CreatePodSubnetV6)
+
+	if in.PodSubnetV6ID != "" {
+		osModel.PodSubnetV6ID = types.StringValue(in.PodSubnetV6ID)
+	} else {
+		osModel.PodSubnetV6ID = types.StringNull()
 	}
 
 	if in.ServerGroupID != "" {
@@ -673,10 +693,35 @@ func expandOpenstackCloudSpec(ctx context.Context, obj types.Object, include fun
 		}
 	}
 
+	if !os.SubnetV6ID.IsNull() && !os.SubnetV6ID.IsUnknown() && include("subnet_v6_id") {
+		v := os.SubnetV6ID.ValueString()
+		if v != "" {
+			ret.SubnetV6ID = v
+		}
+	}
+
 	if !os.SubnetCIDR.IsNull() && !os.SubnetCIDR.IsUnknown() && include("subnet_cidr") {
 		v := os.SubnetCIDR.ValueString()
 		if v != "" {
 			ret.SubnetCIDR = v
+		}
+	}
+
+	if !os.SubnetV6CIDR.IsNull() && !os.SubnetV6CIDR.IsUnknown() && include("subnet_v6_cidr") {
+		v := os.SubnetV6CIDR.ValueString()
+		if v != "" {
+			ret.SubnetV6CIDR = v
+		}
+	}
+
+	if !os.CreatePodSubnetV6.IsNull() && !os.CreatePodSubnetV6.IsUnknown() && include("create_pod_subnet_v6") {
+		ret.CreatePodSubnetV6 = os.CreatePodSubnetV6.ValueBool()
+	}
+
+	if !os.PodSubnetV6ID.IsNull() && !os.PodSubnetV6ID.IsUnknown() && include("pod_subnet_v6_id") {
+		v := os.PodSubnetV6ID.ValueString()
+		if v != "" {
+			ret.PodSubnetV6ID = v
 		}
 	}
 

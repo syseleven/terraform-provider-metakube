@@ -242,11 +242,16 @@ func TestFlattenOpenstackCloudSpec(t *testing.T) {
 		{
 			name: "with application credentials preserved",
 			Input: &models.OpenstackCloudSpec{
-				FloatingIPPool: "FloatingIPPool",
-				Network:        "Network",
-				SecurityGroups: "SecurityGroups",
-				SubnetID:       "SubnetID",
-				ServerGroupID:  "ServerGroupID",
+				FloatingIPPool:    "FloatingIPPool",
+				Network:           "Network",
+				SecurityGroups:    "SecurityGroups",
+				SubnetID:          "SubnetID",
+				SubnetCIDR:        "SubnetCIDR",
+				SubnetV6ID:        "SubnetV6ID",
+				SubnetV6CIDR:      "SubnetV6CIDR",
+				CreatePodSubnetV6: true,
+				PodSubnetV6ID:     "PodSubnetV6ID",
+				ServerGroupID:     "ServerGroupID",
 			},
 			PreserveValues: &clusterOpenstackPreservedValues{
 				openstackApplicationCredentialsID:     types.StringValue("id"),
@@ -302,10 +307,20 @@ func TestFlattenOpenstackCloudSpec(t *testing.T) {
 				t.Fatalf("Failed to get Openstack object: %v", d)
 			}
 
-			if tc.Input != nil && tc.Input.FloatingIPPool != "" {
-				if osSpec.FloatingIPPool.ValueString() != tc.Input.FloatingIPPool {
-					t.Errorf("FloatingIPPool mismatch: got %v, want %v", osSpec.FloatingIPPool.ValueString(), tc.Input.FloatingIPPool)
-				}
+			if tc.Input != nil && tc.Input.FloatingIPPool != "" && osSpec.FloatingIPPool.ValueString() != tc.Input.FloatingIPPool {
+				t.Errorf("FloatingIPPool mismatch: got %v, want %v", osSpec.FloatingIPPool.ValueString(), tc.Input.FloatingIPPool)
+			}
+			if tc.Input != nil && tc.Input.SubnetV6ID != "" && osSpec.SubnetV6ID.ValueString() != tc.Input.SubnetV6ID {
+				t.Errorf("SubnetV6ID mismatch: got %v, want %v", osSpec.SubnetV6ID.ValueString(), tc.Input.SubnetV6ID)
+			}
+			if tc.Input != nil && tc.Input.SubnetV6CIDR != "" && osSpec.SubnetV6CIDR.ValueString() != tc.Input.SubnetV6CIDR {
+				t.Errorf("SubnetV6CIDR mismatch: got %v, want %v", osSpec.SubnetV6CIDR.ValueString(), tc.Input.SubnetV6CIDR)
+			}
+			if tc.Input != nil && tc.Input.CreatePodSubnetV6 != osSpec.CreatePodSubnetV6.ValueBool() {
+				t.Errorf("CreatePodSubnetV6 mismatch: got %v, want %v", osSpec.CreatePodSubnetV6.ValueBool(), tc.Input.CreatePodSubnetV6)
+			}
+			if tc.Input != nil && tc.Input.PodSubnetV6ID != "" && osSpec.PodSubnetV6ID.ValueString() != tc.Input.PodSubnetV6ID {
+				t.Errorf("PodSubnetV6ID mismatch: got %v, want %v", osSpec.PodSubnetV6ID.ValueString(), tc.Input.PodSubnetV6ID)
 			}
 		})
 	}
@@ -562,6 +577,10 @@ func TestExpandOpenstackCloudSpec(t *testing.T) {
 					Network:                types.StringNull(),
 					SubnetID:               types.StringNull(),
 					SubnetCIDR:             types.StringNull(),
+					SubnetV6ID:             types.StringNull(),
+					SubnetV6CIDR:           types.StringNull(),
+					CreatePodSubnetV6:      types.BoolNull(),
+					PodSubnetV6ID:          types.StringNull(),
 				}
 				objVal, _ := types.ObjectValueFrom(ctx, openstackCloudSpecAttrTypes(), osModel)
 				return objVal
@@ -592,8 +611,12 @@ func TestExpandOpenstackCloudSpec(t *testing.T) {
 					UserCredentials:        types.ObjectNull(openstackUserCredentialsAttrTypes()),
 					SecurityGroup:          types.StringNull(),
 					Network:                types.StringNull(),
-					SubnetID:               types.StringNull(),
-					SubnetCIDR:             types.StringNull(),
+					SubnetID:               types.StringValue("SubnetID"),
+					SubnetCIDR:             types.StringValue("SubnetCIDR"),
+					SubnetV6ID:             types.StringValue("SubnetV6ID"),
+					SubnetV6CIDR:           types.StringValue("SubnetV6CIDR"),
+					CreatePodSubnetV6:      types.BoolValue(true),
+					PodSubnetV6ID:          types.StringValue("PodSubnetV6ID"),
 				}
 				objVal, _ := types.ObjectValueFrom(ctx, openstackCloudSpecAttrTypes(), osModel)
 				return objVal
@@ -603,6 +626,12 @@ func TestExpandOpenstackCloudSpec(t *testing.T) {
 				FloatingIPPool:              "FloatingIPPool",
 				ApplicationCredentialID:     "id",
 				ApplicationCredentialSecret: "secret",
+				SubnetID:                    "SubnetID",
+				SubnetCIDR:                  "SubnetCIDR",
+				SubnetV6ID:                  "SubnetV6ID",
+				SubnetV6CIDR:                "SubnetV6CIDR",
+				CreatePodSubnetV6:           true,
+				PodSubnetV6ID:               "PodSubnetV6ID",
 				ServerGroupID:               "ServerGroupID",
 			},
 		},
@@ -615,6 +644,10 @@ func TestExpandOpenstackCloudSpec(t *testing.T) {
 					Network:                types.StringNull(),
 					SubnetID:               types.StringNull(),
 					SubnetCIDR:             types.StringNull(),
+					SubnetV6ID:             types.StringNull(),
+					SubnetV6CIDR:           types.StringNull(),
+					CreatePodSubnetV6:      types.BoolNull(),
+					PodSubnetV6ID:          types.StringNull(),
 					ServerGroupID:          types.StringNull(),
 					UserCredentials:        types.ObjectNull(openstackUserCredentialsAttrTypes()),
 					ApplicationCredentials: types.ObjectNull(openstackApplicationCredentialsAttrTypes()),
@@ -1177,6 +1210,10 @@ func createOpenstackCloudList(ctx context.Context, t *testing.T) types.Object {
 		Network:                types.StringNull(),
 		SubnetID:               types.StringNull(),
 		SubnetCIDR:             types.StringNull(),
+		SubnetV6ID:             types.StringNull(),
+		SubnetV6CIDR:           types.StringNull(),
+		CreatePodSubnetV6:      types.BoolNull(),
+		PodSubnetV6ID:          types.StringNull(),
 		ServerGroupID:          types.StringNull(),
 		UserCredentials:        types.ObjectNull(openstackUserCredentialsAttrTypes()),
 		ApplicationCredentials: types.ObjectNull(openstackApplicationCredentialsAttrTypes()),
@@ -1206,6 +1243,10 @@ func createModelWithOpenstackUserCredentials(ctx context.Context, t *testing.T, 
 		Network:                types.StringNull(),
 		SubnetID:               types.StringNull(),
 		SubnetCIDR:             types.StringNull(),
+		SubnetV6ID:             types.StringNull(),
+		SubnetV6CIDR:           types.StringNull(),
+		CreatePodSubnetV6:      types.BoolNull(),
+		PodSubnetV6ID:          types.StringNull(),
 		ServerGroupID:          types.StringNull(),
 		UserCredentials:        userCredsObjVal,
 		ApplicationCredentials: types.ObjectNull(openstackApplicationCredentialsAttrTypes()),
@@ -1248,6 +1289,10 @@ func createModelWithOpenstackAppCredentials(ctx context.Context, t *testing.T, a
 		Network:                types.StringNull(),
 		SubnetID:               types.StringNull(),
 		SubnetCIDR:             types.StringNull(),
+		SubnetV6ID:             types.StringNull(),
+		SubnetV6CIDR:           types.StringNull(),
+		CreatePodSubnetV6:      types.BoolNull(),
+		PodSubnetV6ID:          types.StringNull(),
 		ServerGroupID:          types.StringNull(),
 		UserCredentials:        types.ObjectNull(openstackUserCredentialsAttrTypes()),
 		ApplicationCredentials: appCredsObjVal,
