@@ -2,34 +2,15 @@ package resource_cluster
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/syseleven/go-metakube/models"
-	"github.com/syseleven/terraform-provider-metakube/metakube/common"
 	"k8s.io/utils/ptr"
 )
 
-// clusterPreserveValues holds values that need to be preserved during flatten operations
-// because the API doesn't return sensitive data or to maintain consistency with planned state
-type clusterPreserveValues struct {
-	openstack *clusterOpenstackPreservedValues
-}
-
-type clusterOpenstackPreservedValues struct {
-	openstackProjectID                    types.String
-	openstackProjectName                  types.String
-	openstackUsername                     types.String
-	openstackPassword                     types.String
-	openstackApplicationCredentialsID     types.String
-	openstackApplicationCredentialsSecret types.String
-	openstackServerGroupID                types.String
-}
-
-// flatteners
+// Flatteners convert MetaKube API models to Terraform values.
 
 func metakubeResourceClusterFlattenSpec(ctx context.Context, model *ClusterModel, in *models.ClusterSpec) diag.Diagnostics {
 	var diags diag.Diagnostics
@@ -39,7 +20,6 @@ func metakubeResourceClusterFlattenSpec(ctx context.Context, model *ClusterModel
 		return diags
 	}
 
-	preservedValues := getPreservedValuesFromModel(ctx, model)
 	specModel := ClusterSpecModel{}
 
 	if in.Version != "" {
@@ -99,7 +79,7 @@ func metakubeResourceClusterFlattenSpec(ctx context.Context, model *ClusterModel
 	}
 
 	if in.Cloud != nil {
-		diags.Append(flattenClusterCloudSpec(ctx, &specModel, preservedValues, in.Cloud)...)
+		diags.Append(flattenClusterCloudSpec(ctx, &specModel, in.Cloud)...)
 		if diags.HasError() {
 			return diags
 		}
@@ -138,53 +118,6 @@ func getClusterSpecModel(ctx context.Context, model *ClusterModel) (ClusterSpecM
 	}
 
 	return spec, true
-}
-
-func getPreservedValuesFromModel(ctx context.Context, model *ClusterModel) clusterPreserveValues {
-	values := clusterPreserveValues{}
-
-	spec, ok := getClusterSpecModel(ctx, model)
-	if !ok {
-		return values
-	}
-
-	if spec.Cloud.IsNull() || spec.Cloud.IsUnknown() {
-		return values
-	}
-
-	var cloud ClusterCloudSpecModel
-	if diags := spec.Cloud.As(ctx, &cloud, basetypes.ObjectAsOptions{}); diags.HasError() {
-		return values
-	}
-
-	if !cloud.Openstack.IsNull() && !cloud.Openstack.IsUnknown() {
-		var osSpec OpenstackCloudSpecModel
-		if diags := cloud.Openstack.As(ctx, &osSpec, basetypes.ObjectAsOptions{}); !diags.HasError() {
-			values.openstack = &clusterOpenstackPreservedValues{
-				openstackServerGroupID: osSpec.ServerGroupID,
-			}
-
-			if !osSpec.UserCredentials.IsNull() && !osSpec.UserCredentials.IsUnknown() {
-				var userCreds OpenstackUserCredentialsModel
-				if diags := osSpec.UserCredentials.As(ctx, &userCreds, basetypes.ObjectAsOptions{}); !diags.HasError() {
-					values.openstack.openstackProjectID = userCreds.ProjectID
-					values.openstack.openstackProjectName = userCreds.ProjectName
-					values.openstack.openstackUsername = userCreds.Username
-					values.openstack.openstackPassword = userCreds.Password
-				}
-			}
-
-			if !osSpec.ApplicationCredentials.IsNull() && !osSpec.ApplicationCredentials.IsUnknown() {
-				var appCreds OpenstackApplicationCredentialsModel
-				if diags := osSpec.ApplicationCredentials.As(ctx, &appCreds, basetypes.ObjectAsOptions{}); !diags.HasError() {
-					values.openstack.openstackApplicationCredentialsID = appCreds.ID
-					values.openstack.openstackApplicationCredentialsSecret = appCreds.Secret
-				}
-			}
-		}
-	}
-
-	return values
 }
 
 func flattenUpdateWindow(ctx context.Context, specModel *ClusterSpecModel, in *models.UpdateWindow) diag.Diagnostics {
@@ -272,7 +205,7 @@ func flattenCniPluginCilium(ctx context.Context, cniModel *CNIPluginModel, in *m
 	return diags
 }
 
-func flattenClusterCloudSpec(ctx context.Context, specModel *ClusterSpecModel, values clusterPreserveValues, in *models.CloudSpec) diag.Diagnostics {
+func flattenClusterCloudSpec(ctx context.Context, specModel *ClusterSpecModel, in *models.CloudSpec) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	if in == nil {
@@ -285,7 +218,7 @@ func flattenClusterCloudSpec(ctx context.Context, specModel *ClusterSpecModel, v
 	}
 
 	if in.Openstack != nil {
-		diags.Append(flattenOpenstackSpec(ctx, &cloudModel, values.openstack, in.Openstack)...)
+		diags.Append(flattenOpenstackSpec(ctx, &cloudModel, in.Openstack)...)
 	}
 
 	objVal, d := types.ObjectValueFrom(ctx, clusterCloudSpecAttrTypes(), cloudModel)
@@ -324,7 +257,7 @@ func flattenClusterSys11Auth(ctx context.Context, specModel *ClusterSpecModel, i
 	return diags
 }
 
-func flattenOpenstackSpec(ctx context.Context, cloudModel *ClusterCloudSpecModel, values *clusterOpenstackPreservedValues, in *models.OpenstackCloudSpec) diag.Diagnostics {
+func flattenOpenstackSpec(ctx context.Context, cloudModel *ClusterCloudSpecModel, in *models.OpenstackCloudSpec) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	if in == nil {
@@ -369,49 +302,8 @@ func flattenOpenstackSpec(ctx context.Context, cloudModel *ClusterCloudSpecModel
 
 	if in.ServerGroupID != "" {
 		osModel.ServerGroupID = types.StringValue(in.ServerGroupID)
-	} else if values != nil && !values.openstackServerGroupID.IsNull() && values.openstackServerGroupID.ValueString() != "" {
-		osModel.ServerGroupID = values.openstackServerGroupID
 	} else {
 		osModel.ServerGroupID = types.StringNull()
-	}
-
-	// Preserve user credentials from state (API doesn't return them)
-	if values != nil {
-		hasUserCreds := (!values.openstackProjectID.IsNull() && values.openstackProjectID.ValueString() != "") ||
-			(!values.openstackProjectName.IsNull() && values.openstackProjectName.ValueString() != "") ||
-			(!values.openstackUsername.IsNull() && values.openstackUsername.ValueString() != "") ||
-			(!values.openstackPassword.IsNull() && values.openstackPassword.ValueString() != "")
-
-		if hasUserCreds {
-			userCredsModel := OpenstackUserCredentialsModel{
-				ProjectID:   values.openstackProjectID,
-				ProjectName: values.openstackProjectName,
-				Username:    values.openstackUsername,
-				Password:    values.openstackPassword,
-			}
-
-			objVal, d := types.ObjectValueFrom(ctx, openstackUserCredentialsAttrTypes(), userCredsModel)
-			diags.Append(d...)
-			if !diags.HasError() {
-				osModel.UserCredentials = objVal
-			}
-		}
-
-		hasAppCreds := (!values.openstackApplicationCredentialsID.IsNull() && values.openstackApplicationCredentialsID.ValueString() != "") ||
-			(!values.openstackApplicationCredentialsSecret.IsNull() && values.openstackApplicationCredentialsSecret.ValueString() != "")
-
-		if hasAppCreds {
-			appCredsModel := OpenstackApplicationCredentialsModel{
-				ID:     values.openstackApplicationCredentialsID,
-				Secret: values.openstackApplicationCredentialsSecret,
-			}
-
-			objVal, d := types.ObjectValueFrom(ctx, openstackApplicationCredentialsAttrTypes(), appCredsModel)
-			diags.Append(d...)
-			if !diags.HasError() {
-				osModel.ApplicationCredentials = objVal
-			}
-		}
 	}
 
 	objVal, d := types.ObjectValueFrom(ctx, openstackCloudSpecAttrTypes(), osModel)
@@ -425,7 +317,7 @@ func flattenOpenstackSpec(ctx context.Context, cloudModel *ClusterCloudSpecModel
 	return diags
 }
 
-// expanders
+// Expanders convert Terraform values to MetaKube API models.
 
 func metakubeResourceClusterExpandSpec(ctx context.Context, model *ClusterModel, dcName string, include func(string) bool) *models.ClusterSpec {
 	spec, ok := getClusterSpecModel(ctx, model)
@@ -740,120 +632,4 @@ func expandOpenstackCloudSpec(ctx context.Context, obj types.Object, include fun
 	ret.Domain = "Default"
 
 	return ret
-}
-
-func upgradeClusterLegacyNestedSpecState(rawState map[string]any) {
-	spec, ok := rawState["spec"]
-	if !ok {
-		return
-	}
-
-	specMap, ok := spec.(map[string]any)
-	if !ok {
-		specList, ok := spec.([]any)
-		if !ok {
-			return
-		}
-		switch len(specList) {
-		case 0:
-			rawState["spec"] = nil
-			return
-		default:
-			var listSpecMap map[string]any
-			listSpecMap, ok = specList[0].(map[string]any)
-			if !ok {
-				return
-			}
-			specMap = listSpecMap
-			rawState["spec"] = specMap
-		}
-	}
-
-	upgradeSingleItemListToObject(specMap, "cni_plugin")
-	upgradeSingleItemListToObject(specMap, "update_window")
-	upgradeSingleItemListToObject(specMap, "cloud")
-	upgradeSingleItemListToObject(specMap, "syseleven_auth")
-
-	cloudMap, ok := specMap["cloud"].(map[string]any)
-	if !ok {
-		return
-	}
-
-	// Legacy SDK state may contain a now-unsupported cloud.azure and cloud.aws blocks.
-	delete(cloudMap, "azure")
-	delete(cloudMap, "aws")
-	upgradeSingleItemListToObject(cloudMap, "openstack")
-
-	openstackMap, ok := cloudMap["openstack"].(map[string]any)
-	if !ok {
-		return
-	}
-
-	upgradeSingleItemListToObject(openstackMap, "user_credentials")
-	upgradeSingleItemListToObject(openstackMap, "application_credentials")
-}
-
-func upgradeSingleItemListToObject(parent map[string]any, key string) {
-	value, ok := parent[key]
-	if !ok {
-		return
-	}
-
-	valueList, ok := value.([]any)
-	if !ok {
-		return
-	}
-
-	switch len(valueList) {
-	case 0:
-		parent[key] = nil
-	default:
-		if valueMap, ok := valueList[0].(map[string]any); ok {
-			parent[key] = valueMap
-		}
-	}
-}
-
-// TODO: Remove this workaround once go-metakube can handle
-// nullable patch-relevant fields, so falsey fields are serialized without forcing keys.
-func clusterSpecPatchBody(spec *models.ClusterSpec, include func(string) bool) (map[string]any, error) {
-	if spec == nil {
-		return nil, nil
-	}
-	if include == nil {
-		include = func(string) bool { return true }
-	}
-
-	raw, err := json.Marshal(spec)
-	if err != nil {
-		return nil, fmt.Errorf("marshal cluster spec: %w", err)
-	}
-	var m map[string]interface{}
-	if err := json.Unmarshal(raw, &m); err != nil {
-		return nil, fmt.Errorf("unmarshal cluster spec: %w", err)
-	}
-
-	if include("pod_node_selector") {
-		m["usePodNodeSelectorAdmissionPlugin"] = spec.UsePodNodeSelectorAdmissionPlugin
-	}
-	if include("pod_security_policy") {
-		m["usePodSecurityPolicyAdmissionPlugin"] = spec.UsePodSecurityPolicyAdmissionPlugin
-	}
-
-	if spec.AuditLogging != nil {
-		al := common.AsObject(m["auditLogging"])
-		al["enabled"] = spec.AuditLogging.Enabled
-		m["auditLogging"] = al
-	}
-
-	if spec.CniPlugin != nil && spec.CniPlugin.Cilium != nil {
-		cni := common.AsObject(m["cniPlugin"])
-		cilium := common.AsObject(cni["cilium"])
-		cilium["enableHubble"] = spec.CniPlugin.Cilium.EnableHubble
-		cilium["enableL7Proxy"] = spec.CniPlugin.Cilium.EnableL7Proxy
-		cni["cilium"] = cilium
-		m["cniPlugin"] = cni
-	}
-
-	return m, nil
 }

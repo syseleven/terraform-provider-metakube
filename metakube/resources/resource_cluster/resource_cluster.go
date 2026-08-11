@@ -29,6 +29,7 @@ var (
 	_ resource.ResourceWithModifyPlan   = &clusterResource{}
 )
 
+// NewClusterResource returns a MetaKube cluster resource.
 func NewClusterResource() resource.Resource {
 	return &clusterResource{}
 }
@@ -45,10 +46,15 @@ func (r *clusterResource) Schema(ctx context.Context, req resource.SchemaRequest
 	resp.Schema = ClusterResourceSchema(ctx)
 }
 
+// ModifyPlan preserves computed kubeconfigs when the authentication settings
+// are unchanged. When authentication changes, their unknown values remain in
+// the plan so Read can replace them with credentials for the new settings.
 func (r *clusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	// Skip create and destroy plans because no prior computed value can be reused.
 	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
 		return
 	}
+	// Decode the planned and prior cluster models.
 	var plan, state ClusterModel
 	if diags := req.Plan.Get(ctx, &plan); diags.HasError() {
 		return
@@ -71,6 +77,7 @@ func (r *clusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	}
 
 	if !authChanged {
+		// Reuse prior kubeconfigs to avoid a diff when authentication is unchanged.
 		if plan.OIDCKubeConfig.IsUnknown() {
 			resp.Plan.SetAttribute(ctx, path.Root("oidc_kube_config"), state.OIDCKubeConfig)
 		}
@@ -98,6 +105,7 @@ func (r *clusterResource) Configure(_ context.Context, req resource.ConfigureReq
 }
 
 func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	// Decode the planned cluster from the request.
 	var plan ClusterModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -110,6 +118,7 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
+	// Expand Terraform values into the API create payload.
 	dcname := plan.DCName.ValueString()
 	clusterSpec := metakubeResourceClusterExpandSpec(ctx, &plan, dcname, func(_ string) bool { return true })
 	clusterLabels := expandLabelsFromModel(plan.Labels)
@@ -141,6 +150,7 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 		}
 	}
 
+	// Require the node-side SSH agent before assigning managed SSH keys.
 	sshkeys := expandSSHKeysFromModel(plan.SSHKeys)
 	if len(sshkeys) > 0 {
 		sshAgentEnabled := getSSHAgentEnabled(ctx, &plan)
@@ -183,6 +193,7 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	if err := common.MetakubeResourceClusterWaitForReady(ctx, r.meta, createTimeout, projectID, plan.ID.ValueString(), ""); err != nil {
+		// read from API and set the partial state on error, so Terraform can reconcile or delete the created cluster.
 		resp.Diagnostics.Append(r.readClusterIntoModel(ctx, &plan)...)
 		resp.Diagnostics.AddError(
 			"Cluster not ready",
@@ -192,6 +203,7 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
+	// read from API and set the state
 	resp.Diagnostics.Append(r.readClusterIntoModel(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -202,6 +214,7 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 }
 
 func (r *clusterResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	// Decode the current cluster from Terraform state.
 	var state ClusterModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -209,21 +222,30 @@ func (r *clusterResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 
+	// Fetch and map the remote cluster into the Terraform model.
 	resp.Diagnostics.Append(r.readClusterIntoModel(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	if state.ID.IsNull() || state.ID.ValueString() == "" {
+		// Remove state only when the refresh proves the remote cluster is absent.
 		resp.State.RemoveResource(ctx)
 		return
 	}
 
+	// Persist the refreshed cluster to Terraform state.
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 }
 
+// Update sends desired cluster fields as one JSON merge patch, then reconciles
+// SSH-key assignments through separate API calls. Those operations are not
+// atomic: if SSH-key reconciliation fails after the patch succeeds, Terraform
+// keeps the prior state and the next refresh observes the remote cluster before
+// a retry.
 func (r *clusterResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	// Decode the planned and prior cluster models from the request.
 	var plan, state ClusterModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -235,6 +257,7 @@ func (r *clusterResource) Update(ctx context.Context, req resource.UpdateRequest
 
 	projectID := plan.ProjectID.ValueString()
 
+	// Fetch the live cluster before validating an in-place update.
 	cluster, ok, err := common.MetakubeGetCluster(ctx, projectID, state.ID.ValueString(), r.meta)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to get cluster", err.Error())
@@ -248,6 +271,7 @@ func (r *clusterResource) Update(ctx context.Context, req resource.UpdateRequest
 	planVersion := getVersionFromModel(ctx, &plan)
 	stateVersion := getVersionFromModel(ctx, &state)
 	if planVersion != stateVersion {
+		// Validate version transitions only when the requested version changes.
 		r.meta.Log.Debugf("validating version change")
 		resp.Diagnostics.Append(metakubeResourceClusterValidateVersionUpgrade(ctx, projectID, planVersion, cluster, r.meta)...)
 	}
@@ -258,12 +282,14 @@ func (r *clusterResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
-	nameChanged := !plan.Name.Equal(state.Name)
-	labelsChanged := !plan.Labels.Equal(state.Labels)
-	specChanged := !plan.Spec.Equal(state.Spec)
-
-	if nameChanged || labelsChanged || specChanged {
-		if err := r.sendPatchRequest(ctx, &plan, &state); err != nil {
+	// Build and send an explicit JSON merge patch for changed cluster fields.
+	patch, patchDiags := buildClusterPatch(ctx, plan, state)
+	resp.Diagnostics.Append(patchDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if len(patch) > 0 {
+		if err := r.sendPatchRequest(ctx, projectID, state.ID.ValueString(), patch); err != nil {
 			resp.Diagnostics.AddError("Failed to patch cluster", err.Error())
 			return
 		}
@@ -293,16 +319,24 @@ func (r *clusterResource) Update(ctx context.Context, req resource.UpdateRequest
 
 	plan.ID = state.ID
 
+	// Refresh the updated cluster to capture computed API values.
 	resp.Diagnostics.Append(r.readClusterIntoModel(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
+	// Persist the updated cluster to Terraform state.
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 }
 
+// Delete retries conflicts while another cluster operation is active, then
+// polls an accepted deletion until the API returns not found. A not-found
+// response means deletion is complete. The API's dedicated forbidden response
+// is also treated as terminal during request submission and as transient while
+// polling; returning without diagnostics allows Terraform to remove the state.
 func (r *clusterResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	// Decode cluster identifiers from Terraform state.
 	var state ClusterModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -328,6 +362,7 @@ func (r *clusterResource) Delete(ctx context.Context, req resource.DeleteRequest
 	deleteSent := false
 	deleteStartTime := time.Now()
 
+	// Retry request conflicts, then poll until not found confirms deletion.
 	for {
 		shouldWait := false
 
@@ -366,6 +401,7 @@ func (r *clusterResource) Delete(ctx context.Context, req resource.DeleteRequest
 		}
 
 		if deleteSent && !shouldWait {
+			// Check whether the accepted asynchronous deletion has completed.
 			getParams := project.NewGetClusterV2Params()
 			getParams.SetContext(ctx)
 			getParams.SetProjectID(projectID)
@@ -418,10 +454,12 @@ func (r *clusterResource) Delete(ctx context.Context, req resource.DeleteRequest
 }
 
 func (r *clusterResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	// Parse the supported project-qualified or cluster-only import ID.
 	parts := strings.Split(req.ID, ":")
 
 	switch len(parts) {
 	case 1:
+		// find the project ID for the cluster.
 		clusterID := parts[0]
 		projectID, err := common.MetakubeResourceClusterFindProjectID(ctx, clusterID, r.meta)
 		if err != nil {
@@ -435,6 +473,7 @@ func (r *clusterResource) ImportState(ctx context.Context, req resource.ImportSt
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), clusterID)...)
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("project_id"), projectID)...)
 	case 2:
+		// Seed identity attributes for the first post-import Read.
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("project_id"), parts[0])...)
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[1])...)
 	default:
@@ -445,7 +484,11 @@ func (r *clusterResource) ImportState(ctx context.Context, req resource.ImportSt
 	}
 }
 
+// UpgradeState upgrades schema versions 0 and 1 directly to version 2. Both
+// legacy versions represented singleton nested blocks as lists and could retain
+// the now-unsupported AWS and Azure cloud fields.
 func (r *clusterResource) UpgradeState(_ context.Context) map[int64]resource.StateUpgrader {
+	// Register every supported legacy schema version for direct migration to v2.
 	return map[int64]resource.StateUpgrader{
 		0: {
 			StateUpgrader: upgradeClusterStateToV2,
@@ -456,11 +499,16 @@ func (r *clusterResource) UpgradeState(_ context.Context) map[int64]resource.Sta
 	}
 }
 
+// upgradeClusterStateToV2 rewrites legacy raw state into the version 2 object
+// shape. Unsupported AWS and Azure fields are intentionally discarded because
+// the current schema cannot represent them.
 func upgradeClusterStateToV2(_ context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
+	// Skip migration when Terraform supplied no legacy state.
 	if req.RawState == nil || len(req.RawState.JSON) == 0 {
 		return
 	}
 
+	// Decode the legacy JSON without requiring its retired framework schema.
 	var rawState map[string]any
 	if err := json.Unmarshal(req.RawState.JSON, &rawState); err != nil {
 		resp.Diagnostics.AddError(
@@ -470,8 +518,10 @@ func upgradeClusterStateToV2(_ context.Context, req resource.UpgradeStateRequest
 		return
 	}
 
+	// Rewrite legacy nested blocks and discard unsupported cloud providers.
 	upgradeClusterLegacyNestedSpecState(rawState)
 
+	// Encode the migrated object in the current dynamic-state format.
 	upgradedJSON, err := json.Marshal(rawState)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -481,11 +531,198 @@ func upgradeClusterStateToV2(_ context.Context, req resource.UpgradeStateRequest
 		return
 	}
 
+	// Return the migrated value to the framework.
 	resp.DynamicValue = &tfprotov6.DynamicValue{JSON: upgradedJSON}
 }
 
+// upgradeClusterLegacyNestedSpecState converts each legacy singleton list into
+// its current nested-object representation.
+func upgradeClusterLegacyNestedSpecState(rawState map[string]any) {
+	spec, ok := rawState["spec"].(map[string]any)
+	if !ok {
+		specList, listOK := rawState["spec"].([]any)
+		if !listOK {
+			return
+		}
+		if len(specList) == 0 {
+			rawState["spec"] = nil
+			return
+		}
+		spec, ok = specList[0].(map[string]any)
+		if !ok {
+			return
+		}
+		rawState["spec"] = spec
+	}
+
+	for _, key := range []string{"cni_plugin", "update_window", "cloud", "syseleven_auth"} {
+		upgradeSingleItemListToObject(spec, key)
+	}
+	cloud, ok := spec["cloud"].(map[string]any)
+	if !ok {
+		return
+	}
+	delete(cloud, "azure")
+	delete(cloud, "aws")
+	upgradeSingleItemListToObject(cloud, "openstack")
+
+	openstack, ok := cloud["openstack"].(map[string]any)
+	if !ok {
+		return
+	}
+	upgradeSingleItemListToObject(openstack, "user_credentials")
+	upgradeSingleItemListToObject(openstack, "application_credentials")
+}
+
+// upgradeSingleItemListToObject maps an empty legacy block to null and a
+// populated singleton block to its first object.
+func upgradeSingleItemListToObject(parent map[string]any, key string) {
+	value, ok := parent[key].([]any)
+	if !ok {
+		return
+	}
+	if len(value) == 0 {
+		parent[key] = nil
+		return
+	}
+	if object, ok := value[0].(map[string]any); ok {
+		parent[key] = object
+	}
+}
+
+// clusterOmittedState records prior values for fields the cluster API omits
+// from reads. Reconciliation restores only known values after flattening.
+type clusterOmittedState struct {
+	openstack *clusterOpenstackOmittedState
+}
+
+type clusterOpenstackOmittedState struct {
+	openstackProjectID                    types.String
+	openstackProjectName                  types.String
+	openstackUsername                     types.String
+	openstackPassword                     types.String
+	openstackApplicationCredentialsID     types.String
+	openstackApplicationCredentialsSecret types.String
+	openstackServerGroupID                types.String
+}
+
+func clusterOmittedStateValues(ctx context.Context, model *ClusterModel) clusterOmittedState {
+	var values clusterOmittedState
+	spec, ok := getClusterSpecModel(ctx, model)
+	if !ok || spec.Cloud.IsNull() || spec.Cloud.IsUnknown() {
+		return values
+	}
+
+	var cloud ClusterCloudSpecModel
+	if diags := spec.Cloud.As(ctx, &cloud, basetypes.ObjectAsOptions{}); diags.HasError() ||
+		cloud.Openstack.IsNull() || cloud.Openstack.IsUnknown() {
+		return values
+	}
+
+	var openstack OpenstackCloudSpecModel
+	if diags := cloud.Openstack.As(ctx, &openstack, basetypes.ObjectAsOptions{}); diags.HasError() {
+		return values
+	}
+	values.openstack = &clusterOpenstackOmittedState{
+		openstackServerGroupID: openstack.ServerGroupID,
+	}
+
+	if !openstack.UserCredentials.IsNull() && !openstack.UserCredentials.IsUnknown() {
+		var credentials OpenstackUserCredentialsModel
+		if diags := openstack.UserCredentials.As(ctx, &credentials, basetypes.ObjectAsOptions{}); !diags.HasError() {
+			values.openstack.openstackProjectID = credentials.ProjectID
+			values.openstack.openstackProjectName = credentials.ProjectName
+			values.openstack.openstackUsername = credentials.Username
+			values.openstack.openstackPassword = credentials.Password
+		}
+	}
+	if !openstack.ApplicationCredentials.IsNull() && !openstack.ApplicationCredentials.IsUnknown() {
+		var credentials OpenstackApplicationCredentialsModel
+		if diags := openstack.ApplicationCredentials.As(ctx, &credentials, basetypes.ObjectAsOptions{}); !diags.HasError() {
+			values.openstack.openstackApplicationCredentialsID = credentials.ID
+			values.openstack.openstackApplicationCredentialsSecret = credentials.Secret
+		}
+	}
+	return values
+}
+
+// reconcileClusterOmittedState restores configured OpenStack values that the
+// API does not return, preventing a read from creating a false Terraform diff.
+func reconcileClusterOmittedState(ctx context.Context, model *ClusterModel, omitted clusterOmittedState) diag.Diagnostics {
+	var diags diag.Diagnostics
+	if omitted.openstack == nil {
+		return diags
+	}
+
+	spec, ok := getClusterSpecModel(ctx, model)
+	if !ok || spec.Cloud.IsNull() || spec.Cloud.IsUnknown() {
+		return diags
+	}
+	var cloud ClusterCloudSpecModel
+	diags.Append(spec.Cloud.As(ctx, &cloud, basetypes.ObjectAsOptions{})...)
+	if diags.HasError() || cloud.Openstack.IsNull() || cloud.Openstack.IsUnknown() {
+		return diags
+	}
+	var openstack OpenstackCloudSpecModel
+	diags.Append(cloud.Openstack.As(ctx, &openstack, basetypes.ObjectAsOptions{})...)
+	if diags.HasError() {
+		return diags
+	}
+
+	values := omitted.openstack
+	if openstack.ServerGroupID.IsNull() && knownString(values.openstackServerGroupID) {
+		openstack.ServerGroupID = values.openstackServerGroupID
+	}
+	if knownString(values.openstackProjectID) || knownString(values.openstackProjectName) ||
+		knownString(values.openstackUsername) || knownString(values.openstackPassword) {
+		var childDiags diag.Diagnostics
+		openstack.UserCredentials, childDiags = types.ObjectValueFrom(ctx, openstackUserCredentialsAttrTypes(), OpenstackUserCredentialsModel{
+			ProjectID:   values.openstackProjectID,
+			ProjectName: values.openstackProjectName,
+			Username:    values.openstackUsername,
+			Password:    values.openstackPassword,
+		})
+		diags.Append(childDiags...)
+	}
+	if knownString(values.openstackApplicationCredentialsID) ||
+		knownString(values.openstackApplicationCredentialsSecret) {
+		var childDiags diag.Diagnostics
+		openstack.ApplicationCredentials, childDiags = types.ObjectValueFrom(
+			ctx,
+			openstackApplicationCredentialsAttrTypes(),
+			OpenstackApplicationCredentialsModel{
+				ID:     values.openstackApplicationCredentialsID,
+				Secret: values.openstackApplicationCredentialsSecret,
+			},
+		)
+		diags.Append(childDiags...)
+	}
+	if diags.HasError() {
+		return diags
+	}
+
+	var childDiags diag.Diagnostics
+	cloud.Openstack, childDiags = types.ObjectValueFrom(ctx, openstackCloudSpecAttrTypes(), openstack)
+	diags.Append(childDiags...)
+	spec.Cloud, childDiags = types.ObjectValueFrom(ctx, clusterCloudSpecAttrTypes(), cloud)
+	diags.Append(childDiags...)
+	model.Spec, childDiags = types.ObjectValueFrom(ctx, clusterSpecAttrTypes(), spec)
+	diags.Append(childDiags...)
+	return diags
+}
+
+func knownString(value types.String) bool {
+	return !value.IsNull() && !value.IsUnknown() && value.ValueString() != ""
+}
+
+// readClusterIntoModel refreshes Terraform state from the API. Only a not-found
+// response from the cluster lookup proves remote absence; other lookup errors
+// return diagnostics and retain the resource ID. OpenStack credentials and the
+// server group ID may be omitted by the API, so their known prior values are
+// captured before flattening and restored afterward.
 func (r *clusterResource) readClusterIntoModel(ctx context.Context, model *ClusterModel) diag.Diagnostics {
 	var diags diag.Diagnostics
+	omittedState := clusterOmittedStateValues(ctx, model)
 
 	projectID := model.ProjectID.ValueString()
 	if projectID == "" {
@@ -540,6 +777,7 @@ func (r *clusterResource) readClusterIntoModel(ctx context.Context, model *Clust
 	}
 
 	diags.Append(metakubeResourceClusterFlattenSpec(ctx, model, result.Payload.Spec)...)
+	diags.Append(reconcileClusterOmittedState(ctx, model, omittedState)...)
 	if diags.HasError() {
 		return diags
 	}
@@ -689,39 +927,13 @@ func (r *clusterResource) validateDatacenter(ctx context.Context, model *Cluster
 	return diags
 }
 
-func (r *clusterResource) sendPatchRequest(ctx context.Context, plan, state *ClusterModel) error {
-	projectID := plan.ProjectID.ValueString()
-	clusterID := state.ID.ValueString()
-
+// sendPatchRequest retries conflict responses because they indicate another
+// cluster operation is still active. Any other API error stops the update.
+func (r *clusterResource) sendPatchRequest(ctx context.Context, projectID, clusterID string, patch map[string]any) error {
 	p := project.NewPatchClusterV2Params()
 	p.SetContext(ctx)
 	p.SetProjectID(projectID)
 	p.SetClusterID(clusterID)
-
-	patch := make(map[string]any)
-
-	if !plan.Name.Equal(state.Name) {
-		patch["name"] = plan.Name.ValueString()
-	}
-
-	if !plan.Labels.Equal(state.Labels) {
-		patch["labels"] = common.MapMergePatch(plan.Labels, state.Labels)
-	}
-
-	if !plan.Spec.Equal(state.Spec) {
-		include := changedClusterSpecField(ctx, plan, state)
-		clusterSpec := metakubeResourceClusterExpandSpec(ctx, plan, plan.DCName.ValueString(), include)
-		specPatch, err := clusterSpecPatchBody(clusterSpec, include)
-		if err != nil {
-			return err
-		}
-		patch["spec"] = specPatch
-	}
-
-	if len(patch) == 0 {
-		return nil
-	}
-
 	p.SetPatch(patch)
 
 	timeout := 20 * time.Minute
@@ -741,41 +953,6 @@ func (r *clusterResource) sendPatchRequest(ctx context.Context, plan, state *Clu
 	}
 
 	return fmt.Errorf("timeout patching cluster '%s'", clusterID)
-}
-
-func changedClusterSpecField(ctx context.Context, plan, state *ClusterModel) func(string) bool {
-	planSpec, planOk := getClusterSpecModel(ctx, plan)
-	stateSpec, stateOk := getClusterSpecModel(ctx, state)
-	if !planOk || !stateOk {
-		return func(string) bool { return true }
-	}
-
-	changed := map[string]bool{
-		"version":             !planSpec.Version.Equal(stateSpec.Version),
-		"update_window":       !planSpec.UpdateWindow.Equal(stateSpec.UpdateWindow),
-		"enable_ssh_agent":    !planSpec.EnableSSHAgent.Equal(stateSpec.EnableSSHAgent),
-		"audit_logging":       !planSpec.AuditLogging.Equal(stateSpec.AuditLogging),
-		"pod_security_policy": !planSpec.PodSecurityPolicy.Equal(stateSpec.PodSecurityPolicy),
-		"pod_node_selector":   !planSpec.PodNodeSelector.Equal(stateSpec.PodNodeSelector),
-		"services_cidr":       !planSpec.ServicesCIDR.Equal(stateSpec.ServicesCIDR),
-		"pods_cidr":           !planSpec.PodsCIDR.Equal(stateSpec.PodsCIDR),
-		"cni_plugin":          !planSpec.CNIPlugin.Equal(stateSpec.CNIPlugin),
-		"ip_family":           !planSpec.IPFamily.Equal(stateSpec.IPFamily),
-		"cloud":               !planSpec.Cloud.Equal(stateSpec.Cloud),
-		"syseleven_auth":      !planSpec.SyselevenAuth.Equal(stateSpec.SyselevenAuth),
-	}
-
-	return func(field string) bool {
-		if changed[field] {
-			return true
-		}
-
-		if dot := strings.Index(field, "."); dot > 0 {
-			return changed[field[:dot]]
-		}
-
-		return false
-	}
 }
 
 func (r *clusterResource) updateClusterSSHKeys(ctx context.Context, plan, state *ClusterModel) error {

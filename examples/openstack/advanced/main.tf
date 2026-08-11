@@ -191,17 +191,17 @@ resource "metakube_node_deployment" "acctest_nd" {
   cluster_id = metakube_cluster.cluster.id
   name       = null # auto generate
 
-  spec {
+  spec = {
     min_replicas = var.node_min_replicas
     max_replicas = var.node_max_replicas
 
-    template {
+    template = {
       labels = {
         key = "value"
       }
 
-      cloud {
-        openstack {
+      cloud = {
+        openstack = {
           flavor                       = var.node_flavor
           disk_size                    = var.node_disk_size
           image                        = var.node_image != null ? var.node_image : data.openstack_images_image_v2.image.name
@@ -213,12 +213,12 @@ resource "metakube_node_deployment" "acctest_nd" {
           }
         }
       }
-      operating_system {
-        ubuntu {
+      operating_system = {
+        ubuntu = {
           dist_upgrade_on_boot = true
         }
       }
-      versions {
+      versions = {
         kubelet = data.metakube_k8s_version.cluster.version
       }
     }

@@ -62,6 +62,7 @@ func (r *nodeDeploymentResource) Configure(_ context.Context, req resource.Confi
 }
 
 func (r *nodeDeploymentResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	// Decode the planned node deployment from the request.
 	var plan NodeDeploymentModel
 
 	diags := req.Plan.Get(ctx, &plan)
@@ -87,6 +88,7 @@ func (r *nodeDeploymentResource) Create(ctx context.Context, req resource.Create
 		}
 	}
 
+	// Expand the Terraform spec into the API create payload.
 	nodeDeploymentSpec, d := expandNodeDeploymentSpec(ctx, plan.Spec, true)
 	resp.Diagnostics.Append(d...)
 	if resp.Diagnostics.HasError() {
@@ -204,11 +206,13 @@ func (r *nodeDeploymentResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
+	// Persist the created node deployment to Terraform state.
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 }
 
 func (r *nodeDeploymentResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	// Decode the current node deployment from Terraform state.
 	var state NodeDeploymentModel
 
 	diags := req.State.Get(ctx, &state)
@@ -227,11 +231,19 @@ func (r *nodeDeploymentResource) Read(ctx context.Context, req resource.ReadRequ
 		return
 	}
 
+	// Persist the refreshed node deployment to Terraform state.
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 }
 
+// Update decodes configuration, plan, and prior state because each has a
+// distinct patch role: the plan supplies desired values, state identifies
+// changes, and configuration identifies omitted optional-computed values that
+// must be cleared. The API applies one merge patch, retried on optimistic
+// concurrency conflicts. If readiness later fails, Terraform retains prior
+// state and the next refresh observes the accepted remote change.
 func (r *nodeDeploymentResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	// Decode configuration, plan, and state for their distinct patch roles.
 	var config, plan, state NodeDeploymentModel
 
 	diags := req.Config.Get(ctx, &config)
@@ -248,6 +260,7 @@ func (r *nodeDeploymentResource) Update(ctx context.Context, req resource.Update
 	clusterID := state.ClusterID.ValueString()
 	nodeDeploymentID := state.ID.ValueString()
 
+	// Expand the planned Terraform spec into the API model used for validation.
 	nodeDeploymentSpec, d := expandNodeDeploymentSpec(ctx, plan.Spec, false)
 	resp.Diagnostics.Append(d...)
 	if resp.Diagnostics.HasError() {
@@ -268,9 +281,10 @@ func (r *nodeDeploymentResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
-	patch, err := r.buildPatchWithDeletions(&config, &plan, &state, nodeDeployment)
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to build patch", err.Error())
+	// Build a JSON merge patch that preserves unknown and computed values.
+	patch, patchDiags := buildNodeDeploymentPatch(ctx, config, plan, state)
+	resp.Diagnostics.Append(patchDiags...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
@@ -280,39 +294,41 @@ func (r *nodeDeploymentResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
-	// Send patch with retry
-	deadline := time.Now().Add(updateTimeout)
-	for {
-		if time.Now().After(deadline) {
-			resp.Diagnostics.AddError("Timeout", "Timeout waiting to update node deployment")
+	if len(patch) > 0 {
+		// Apply the patch, retrying optimistic-concurrency conflicts.
+		deadline := time.Now().Add(updateTimeout)
+		for {
+			if time.Now().After(deadline) {
+				resp.Diagnostics.AddError("Timeout", "Timeout waiting to update node deployment")
+				return
+			}
+
+			p := project.NewPatchMachineDeploymentParams().
+				WithContext(ctx).
+				WithProjectID(projectID).
+				WithClusterID(clusterID).
+				WithMachineDeploymentID(nodeDeploymentID).
+				WithPatch(patch)
+
+			_, err := r.meta.Client.Project.PatchMachineDeployment(p, r.meta.Auth)
+			if err == nil {
+				break
+			}
+
+			errStr := common.StringifyResponseError(err)
+			if strings.Contains(errStr, "the object has been modified") {
+				select {
+				case <-ctx.Done():
+					resp.Diagnostics.AddError("Context cancelled", "Context cancelled while updating node deployment")
+					return
+				case <-time.After(2 * time.Second):
+					continue
+				}
+			}
+
+			resp.Diagnostics.AddError("Failed to update node deployment", errStr)
 			return
 		}
-
-		p := project.NewPatchMachineDeploymentParams().
-			WithContext(ctx).
-			WithProjectID(projectID).
-			WithClusterID(clusterID).
-			WithMachineDeploymentID(nodeDeploymentID).
-			WithPatch(patch)
-
-		_, err := r.meta.Client.Project.PatchMachineDeployment(p, r.meta.Auth)
-		if err == nil {
-			break
-		}
-
-		errStr := common.StringifyResponseError(err)
-		if strings.Contains(errStr, "the object has been modified") {
-			select {
-			case <-ctx.Done():
-				resp.Diagnostics.AddError("Context cancelled", "Context cancelled while updating node deployment")
-				return
-			case <-time.After(2 * time.Second):
-				continue
-			}
-		}
-
-		resp.Diagnostics.AddError("Failed to update node deployment", errStr)
-		return
 	}
 
 	if err := r.waitForReady(ctx, updateTimeout, projectID, clusterID, nodeDeploymentID); err != nil {
@@ -329,11 +345,13 @@ func (r *nodeDeploymentResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
+	// Persist the updated node deployment to Terraform state.
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 }
 
 func (r *nodeDeploymentResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	// Decode node-deployment identifiers from Terraform state.
 	var state NodeDeploymentModel
 
 	diags := req.State.Get(ctx, &state)
@@ -347,6 +365,7 @@ func (r *nodeDeploymentResource) Delete(ctx context.Context, req resource.Delete
 	nodeDeploymentID := state.ID.ValueString()
 
 	p := project.NewDeleteMachineDeploymentParams().
+		WithContext(ctx).
 		WithProjectID(projectID).
 		WithClusterID(clusterID).
 		WithMachineDeploymentID(nodeDeploymentID)
@@ -354,7 +373,6 @@ func (r *nodeDeploymentResource) Delete(ctx context.Context, req resource.Delete
 	_, err := r.meta.Client.Project.DeleteMachineDeployment(p, r.meta.Auth)
 	if err != nil {
 		if e, ok := err.(*project.DeleteMachineDeploymentDefault); ok && e.Code() == http.StatusNotFound {
-			// Already deleted
 			return
 		}
 		resp.Diagnostics.AddError("Failed to delete node deployment", common.StringifyResponseError(err))
@@ -367,6 +385,7 @@ func (r *nodeDeploymentResource) Delete(ctx context.Context, req resource.Delete
 		return
 	}
 
+	// Poll until a read returns not found and confirms deletion completed.
 	deadline := time.Now().Add(deleteTimeout)
 	for {
 		if time.Now().After(deadline) {
@@ -383,7 +402,6 @@ func (r *nodeDeploymentResource) Delete(ctx context.Context, req resource.Delete
 		_, err := r.meta.Client.Project.GetMachineDeployment(getParams, r.meta.Auth)
 		if err != nil {
 			if e, ok := err.(*project.GetMachineDeploymentDefault); ok && e.Code() == http.StatusNotFound {
-				// Deleted
 				return
 			}
 			resp.Diagnostics.AddError("Failed to check node deployment deletion", common.StringifyResponseError(err))
@@ -415,19 +433,28 @@ func (r *nodeDeploymentResource) ImportState(ctx context.Context, req resource.I
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[2])...)
 }
 
+// UpgradeState upgrades schema versions 0, 1, and 2 directly to version 3. All
+// source versions used singleton lists for nested blocks; versions 0 and 1 may
+// also contain the now-unsupported AWS and Azure cloud fields.
 func (r *nodeDeploymentResource) UpgradeState(_ context.Context) map[int64]resource.StateUpgrader {
+	// Register every supported legacy schema version for direct migration to v3.
 	return map[int64]resource.StateUpgrader{
 		0: {
-			StateUpgrader: upgradeNodeDeploymentStateToV2,
+			StateUpgrader: upgradeNodeDeploymentStateToV3,
 		},
 		1: {
-			//same as v1 since both old schema shapes can be converted directly to v2 using the same logic
-			StateUpgrader: upgradeNodeDeploymentStateToV2,
+			StateUpgrader: upgradeNodeDeploymentStateToV3,
+		},
+		2: {
+			StateUpgrader: upgradeNodeDeploymentStateToV3,
 		},
 	}
 }
 
-func upgradeNodeDeploymentStateToV2(_ context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
+// upgradeNodeDeploymentStateToV3 rewrites legacy raw state into the version 3
+// nested-object shape. Unsupported AWS and Azure fields are intentionally
+// discarded because the current schema cannot represent them.
+func upgradeNodeDeploymentStateToV3(_ context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
 	if req.RawState == nil || len(req.RawState.JSON) == 0 {
 		return
 	}
@@ -441,7 +468,7 @@ func upgradeNodeDeploymentStateToV2(_ context.Context, req resource.UpgradeState
 		return
 	}
 
-	upgradeNodeDeploymentLegacyUnsupportedCloudState(rawState)
+	upgradeNodeDeploymentLegacyState(rawState)
 
 	upgradedJSON, err := json.Marshal(rawState)
 	if err != nil {
@@ -455,7 +482,87 @@ func upgradeNodeDeploymentStateToV2(_ context.Context, req resource.UpgradeState
 	resp.DynamicValue = &tfprotov6.DynamicValue{JSON: upgradedJSON}
 }
 
-// readIntoModel reads the node deployment from the API and updates the model
+// upgradeNodeDeploymentLegacyState converts every legacy singleton block into
+// the nested-object representation used by schema version 3.
+func upgradeNodeDeploymentLegacyState(rawState map[string]any) {
+	upgradeNodeDeploymentLegacyUnsupportedCloudState(rawState)
+	upgradeNodeDeploymentSingleObject(rawState, "spec")
+
+	spec, ok := rawState["spec"].(map[string]any)
+	if !ok {
+		return
+	}
+	upgradeNodeDeploymentSingleObject(spec, "template")
+	template, ok := spec["template"].(map[string]any)
+	if !ok {
+		return
+	}
+	for _, key := range []string{"cloud", "operating_system", "versions"} {
+		upgradeNodeDeploymentSingleObject(template, key)
+	}
+	if cloud, ok := template["cloud"].(map[string]any); ok {
+		upgradeNodeDeploymentSingleObject(cloud, "openstack")
+	}
+	if operatingSystem, ok := template["operating_system"].(map[string]any); ok {
+		upgradeNodeDeploymentSingleObject(operatingSystem, "ubuntu")
+		upgradeNodeDeploymentSingleObject(operatingSystem, "flatcar")
+	}
+}
+
+// upgradeNodeDeploymentLegacyUnsupportedCloudState removes obsolete cloud
+// blocks while state still has the list shape used by schema versions 0 and 1.
+func upgradeNodeDeploymentLegacyUnsupportedCloudState(rawState map[string]any) {
+	specList, ok := rawState["spec"].([]any)
+	if !ok {
+		return
+	}
+	for _, specValue := range specList {
+		spec, ok := specValue.(map[string]any)
+		if !ok {
+			continue
+		}
+		templateList, ok := spec["template"].([]any)
+		if !ok {
+			continue
+		}
+		for _, templateValue := range templateList {
+			template, ok := templateValue.(map[string]any)
+			if !ok {
+				continue
+			}
+			cloudList, ok := template["cloud"].([]any)
+			if !ok {
+				continue
+			}
+			for _, cloudValue := range cloudList {
+				if cloud, ok := cloudValue.(map[string]any); ok {
+					delete(cloud, "azure")
+					delete(cloud, "aws")
+				}
+			}
+		}
+	}
+}
+
+// upgradeNodeDeploymentSingleObject maps an empty legacy block to null and a
+// populated singleton block to its first object.
+func upgradeNodeDeploymentSingleObject(parent map[string]any, key string) {
+	value, ok := parent[key].([]any)
+	if !ok {
+		return
+	}
+	if len(value) == 0 {
+		parent[key] = nil
+		return
+	}
+	if object, ok := value[0].(map[string]any); ok {
+		parent[key] = object
+	}
+}
+
+// readIntoModel refreshes a node deployment model from the API. Only not found
+// proves remote absence; forbidden and other lookup failures return diagnostics
+// so Terraform retains the resource in state.
 func (r *nodeDeploymentResource) readIntoModel(ctx context.Context, model *NodeDeploymentModel) (result diag.Diagnostics) {
 
 	projectID := model.ProjectID.ValueString()
@@ -501,7 +608,11 @@ func (r *nodeDeploymentResource) readIntoModel(ctx context.Context, model *NodeD
 	return result
 }
 
-// waitForReady waits for the node deployment to be ready
+// waitForReady requires the deployment status to report all desired replicas
+// ready, no unavailable replicas, an exact node-count match, and kernel
+// information for every node. Deployment and node lookup failures, including
+// not found during eventual creation, are retried until the context or timeout
+// ends.
 func (r *nodeDeploymentResource) waitForReady(ctx context.Context, timeout time.Duration, projectID, clusterID, nodeDeploymentID string) error {
 	deadline := time.Now().Add(timeout)
 
@@ -586,7 +697,32 @@ func (r *nodeDeploymentResource) waitForReady(ctx context.Context, timeout time.
 	}
 }
 
-// validateProviderMatchesCluster validates that the node deployment cloud provider matches the cluster
+// getCloudProviderFromModel returns the provider selected by the configured
+// cloud object. Null and unknown nested objects mean no provider can yet be
+// determined.
+func getCloudProviderFromModel(ctx context.Context, resourceModel *NodeDeploymentModel) (string, diag.Diagnostics) {
+	if resourceModel == nil || resourceModel.Spec.IsNull() || resourceModel.Spec.IsUnknown() {
+		return "", nil
+	}
+	spec, diags := common.ObjectAs[NodeDeploymentSpecModel](ctx, resourceModel.Spec)
+	if diags.HasError() || spec.Template.IsNull() || spec.Template.IsUnknown() {
+		return "", diags
+	}
+	template, childDiags := common.ObjectAs[NodeSpecModel](ctx, spec.Template)
+	diags.Append(childDiags...)
+	if diags.HasError() || template.Cloud.IsNull() || template.Cloud.IsUnknown() {
+		return "", diags
+	}
+	cloud, childDiags := common.ObjectAs[CloudSpecModel](ctx, template.Cloud)
+	diags.Append(childDiags...)
+	if !cloud.OpenStack.IsNull() && !cloud.OpenStack.IsUnknown() {
+		return "openstack", diags
+	}
+	return "", diags
+}
+
+// validateProviderMatchesCluster verifies that the node deployment and cluster
+// select the same cloud provider.
 func (r *nodeDeploymentResource) validateProviderMatchesCluster(ctx context.Context, projectID, clusterID string, model *NodeDeploymentModel) (result diag.Diagnostics) {
 	cluster, _, err := common.MetakubeGetCluster(ctx, projectID, clusterID, r.meta)
 	if err != nil {
@@ -616,19 +752,18 @@ func (r *nodeDeploymentResource) validateProviderMatchesCluster(ctx context.Cont
 	return result
 }
 
-// validateAutoscalerFields validates min_replicas <= max_replicas
+// validateAutoscalerFields verifies that min_replicas does not exceed
+// max_replicas.
 func (r *nodeDeploymentResource) validateAutoscalerFields(ctx context.Context, model *NodeDeploymentModel) (result diag.Diagnostics) {
-	if model.Spec.IsNull() || model.Spec.IsUnknown() || len(model.Spec.Elements()) == 0 {
+	if model.Spec.IsNull() || model.Spec.IsUnknown() {
 		return result
 	}
 
-	var specModels []NodeDeploymentSpecModel
-	model.Spec.ElementsAs(ctx, &specModels, false)
-	if len(specModels) == 0 {
+	spec, diags := common.ObjectAs[NodeDeploymentSpecModel](ctx, model.Spec)
+	result.Append(diags...)
+	if result.HasError() {
 		return result
 	}
-
-	spec := specModels[0]
 
 	if spec.MinReplicas.IsNull() && spec.MaxReplicas.IsNull() {
 		return result
@@ -646,7 +781,8 @@ func (r *nodeDeploymentResource) validateAutoscalerFields(ctx context.Context, m
 	return result
 }
 
-// validateVersionCompatibleWithCluster validates kubelet version against cluster version
+// validateVersionCompatibleWithCluster verifies that the requested kubelet
+// version is valid for the cluster control-plane version.
 func (r *nodeDeploymentResource) validateVersionCompatibleWithCluster(ctx context.Context, projectID, clusterID string, nd *models.NodeDeployment) error {
 	cluster, _, err := common.MetakubeGetCluster(ctx, projectID, clusterID, r.meta)
 	if err != nil {
@@ -696,74 +832,4 @@ func (r *nodeDeploymentResource) validateVersionCompatibleWithCluster(ctx contex
 	}
 
 	return fmt.Errorf("unknown version for node deployment %s, available versions %v", kubeletVersion, availableVersions)
-}
-
-// buildPatchWithDeletions builds the SET patch from the expanded API spec and overlays
-// merge-patch deletions inferred from framework plan/state map values.
-func (r *nodeDeploymentResource) buildPatchWithDeletions(config, plan, state *NodeDeploymentModel, nd *models.NodeDeployment) (map[string]interface{}, error) {
-	specPatch, err := nodeDeploymentSpecPatchBody(nd.Spec)
-	if err != nil {
-		return nil, fmt.Errorf("marshal node deployment spec: %w", err)
-	}
-	if specPatch == nil {
-		specPatch = make(map[string]interface{})
-	}
-
-	common.AddMergePatchDeletions(
-		specPatch,
-		config.Spec,
-		plan.Spec,
-		state.Spec,
-		models.NodeDeploymentSpec{},
-		NodeDeploymentSpecModel{},
-		NodeSpecModel{},
-		CloudSpecModel{},
-		OpenStackCloudSpecModel{},
-	)
-
-	return map[string]interface{}{"spec": specPatch}, nil
-}
-
-func nodeDeploymentSpecPatchBody(spec *models.NodeDeploymentSpec) (map[string]interface{}, error) {
-	if spec == nil {
-		return map[string]interface{}{}, nil
-	}
-
-	payload, err := json.Marshal(spec)
-	if err != nil {
-		return nil, err
-	}
-
-	var out map[string]interface{}
-	if err := json.Unmarshal(payload, &out); err != nil {
-		return nil, err
-	}
-
-	addExplicitOperatingSystemBoolFields(out, spec)
-
-	return out, nil
-}
-
-func addExplicitOperatingSystemBoolFields(specMap map[string]interface{}, spec *models.NodeDeploymentSpec) {
-	if specMap == nil || spec == nil || spec.Template == nil || spec.Template.OperatingSystem == nil {
-		return
-	}
-
-	templateMap := common.AsObject(specMap["template"])
-	operatingSystemMap := common.AsObject(templateMap["operatingSystem"])
-
-	if ubuntu := spec.Template.OperatingSystem.Ubuntu; ubuntu != nil {
-		ubuntuMap := common.AsObject(operatingSystemMap["ubuntu"])
-		ubuntuMap["distUpgradeOnBoot"] = ubuntu.DistUpgradeOnBoot
-		operatingSystemMap["ubuntu"] = ubuntuMap
-	}
-
-	if flatcar := spec.Template.OperatingSystem.Flatcar; flatcar != nil {
-		flatcarMap := common.AsObject(operatingSystemMap["flatcar"])
-		flatcarMap["disableAutoUpdate"] = flatcar.DisableAutoUpdate
-		operatingSystemMap["flatcar"] = flatcarMap
-	}
-
-	templateMap["operatingSystem"] = operatingSystemMap
-	specMap["template"] = templateMap
 }

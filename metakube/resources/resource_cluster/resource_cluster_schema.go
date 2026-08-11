@@ -53,6 +53,7 @@ func (v durationValidator) MarkdownDescription(ctx context.Context) string {
 	return v.Description(ctx)
 }
 
+// DurationValidator returns a validator for Go duration strings.
 func DurationValidator() validator.String {
 	return durationValidator{}
 }
@@ -90,14 +91,19 @@ func (m envDefaultPlanModifier) PlanModifyString(ctx context.Context, req planmo
 	}
 }
 
+// EnvDefault returns a plan modifier that uses envVar when configuration does
+// not provide a value.
 func EnvDefault(envVar string) planmodifier.String {
 	return envDefaultPlanModifier{envVar: envVar, diffSuppress: false}
 }
 
+// EnvDefaultWithDiffSuppress returns an environment-backed default that also
+// preserves known prior state when configuration is empty.
 func EnvDefaultWithDiffSuppress(envVar string) planmodifier.String {
 	return envDefaultPlanModifier{envVar: envVar, diffSuppress: true}
 }
 
+// ClusterResourceSchema returns the framework schema for metakube_cluster.
 func ClusterResourceSchema(ctx context.Context) schema.Schema {
 	return schema.Schema{
 		Description: "Cluster resource in MetaKube",
@@ -565,14 +571,14 @@ type CNIPluginModel struct {
 	Cilium types.Object `tfsdk:"cilium"` // CiliumSpecModel
 }
 
-// CiliumModel
+// CiliumModel represents Cilium-specific CNI settings.
 type CiliumModel struct {
 	Clustermesh   types.Object `tfsdk:"clustermesh"` // CiliumClustermeshSpecModel
 	EnableHubble  types.Bool   `tfsdk:"enable_hubble"`
 	EnableL7Proxy types.Bool   `tfsdk:"enable_l7_proxy"`
 }
 
-// CiliumSpecModel
+// CiliumClustermeshModel represents Cilium Cluster Mesh settings.
 type CiliumClustermeshModel struct {
 	Enable                types.Bool   `tfsdk:"enable"`
 	ClusterID             types.Int32  `tfsdk:"cluster_id"`
@@ -616,7 +622,7 @@ type OpenstackApplicationCredentialsModel struct {
 	Secret types.String `tfsdk:"secret"`
 }
 
-// Attribute type helper functions
+// Attribute type helpers mirror the nested model shapes above.
 
 func clusterSpecAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{

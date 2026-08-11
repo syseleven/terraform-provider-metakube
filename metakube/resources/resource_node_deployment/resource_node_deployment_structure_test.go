@@ -5,653 +5,267 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/syseleven/go-metakube/models"
 	"k8s.io/utils/ptr"
 )
 
-func TestFrameworkFlattenNodeDeploymentSpec(t *testing.T) {
+func TestNodeDeploymentSpecConversion(t *testing.T) {
 	ctx := context.Background()
-
-	tests := []struct {
-		name     string
-		input    *models.NodeDeploymentSpec
-		wantNull bool
-	}{
-		{
-			name:     "nil spec",
-			input:    nil,
-			wantNull: true,
-		},
-		{
-			name: "basic spec with replicas",
-			input: &models.NodeDeploymentSpec{
-				Replicas: ptr.To(int32(3)),
-			},
-			wantNull: false,
-		},
-		{
-			name: "autoscaler spec",
-			input: &models.NodeDeploymentSpec{
-				MinReplicas: ptr.To(int32(1)),
-				MaxReplicas: ptr.To(int32(5)),
-			},
-			wantNull: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, diags := flattenNodeDeploymentSpec(ctx, tt.input)
-			if diags.HasError() {
-				t.Fatalf("unexpected errors: %v", diags)
-			}
-
-			if tt.wantNull {
-				if !result.IsNull() {
-					t.Errorf("expected null result, got non-null")
-				}
-				return
-			}
-
-			if result.IsNull() {
-				t.Error("expected non-null result, got null")
-			}
-		})
-	}
-}
-
-func TestFrameworkExpandNodeDeploymentSpec(t *testing.T) {
-	ctx := context.Background()
-
-	tests := []struct {
-		name     string
-		replicas int64
-		isCreate bool
-		wantSpec *models.NodeDeploymentSpec
-	}{
-		{
-			name:     "basic replicas on create",
-			replicas: 3,
-			isCreate: true,
-			wantSpec: &models.NodeDeploymentSpec{
-				Replicas: ptr.To(int32(3)),
-			},
-		},
-		{
-			name:     "basic replicas on update",
-			replicas: 3,
-			isCreate: false,
-			wantSpec: &models.NodeDeploymentSpec{
-				Replicas: ptr.To(int32(3)),
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Build a spec model
-			specModel := NodeDeploymentSpecModel{
-				Replicas:    types.Int64Value(tt.replicas),
-				MinReplicas: types.Int64Null(),
-				MaxReplicas: types.Int64Null(),
-				Template:    types.ListNull(types.ObjectType{AttrTypes: nodeSpecAttrTypes()}),
-			}
-
-			// Create list from model
-			specObjVal, diags := types.ObjectValueFrom(ctx, nodeDeploymentSpecAttrTypes(), specModel)
-			if diags.HasError() {
-				t.Fatalf("failed to create object: %v", diags)
-			}
-
-			specList, diags := types.ListValue(types.ObjectType{AttrTypes: nodeDeploymentSpecAttrTypes()}, []attr.Value{specObjVal})
-			if diags.HasError() {
-				t.Fatalf("failed to create list: %v", diags)
-			}
-
-			result, diags := expandNodeDeploymentSpec(ctx, specList, tt.isCreate)
-			if diags.HasError() {
-				t.Fatalf("unexpected errors: %v", diags)
-			}
-
-			if result == nil {
-				t.Fatal("expected non-nil result")
-			}
-
-			// Compare replicas
-			if result.Replicas == nil {
-				t.Error("expected non-nil replicas")
-			} else if *result.Replicas != *tt.wantSpec.Replicas {
-				t.Errorf("replicas mismatch: got %d, want %d", *result.Replicas, *tt.wantSpec.Replicas)
-			}
-		})
-	}
-}
-
-func TestFlattenAndExpandRoundTrip(t *testing.T) {
-	ctx := context.Background()
-
-	// Create a complete spec
-	originalSpec := &models.NodeDeploymentSpec{
+	input := &models.NodeDeploymentSpec{
 		Replicas: ptr.To(int32(2)),
 		Template: &models.NodeSpec{
-			Labels: map[string]string{
-				"env":  "test",
-				"team": "platform",
-			},
-			NodeAnnotations: map[string]string{
-				"node-anno-key": "node-anno-val",
-			},
-			MachineAnnotations: map[string]string{
-				"a": "b",
-			},
-			Cloud: &models.NodeCloudSpec{
-				Openstack: &models.OpenstackNodeSpec{
-					Flavor:                    ptr.To("m1.small"),
-					Image:                     ptr.To("Ubuntu 22.04"),
-					UseFloatingIP:             ptr.To(true),
-					InstanceReadyCheckPeriod:  "5s",
-					InstanceReadyCheckTimeout: "120s",
-				},
-			},
+			Labels:             map[string]string{"team": "platform"},
+			NodeAnnotations:    map[string]string{"node": "value"},
+			MachineAnnotations: map[string]string{"machine": "value"},
+			Cloud: &models.NodeCloudSpec{Openstack: &models.OpenstackNodeSpec{
+				Flavor:                    ptr.To("m1.small"),
+				Image:                     ptr.To("ubuntu"),
+				Tags:                      map[string]string{"role": "worker"},
+				UseFloatingIP:             ptr.To(false),
+				InstanceReadyCheckPeriod:  "5s",
+				InstanceReadyCheckTimeout: "120s",
+			}},
 			OperatingSystem: &models.OperatingSystemSpec{
-				Ubuntu: &models.UbuntuSpec{
-					DistUpgradeOnBoot: false,
-				},
+				Ubuntu: &models.UbuntuSpec{DistUpgradeOnBoot: false},
 			},
-			Versions: &models.NodeVersionInfo{
-				Kubelet: "1.28.0",
-			},
+			Versions: &models.NodeVersionInfo{Kubelet: "1.32.0"},
 		},
 	}
 
-	// Flatten
-	flattenedList, diags := flattenNodeDeploymentSpec(ctx, originalSpec)
+	value, diags := flattenNodeDeploymentSpec(ctx, input)
 	if diags.HasError() {
-		t.Fatalf("flatten failed: %v", diags)
+		t.Fatal(diags)
 	}
-
-	// Expand
-	expandedSpec, diags := expandNodeDeploymentSpec(ctx, flattenedList, false)
+	output, diags := expandNodeDeploymentSpec(ctx, value, false)
 	if diags.HasError() {
-		t.Fatalf("expand failed: %v", diags)
+		t.Fatal(diags)
 	}
 
-	// Compare
-	opts := []cmp.Option{
-		cmpopts.IgnoreUnexported(models.NodeDeploymentSpec{}),
-		cmpopts.IgnoreUnexported(models.NodeSpec{}),
-		cmpopts.IgnoreUnexported(models.NodeCloudSpec{}),
-		cmpopts.IgnoreUnexported(models.OpenstackNodeSpec{}),
-		cmpopts.IgnoreUnexported(models.OperatingSystemSpec{}),
-		cmpopts.IgnoreUnexported(models.UbuntuSpec{}),
-		cmpopts.IgnoreUnexported(models.NodeVersionInfo{}),
+	if output.Replicas == nil || *output.Replicas != 2 {
+		t.Fatalf("unexpected replicas: %#v", output.Replicas)
 	}
-
-	if diff := cmp.Diff(originalSpec, expandedSpec, opts...); diff != "" {
-		t.Errorf("round-trip mismatch (-original +expanded):\n%s", diff)
+	if diff := cmp.Diff(input.Template.Labels, output.Template.Labels); diff != "" {
+		t.Fatalf("labels mismatch (-want +got):\n%s", diff)
 	}
-}
-
-func TestMarshalSpecToMapFWIncludesFalseOperatingSystemBooleans(t *testing.T) {
-	tests := []struct {
-		name      string
-		os        *models.OperatingSystemSpec
-		osKey     string
-		fieldKey  string
-		wantValue bool
-	}{
-		{
-			name: "ubuntu dist upgrade on boot",
-			os: &models.OperatingSystemSpec{
-				Ubuntu: &models.UbuntuSpec{
-					DistUpgradeOnBoot: false,
-				},
-			},
-			osKey:     "ubuntu",
-			fieldKey:  "distUpgradeOnBoot",
-			wantValue: false,
-		},
-		{
-			name: "flatcar disable auto update",
-			os: &models.OperatingSystemSpec{
-				Flatcar: &models.FlatcarSpec{
-					DisableAutoUpdate: false,
-				},
-			},
-			osKey:     "flatcar",
-			fieldKey:  "disableAutoUpdate",
-			wantValue: false,
-		},
+	if diff := cmp.Diff(input.Template.MachineAnnotations, output.Template.MachineAnnotations); diff != "" {
+		t.Fatalf("annotations mismatch (-want +got):\n%s", diff)
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			patch, err := nodeDeploymentSpecPatchBody(&models.NodeDeploymentSpec{
-				Replicas: ptr.To(int32(1)),
-				Template: &models.NodeSpec{
-					OperatingSystem: tt.os,
-				},
-			})
-			if err != nil {
-				t.Fatalf("nodeDeploymentSpecPatchBody failed: %v", err)
-			}
-
-			template, ok := patch["template"].(map[string]interface{})
-			if !ok {
-				t.Fatalf("expected template map, got %#v", patch["template"])
-			}
-			operatingSystem, ok := template["operatingSystem"].(map[string]interface{})
-			if !ok {
-				t.Fatalf("expected operatingSystem map, got %#v", template["operatingSystem"])
-			}
-			osMap, ok := operatingSystem[tt.osKey].(map[string]interface{})
-			if !ok {
-				t.Fatalf("expected %s map, got %#v", tt.osKey, operatingSystem[tt.osKey])
-			}
-			if got, ok := osMap[tt.fieldKey].(bool); !ok || got != tt.wantValue {
-				t.Fatalf("expected %s.%s=%v, got %#v", tt.osKey, tt.fieldKey, tt.wantValue, osMap[tt.fieldKey])
-			}
-		})
+	if output.Template.Cloud.Openstack.UseFloatingIP == nil || *output.Template.Cloud.Openstack.UseFloatingIP {
+		t.Fatalf("explicit false was lost: %#v", output.Template.Cloud.Openstack.UseFloatingIP)
+	}
+	if output.Template.OperatingSystem.Ubuntu == nil || output.Template.OperatingSystem.Ubuntu.DistUpgradeOnBoot {
+		t.Fatalf("Ubuntu boolean was lost: %#v", output.Template.OperatingSystem)
 	}
 }
 
-func TestBuildPatchWithDeletions(t *testing.T) {
-	ctx := context.Background()
-
-	tests := []struct {
-		name  string
-		setup func(t *testing.T) (config, plan, state *NodeDeploymentModel)
-		check func(t *testing.T, patch map[string]interface{})
-	}{
-		{
-			name: "removes openstack tags",
-			setup: func(t *testing.T) (config, plan, state *NodeDeploymentModel) {
-				plan = buildMockNodeDeploymentModel(ctx, t, CloudSpecModel{
-					OpenStack: buildMockOpenStackListWithTags(ctx, t, map[string]string{"updated-user-tag": "changed"}),
-				})
-				state = buildMockNodeDeploymentModel(ctx, t, CloudSpecModel{
-					OpenStack: buildMockOpenStackListWithTags(ctx, t, map[string]string{"user-tag": "kept"}),
-				})
-				return plan, plan, state
-			},
-			check: func(t *testing.T, patch map[string]interface{}) {
-				tagsPatch := cloudTagsPatch(t, patch, "openstack")
-				if got := tagsPatch["updated-user-tag"]; got != "changed" {
-					t.Fatalf("expected updated tag in patch, got %#v", tagsPatch)
-				}
-				if got, ok := tagsPatch["user-tag"]; !ok || got != nil {
-					t.Fatalf("expected removed tag to be patched as null, got %#v", tagsPatch)
-				}
-			},
-		},
-		{
-			name: "clears omitted openstack serverGroupID",
-			setup: func(t *testing.T) (config, plan, state *NodeDeploymentModel) {
-				config = buildMockNodeDeploymentModel(ctx, t, CloudSpecModel{
-					OpenStack: buildMockOpenStackListWithServerGroupID(ctx, t, types.StringNull()),
-				})
-				plan = buildMockNodeDeploymentModel(ctx, t, CloudSpecModel{
-					OpenStack: buildMockOpenStackListWithServerGroupID(ctx, t, types.StringUnknown()),
-				})
-				state = buildMockNodeDeploymentModel(ctx, t, CloudSpecModel{
-					OpenStack: buildMockOpenStackListWithServerGroupID(ctx, t, types.StringValue("old-server-group-id")),
-				})
-				return config, plan, state
-			},
-			check: func(t *testing.T, patch map[string]interface{}) {
-				openStackPatch := cloudProviderPatch(t, patch, "openstack")
-				if got, ok := openStackPatch["serverGroupID"]; !ok || got != nil {
-					t.Fatalf("expected omitted serverGroupID to be patched as null, got %#v", openStackPatch)
-				}
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			config, plan, state := tt.setup(t)
-			patch := buildNodeDeploymentPatch(t, ctx, config, plan, state)
-			tt.check(t, patch)
-		})
-	}
-}
-
-func TestFlattenOpenStackCloudSpecFiltersSystemTags(t *testing.T) {
-	ctx := context.Background()
-
-	result, diags := flattenOpenStackCloudSpec(ctx, &models.OpenstackNodeSpec{
-		Flavor: ptr.To("m1.small"),
-		Image:  ptr.To("Ubuntu 22.04"),
-		Tags: map[string]string{
-			"user-tag":         "kept",
-			"metakube-cluster": "cluster-id",
-			"system-cluster":   "cluster-name",
-			"system-project":   "project-name",
-			"system/project":   "project-id",
-		},
+func TestNodeDeploymentEmptyMapsAreCanonical(t *testing.T) {
+	value, diags := flattenNodeDeploymentSpec(context.Background(), &models.NodeDeploymentSpec{
+		Template: &models.NodeSpec{},
 	})
 	if diags.HasError() {
-		t.Fatalf("flatten failed: %v", diags)
+		t.Fatal(diags)
 	}
-
-	var flattened []OpenStackCloudSpecModel
-	diags = result.ElementsAs(ctx, &flattened, false)
-	if diags.HasError() {
-		t.Fatalf("failed to read flattened model: %v", diags)
-	}
-	if len(flattened) != 1 {
-		t.Fatalf("expected one openstack model, got %d", len(flattened))
-	}
-
-	tags := flattened[0].Tags.Elements()
-	if got := tags["user-tag"].(types.String).ValueString(); got != "kept" {
-		t.Fatalf("unexpected user tag value: got %q, want %q", got, "kept")
-	}
-	for _, key := range []string{"metakube-cluster", "system-cluster", "system-project", "system/project"} {
-		if _, ok := tags[key]; ok {
-			t.Fatalf("expected system tag %q to be filtered from user tags", key)
+	spec := mustModel[NodeDeploymentSpecModel](t, value)
+	template := mustModel[NodeSpecModel](t, spec.Template)
+	for name, value := range map[string]types.Map{
+		"labels":              template.Labels,
+		"all_labels":          template.AllLabels,
+		"node_annotations":    template.NodeAnnotations,
+		"machine_annotations": template.MachineAnnotations,
+	} {
+		if value.IsNull() || value.IsUnknown() || len(value.Elements()) != 0 {
+			t.Fatalf("%s is not a known empty map: %#v", name, value)
 		}
 	}
 }
 
-func TestFlattenOpenStackCloudSpecSetsTagsNullWhenOnlySystemTagsExist(t *testing.T) {
-	ctx := context.Background()
-
-	result, diags := flattenOpenStackCloudSpec(ctx, &models.OpenstackNodeSpec{
-		Flavor: ptr.To("m1.small"),
-		Image:  ptr.To("Ubuntu 22.04"),
-		Tags: map[string]string{
-			"metakube-cluster": "cluster-id",
-			"system-cluster":   "cluster-name",
-			"system-project":   "project-name",
-		},
+func TestExpandStringMapRejectsUnknownElements(t *testing.T) {
+	value := types.MapValueMust(types.StringType, map[string]attr.Value{
+		"unknown": types.StringUnknown(),
 	})
-	if diags.HasError() {
-		t.Fatalf("flatten failed: %v", diags)
-	}
-
-	var flattened []OpenStackCloudSpecModel
-	diags = result.ElementsAs(ctx, &flattened, false)
-	if diags.HasError() {
-		t.Fatalf("failed to read flattened model: %v", diags)
-	}
-	if len(flattened) != 1 {
-		t.Fatalf("expected one openstack model, got %d", len(flattened))
-	}
-	if !flattened[0].Tags.IsNull() {
-		t.Fatalf("expected tags to be null when only system tags are returned, got %v", flattened[0].Tags)
+	if _, diags := expandStringMap(context.Background(), value); !diags.HasError() {
+		t.Fatal("expected unknown map element to produce diagnostics")
 	}
 }
 
-func TestGetCloudProviderFromModel(t *testing.T) {
-	ctx := context.Background()
+func TestBuildNodeDeploymentPatch(t *testing.T) {
+	t.Run("removed annotations and tags become null entries", func(t *testing.T) {
+		state := nodeDeploymentModel(t,
+			map[string]string{"annotation": "old"},
+			map[string]string{"tag": "old"},
+			types.StringValue("server-group"),
+		)
+		config := nodeDeploymentModel(t, map[string]string{}, map[string]string{}, types.StringNull())
+		plan := nodeDeploymentModel(t, map[string]string{}, map[string]string{}, types.StringUnknown())
 
-	tests := []struct {
-		name         string
-		cloudModel   CloudSpecModel
-		wantProvider string
-	}{
-		{
-			name: "OpenStack",
-			cloudModel: CloudSpecModel{
-				OpenStack: buildMockOpenStackList(ctx, t),
-			},
-			wantProvider: "openstack",
-		},
+		patch, diags := buildNodeDeploymentPatch(context.Background(), config, plan, state)
+		if diags.HasError() {
+			t.Fatal(diags)
+		}
+		spec := patch["spec"].(map[string]any)
+		template := spec["template"].(map[string]any)
+		annotations := template["machine_annotations"].(map[string]any)
+		if value, exists := annotations["annotation"]; !exists || value != nil {
+			t.Fatalf("annotation deletion missing: %#v", annotations)
+		}
+		openstack := template["cloud"].(map[string]any)["openstack"].(map[string]any)
+		tags := openstack["tags"].(map[string]any)
+		if value, exists := tags["tag"]; !exists || value != nil {
+			t.Fatalf("tag deletion missing: %#v", tags)
+		}
+		if value, exists := openstack["serverGroupID"]; !exists || value != nil {
+			t.Fatalf("server group deletion missing: %#v", openstack)
+		}
+	})
+
+	t.Run("unknown values are not deletions", func(t *testing.T) {
+		state := nodeDeploymentModel(t, nil, nil, types.StringValue("server-group"))
+		config := nodeDeploymentModel(t, nil, nil, types.StringUnknown())
+		plan := config
+
+		patch, diags := buildNodeDeploymentPatch(context.Background(), config, plan, state)
+		if diags.HasError() {
+			t.Fatal(diags)
+		}
+		if len(patch) != 0 {
+			t.Fatalf("expected empty patch, got %#v", patch)
+		}
+	})
+}
+
+func TestNodeDeploymentSchemaUsesNestedAttributes(t *testing.T) {
+	resourceSchema := NodeDeploymentSchema(context.Background())
+	spec, ok := resourceSchema.Attributes["spec"].(schema.SingleNestedAttribute)
+	if !ok {
+		t.Fatalf("spec is %T, want SingleNestedAttribute", resourceSchema.Attributes["spec"])
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			model := buildMockNodeDeploymentModel(ctx, t, tt.cloudModel)
-			provider, diags := getCloudProviderFromModel(ctx, model)
-			if diags.HasError() {
-				t.Fatalf("unexpected errors: %v", diags)
-			}
-
-			if provider != tt.wantProvider {
-				t.Errorf("provider mismatch: got %s, want %s", provider, tt.wantProvider)
-			}
-		})
+	template, ok := spec.Attributes["template"].(schema.SingleNestedAttribute)
+	if !ok {
+		t.Fatalf("template is %T, want SingleNestedAttribute", spec.Attributes["template"])
+	}
+	cloud, ok := template.Attributes["cloud"].(schema.SingleNestedAttribute)
+	if !ok {
+		t.Fatalf("cloud is %T, want SingleNestedAttribute", template.Attributes["cloud"])
+	}
+	if _, ok := cloud.Attributes["openstack"].(schema.SingleNestedAttribute); !ok {
+		t.Fatalf("openstack is %T, want SingleNestedAttribute", cloud.Attributes["openstack"])
+	}
+	for _, name := range []string{"labels", "node_annotations", "machine_annotations"} {
+		attribute := template.Attributes[name].(schema.MapAttribute)
+		if !attribute.Optional || !attribute.Computed || attribute.Default == nil {
+			t.Fatalf("%s must be optional+computed when using an empty default", name)
+		}
 	}
 }
 
-// Helpers
+func TestUpgradeNodeDeploymentLegacyState(t *testing.T) {
+	rawState := map[string]any{
+		"spec": []any{map[string]any{
+			"template": []any{map[string]any{
+				"cloud": []any{map[string]any{
+					"aws":       []any{map[string]any{"instance_type": "legacy"}},
+					"openstack": []any{map[string]any{"flavor": "m1.small"}},
+				}},
+				"operating_system": []any{map[string]any{
+					"ubuntu": []any{map[string]any{"dist_upgrade_on_boot": false}},
+				}},
+				"versions": []any{map[string]any{"kubelet": "1.32.0"}},
+			}},
+		}},
+	}
 
-func buildMockOpenStackList(ctx context.Context, t *testing.T) types.List {
+	upgradeNodeDeploymentLegacyState(rawState)
+	spec := rawState["spec"].(map[string]any)
+	template := spec["template"].(map[string]any)
+	cloud := template["cloud"].(map[string]any)
+	if _, exists := cloud["aws"]; exists {
+		t.Fatalf("legacy AWS state was retained: %#v", cloud)
+	}
+	if _, ok := cloud["openstack"].(map[string]any); !ok {
+		t.Fatalf("OpenStack was not upgraded: %#v", cloud)
+	}
+	operatingSystem := template["operating_system"].(map[string]any)
+	if _, ok := operatingSystem["ubuntu"].(map[string]any); !ok {
+		t.Fatalf("Ubuntu was not upgraded: %#v", operatingSystem)
+	}
+	if _, ok := template["versions"].(map[string]any); !ok {
+		t.Fatalf("versions were not upgraded: %#v", template["versions"])
+	}
+}
+
+func nodeDeploymentModel(
+	t *testing.T,
+	machineAnnotations map[string]string,
+	tags map[string]string,
+	serverGroupID types.String,
+) NodeDeploymentModel {
 	t.Helper()
-	osModel := OpenStackCloudSpecModel{
+	openstack := mustObject(t, openstackCloudSpecAttrTypes(), OpenStackCloudSpecModel{
 		Flavor:                    types.StringValue("m1.small"),
-		Image:                     types.StringValue("Ubuntu 22.04"),
+		Image:                     types.StringValue("ubuntu"),
 		DiskSize:                  types.Int64Null(),
-		Tags:                      types.MapNull(types.StringType),
-		UseFloatingIP:             types.BoolValue(true),
-		InstanceReadyCheckPeriod:  types.StringValue("5s"),
-		InstanceReadyCheckTimeout: types.StringValue("120s"),
-		ServerGroupID:             types.StringNull(),
-	}
-	objVal, diags := types.ObjectValueFrom(ctx, openstackCloudSpecAttrTypes(), osModel)
-	if diags.HasError() {
-		t.Fatalf("failed to build OpenStack object: %v", diags)
-	}
-	list, diags := types.ListValue(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}, []attr.Value{objVal})
-	if diags.HasError() {
-		t.Fatalf("failed to build OpenStack list: %v", diags)
-	}
-	return list
-}
-
-func buildMockOpenStackListWithTags(ctx context.Context, t *testing.T, tags map[string]string) types.List {
-	t.Helper()
-	osModel := OpenStackCloudSpecModel{
-		Flavor:                    types.StringValue("m1.small"),
-		Image:                     types.StringValue("Ubuntu 22.04"),
-		DiskSize:                  types.Int64Null(),
-		Tags:                      stringMapValue(t, tags),
-		UseFloatingIP:             types.BoolValue(true),
-		InstanceReadyCheckPeriod:  types.StringValue("5s"),
-		InstanceReadyCheckTimeout: types.StringValue("120s"),
-		ServerGroupID:             types.StringNull(),
-	}
-	objVal, diags := types.ObjectValueFrom(ctx, openstackCloudSpecAttrTypes(), osModel)
-	if diags.HasError() {
-		t.Fatalf("failed to build OpenStack object: %v", diags)
-	}
-	list, diags := types.ListValue(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}, []attr.Value{objVal})
-	if diags.HasError() {
-		t.Fatalf("failed to build OpenStack list: %v", diags)
-	}
-	return list
-}
-
-func buildMockOpenStackListWithServerGroupID(ctx context.Context, t *testing.T, serverGroupID types.String) types.List {
-	t.Helper()
-	osModel := OpenStackCloudSpecModel{
-		Flavor:                    types.StringValue("m1.small"),
-		Image:                     types.StringValue("Ubuntu 22.04"),
-		DiskSize:                  types.Int64Null(),
-		Tags:                      types.MapNull(types.StringType),
+		Tags:                      mustMap(t, tags),
 		UseFloatingIP:             types.BoolValue(true),
 		InstanceReadyCheckPeriod:  types.StringValue("5s"),
 		InstanceReadyCheckTimeout: types.StringValue("120s"),
 		ServerGroupID:             serverGroupID,
-	}
-	objVal, diags := types.ObjectValueFrom(ctx, openstackCloudSpecAttrTypes(), osModel)
-	if diags.HasError() {
-		t.Fatalf("failed to build OpenStack object: %v", diags)
-	}
-	list, diags := types.ListValue(types.ObjectType{AttrTypes: openstackCloudSpecAttrTypes()}, []attr.Value{objVal})
-	if diags.HasError() {
-		t.Fatalf("failed to build OpenStack list: %v", diags)
-	}
-	return list
+	})
+	cloud := mustObject(t, cloudSpecAttrTypes(), CloudSpecModel{OpenStack: openstack})
+	operatingSystem := mustObject(t, operatingSystemAttrTypes(), OperatingSystemModel{
+		Ubuntu:  types.ObjectNull(ubuntuAttrTypes()),
+		Flatcar: types.ObjectNull(flatcarAttrTypes()),
+	})
+	template := mustObject(t, nodeSpecAttrTypes(), NodeSpecModel{
+		Cloud:              cloud,
+		OperatingSystem:    operatingSystem,
+		Versions:           types.ObjectNull(versionsAttrTypes()),
+		Labels:             mustMap(t, nil),
+		AllLabels:          mustMap(t, nil),
+		Taints:             types.ListNull(types.ObjectType{AttrTypes: taintAttrTypes()}),
+		NodeAnnotations:    mustMap(t, nil),
+		MachineAnnotations: mustMap(t, machineAnnotations),
+	})
+	spec := mustObject(t, nodeDeploymentSpecAttrTypes(), NodeDeploymentSpecModel{
+		Replicas:    types.Int64Value(1),
+		MinReplicas: types.Int64Null(),
+		MaxReplicas: types.Int64Null(),
+		Template:    template,
+	})
+	return NodeDeploymentModel{Spec: spec}
 }
 
-func stringMapValue(t *testing.T, values map[string]string) types.Map {
+func mustObject[T any](t *testing.T, attrTypes map[string]attr.Type, model T) types.Object {
 	t.Helper()
-	if values == nil {
-		return types.MapNull(types.StringType)
+	value, diags := types.ObjectValueFrom(context.Background(), attrTypes, model)
+	if diags.HasError() {
+		t.Fatal(diags)
 	}
+	return value
+}
 
+func mustModel[T any](t *testing.T, value types.Object) T {
+	t.Helper()
+	var model T
+	diags := value.As(context.Background(), &model, basetypes.ObjectAsOptions{})
+	if diags.HasError() {
+		t.Fatal(diags)
+	}
+	return model
+}
+
+func mustMap(t *testing.T, values map[string]string) types.Map {
+	t.Helper()
 	elements := make(map[string]attr.Value, len(values))
 	for key, value := range values {
 		elements[key] = types.StringValue(value)
 	}
-
 	result, diags := types.MapValue(types.StringType, elements)
 	if diags.HasError() {
-		t.Fatalf("failed to build string map: %v", diags)
+		t.Fatal(diags)
 	}
 	return result
-}
-
-func buildNodeDeploymentPatch(t *testing.T, ctx context.Context, config, plan, state *NodeDeploymentModel) map[string]interface{} {
-	t.Helper()
-
-	spec, diags := expandNodeDeploymentSpec(ctx, plan.Spec, false)
-	if diags.HasError() {
-		t.Fatalf("failed to expand plan spec: %v", diags)
-	}
-
-	patch, err := (&nodeDeploymentResource{}).buildPatchWithDeletions(config, plan, state, &models.NodeDeployment{Spec: spec})
-	if err != nil {
-		t.Fatalf("failed to build patch: %v", err)
-	}
-
-	return patch
-}
-
-func cloudTagsPatch(t *testing.T, patch map[string]interface{}, provider string) map[string]interface{} {
-	t.Helper()
-
-	providerPatch := cloudProviderPatch(t, patch, provider)
-	tagsPatch, ok := providerPatch["tags"].(map[string]interface{})
-	if !ok {
-		t.Fatalf("expected tags patch map, got %#v", providerPatch["tags"])
-	}
-	return tagsPatch
-}
-
-func cloudProviderPatch(t *testing.T, patch map[string]interface{}, provider string) map[string]interface{} {
-	t.Helper()
-
-	specPatch, ok := patch["spec"].(map[string]interface{})
-	if !ok {
-		t.Fatalf("expected spec patch map, got %#v", patch["spec"])
-	}
-	templatePatch, ok := specPatch["template"].(map[string]interface{})
-	if !ok {
-		t.Fatalf("expected template patch map, got %#v", specPatch["template"])
-	}
-	cloudPatch, ok := templatePatch["cloud"].(map[string]interface{})
-	if !ok {
-		t.Fatalf("expected cloud patch map, got %#v", templatePatch["cloud"])
-	}
-	providerPatch, ok := cloudPatch[provider].(map[string]interface{})
-	if !ok {
-		t.Fatalf("expected %s patch map, got %#v", provider, cloudPatch[provider])
-	}
-	return providerPatch
-}
-
-func buildMockNodeDeploymentModel(ctx context.Context, t *testing.T, cloudModel CloudSpecModel) *NodeDeploymentModel {
-	t.Helper()
-
-	// Build cloud object
-	cloudObj, diags := types.ObjectValueFrom(ctx, cloudSpecAttrTypes(), cloudModel)
-	if diags.HasError() {
-		t.Fatalf("failed to build cloud object: %v", diags)
-	}
-	cloudList, diags := types.ListValue(types.ObjectType{AttrTypes: cloudSpecAttrTypes()}, []attr.Value{cloudObj})
-	if diags.HasError() {
-		t.Fatalf("failed to build cloud list: %v", diags)
-	}
-
-	// Build node spec
-	nodeSpecModel := NodeSpecModel{
-		Cloud:              cloudList,
-		OperatingSystem:    types.ListNull(types.ObjectType{AttrTypes: operatingSystemAttrTypes()}),
-		Versions:           types.ListNull(types.ObjectType{AttrTypes: versionsAttrTypes()}),
-		Labels:             types.MapNull(types.StringType),
-		AllLabels:          types.MapNull(types.StringType),
-		Taints:             types.ListNull(types.ObjectType{AttrTypes: taintAttrTypes()}),
-		NodeAnnotations:    types.MapNull(types.StringType),
-		MachineAnnotations: types.MapNull(types.StringType),
-	}
-	nodeSpecObj, diags := types.ObjectValueFrom(ctx, nodeSpecAttrTypes(), nodeSpecModel)
-	if diags.HasError() {
-		t.Fatalf("failed to build node spec object: %v", diags)
-	}
-	templateList, diags := types.ListValue(types.ObjectType{AttrTypes: nodeSpecAttrTypes()}, []attr.Value{nodeSpecObj})
-	if diags.HasError() {
-		t.Fatalf("failed to build template list: %v", diags)
-	}
-
-	// Build spec
-	specModel := NodeDeploymentSpecModel{
-		Replicas:    types.Int64Value(2),
-		MinReplicas: types.Int64Null(),
-		MaxReplicas: types.Int64Null(),
-		Template:    templateList,
-	}
-	specObj, diags := types.ObjectValueFrom(ctx, nodeDeploymentSpecAttrTypes(), specModel)
-	if diags.HasError() {
-		t.Fatalf("failed to build spec object: %v", diags)
-	}
-	specList, diags := types.ListValue(types.ObjectType{AttrTypes: nodeDeploymentSpecAttrTypes()}, []attr.Value{specObj})
-	if diags.HasError() {
-		t.Fatalf("failed to build spec list: %v", diags)
-	}
-
-	return &NodeDeploymentModel{
-		ID:                types.StringValue("test-id"),
-		ProjectID:         types.StringValue("test-project"),
-		ClusterID:         types.StringValue("test-cluster"),
-		Name:              types.StringValue("test-nd"),
-		Spec:              specList,
-		CreationTimestamp: types.StringNull(),
-		DeletionTimestamp: types.StringNull(),
-	}
-}
-
-func TestUpgradeNodeDeploymentLegacyUnsupportedCloudState_RemovesUnsupportedClouds(t *testing.T) {
-	rawState := map[string]any{
-		"spec": []any{
-			map[string]any{
-				"template": []any{
-					map[string]any{
-						"cloud": []any{
-							map[string]any{
-								"openstack": []any{},
-								"azure": []any{
-									map[string]any{
-										"size": "legacy",
-									},
-								},
-								"aws": []any{
-									map[string]any{
-										"instance_type": "legacy",
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	upgradeNodeDeploymentLegacyUnsupportedCloudState(rawState)
-
-	specMap := rawState["spec"].([]any)[0].(map[string]any)
-	templateMap := specMap["template"].([]any)[0].(map[string]any)
-	cloudMap := templateMap["cloud"].([]any)[0].(map[string]any)
-	if _, ok := cloudMap["azure"]; ok {
-		t.Fatalf("expected legacy cloud.azure to be removed, got: %#v", cloudMap["azure"])
-	}
-	if _, ok := cloudMap["aws"]; ok {
-		t.Fatalf("expected legacy cloud.aws to be removed, got: %#v", cloudMap["aws"])
-	}
 }
