@@ -214,7 +214,7 @@ func flattenUpdateWindow(ctx context.Context, specModel *ClusterSpecModel, in *m
 func flattenCniPlugin(ctx context.Context, specModel *ClusterSpecModel, in *models.CNIPluginSettings) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	if in == nil || in.Type == "" || in.Type == "none" {
+	if in == nil || in.Type == "" {
 		specModel.CNIPlugin = types.ObjectNull(cniPluginAttrTypes())
 		return diags
 	}
