@@ -152,9 +152,9 @@ func TestFlattenCniPlugin(t *testing.T) {
 			ExpectNull: true,
 		},
 		{
-			name:       "API returns none - should be null",
-			Input:      &models.CNIPluginSettings{Type: models.CNIPluginType("none")},
-			ExpectNull: true,
+			name:         "API returns none",
+			Input:        &models.CNIPluginSettings{Type: models.CNIPluginType("none")},
+			ExpectedType: "none",
 		},
 	}
 
@@ -183,6 +183,46 @@ func TestFlattenCniPlugin(t *testing.T) {
 			}
 			if plugin.Type.ValueString() != tc.ExpectedType {
 				t.Errorf("Type mismatch: got %v, want %v", plugin.Type.ValueString(), tc.ExpectedType)
+			}
+		})
+	}
+}
+
+func TestFlattenSpecIntoModelPreservesNoneCNI(t *testing.T) {
+	ctx := t.Context()
+	want := createCNIPluginObject(ctx, t, "none")
+	cases := []struct {
+		name     string
+		priorCNI types.Object
+	}{
+		{name: "configured none", priorCNI: want},
+		{name: "null from previous read", priorCNI: types.ObjectNull(cniPluginAttrTypes())},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			model := createTestClusterModel(ctx, t, ClusterSpecModel{
+				CNIPlugin:     tc.priorCNI,
+				Cloud:         types.ObjectNull(clusterCloudSpecAttrTypes()),
+				UpdateWindow:  types.ObjectNull(updateWindowAttrTypes()),
+				SyselevenAuth: types.ObjectNull(syselevenAuthAttrTypes()),
+			})
+			apiSpec := &models.ClusterSpec{
+				CniPlugin: &models.CNIPluginSettings{Type: "none"},
+			}
+
+			if diags := metakubeResourceClusterFlattenSpec(ctx, model, apiSpec); diags.HasError() {
+				t.Fatalf("metakubeResourceClusterFlattenSpec(none) diagnostics = %v, want no errors", diags)
+			}
+			spec, ok := getClusterSpecModel(ctx, model)
+			if !ok {
+				t.Fatal("getClusterSpecModel() returned no spec after reading CNI none")
+			}
+			if !spec.CNIPlugin.Equal(want) {
+				t.Errorf("metakubeResourceClusterFlattenSpec(none) CNI = %s, want %s", spec.CNIPlugin, want)
+			}
+			if diff := cmp.Diff(apiSpec.CniPlugin, expandCniPlugin(ctx, spec.CNIPlugin)); diff != "" {
+				t.Errorf("CNI none round trip mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -985,7 +1025,7 @@ func TestFlattenSpecIntoModelPreservesCloudCredentials(t *testing.T) {
 }
 
 // TestFlattenSpecIntoModelPopulatesCNIPluginFromAPI tests that CNI plugin
-// is populated from the API response when API returns a valid value, or null when API returns nil/empty/none.
+// is populated from the API response when API returns a valid value, or null when API returns nil/empty.
 func TestFlattenSpecIntoModelPopulatesCNIPluginFromAPI(t *testing.T) {
 	ctx := context.Background()
 
@@ -1277,33 +1317,37 @@ func createModelWithOpenstackAppCredentials(ctx context.Context, t *testing.T, a
 }
 
 func TestUpgradeClusterLegacyNestedSpecState_ListToObject(t *testing.T) {
-	rawState := map[string]any{
-		"spec": []any{
-			map[string]any{
-				"version": "1.31.4",
-				"cni_plugin": []any{
+	for _, cniType := range []string{"cilium", "canal", "none"} {
+		t.Run(cniType, func(t *testing.T) {
+			rawState := map[string]any{
+				"spec": []any{
 					map[string]any{
-						"type": "cilium",
+						"version": "1.31.4",
+						"cni_plugin": []any{
+							map[string]any{
+								"type": cniType,
+							},
+						},
 					},
 				},
-			},
-		},
-	}
+			}
 
-	upgradeClusterLegacyNestedSpecState(rawState)
+			upgradeClusterLegacyNestedSpecState(rawState)
 
-	specMap, ok := rawState["spec"].(map[string]any)
-	if !ok {
-		t.Fatalf("unexpected spec value after upgrade: %#v", rawState["spec"])
-	}
+			specMap, ok := rawState["spec"].(map[string]any)
+			if !ok {
+				t.Fatalf("unexpected spec value after upgrade: %#v", rawState["spec"])
+			}
 
-	cniPlugin, ok := specMap["cni_plugin"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected cni_plugin object after upgrade, got: %#v", specMap["cni_plugin"])
-	}
+			cniPlugin, ok := specMap["cni_plugin"].(map[string]any)
+			if !ok {
+				t.Fatalf("expected cni_plugin object after upgrade, got: %#v", specMap["cni_plugin"])
+			}
 
-	if got, want := cniPlugin["type"], "cilium"; got != want {
-		t.Fatalf("unexpected cni_plugin.type after upgrade: got %v, want %v", got, want)
+			if got := cniPlugin["type"]; got != cniType {
+				t.Errorf("unexpected cni_plugin.type after upgrade: got %v, want %v", got, cniType)
+			}
+		})
 	}
 }
 
