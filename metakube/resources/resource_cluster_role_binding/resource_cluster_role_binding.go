@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/syseleven/go-metakube/client/project"
+	"github.com/syseleven/go-metakube/models"
 	"github.com/syseleven/terraform-provider-metakube/metakube/common"
 )
 
@@ -154,26 +155,26 @@ func (r *metakubeClusterRoleBinding) Read(ctx context.Context, req resource.Read
 	}
 
 	clusterRoleName := data.ClusterRoleName.ValueString()
+	var bindings [][]*models.Subject
 	for _, item := range ret.Payload {
-		if item.RoleRefName == clusterRoleName && len(item.Subjects) != 0 {
-			resp.Diagnostics.Append(metakubeClusterRoleBindingFlattenSubjects(ctx, &data, item.Subjects)...)
-			if resp.Diagnostics.HasError() {
-				return
-			}
-
-			data.ID = types.StringValue(item.RoleRefName)
-			data.ClusterRoleName = types.StringValue(item.RoleRefName)
-
-			diags = resp.State.Set(ctx, &data)
-			resp.Diagnostics.Append(diags...)
-
-			return
+		if item != nil && item.RoleRefName == clusterRoleName {
+			bindings = append(bindings, item.Subjects)
 		}
 	}
 
-	data.ID = types.StringNull()
+	subjects, diags := common.RefreshBindingSubjects(ctx, data.Subject, bindings)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if len(subjects.Elements()) == 0 {
+		resp.State.RemoveResource(ctx)
+		return
+	}
 
-	resp.State.RemoveResource(ctx)
+	data.Subject = subjects
+	data.ID = types.StringValue(clusterRoleName)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
 func (r *metakubeClusterRoleBinding) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
