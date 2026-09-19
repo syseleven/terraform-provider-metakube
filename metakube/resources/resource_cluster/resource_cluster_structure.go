@@ -253,7 +253,7 @@ func flattenCniPluginCilium(ctx context.Context, cniModel *CNIPluginModel, in *m
 		clustermeshModel := CiliumClustermeshModel{
 			Enable:                types.BoolValue(*in.Clustermesh.Enable),
 			ClusterID:             types.Int32Value(int32(in.Clustermesh.ClusterID)),
-			IPv4NativeRoutingCIDR: types.StringValue(in.Clustermesh.IPV4NativeRoutingCIDR),
+			IPv4NativeRoutingCIDR: types.StringValue(in.Clustermesh.IPv4NativeRoutingCIDR),
 		}
 		objVal, d := types.ObjectValueFrom(ctx, ciliumClustermeshAttrTypes(), clustermeshModel)
 		diags.Append(d...)
@@ -574,7 +574,7 @@ func expandCniPlugin(ctx context.Context, obj types.Object) *models.CNIPluginSet
 						cniPlugin.Cilium.Clustermesh = &models.CiliumClustermesh{
 							Enable:                ptr.To(clustermesh.Enable.ValueBool()),
 							ClusterID:             int64(clustermesh.ClusterID.ValueInt32()),
-							IPV4NativeRoutingCIDR: clustermesh.IPv4NativeRoutingCIDR.ValueString(),
+							IPv4NativeRoutingCIDR: clustermesh.IPv4NativeRoutingCIDR.ValueString(),
 						}
 					} else {
 						return nil
