@@ -608,9 +608,9 @@ func (r *nodeDeploymentResource) readIntoModel(ctx context.Context, model *NodeD
 	return result
 }
 
-// waitForReady requires the deployment status to report all desired replicas
-// ready, no unavailable replicas, an exact node-count match, and kernel
-// information for every node. Deployment and node lookup failures, including
+// waitForReady requires the deployment status to have observed the current
+// generation, to report all desired replicas ready, no unavailable replicas,
+// an exact node-count match, and kernel information for every node. Deployment and node lookup failures, including
 // not found during eventual creation, are retried until the context or timeout
 // ends.
 func (r *nodeDeploymentResource) waitForReady(ctx context.Context, timeout time.Duration, projectID, clusterID, nodeDeploymentID string) error {
@@ -639,9 +639,10 @@ func (r *nodeDeploymentResource) waitForReady(ctx context.Context, timeout time.
 
 		nd := resp.Payload
 		if nd.Spec.Replicas == nil || nd.Status == nil ||
+			nd.Status.ObservedGeneration != nd.Generation ||
 			nd.Status.ReadyReplicas < *nd.Spec.Replicas ||
 			nd.Status.UnavailableReplicas != 0 {
-			r.meta.Log.Debugf("waiting for node deployment '%s' to be ready, %+v", nodeDeploymentID, nd.Status)
+			r.meta.Log.Debugf("waiting for node deployment '%s' to be ready, generation %d, status %+v", nodeDeploymentID, nd.Generation, nd.Status)
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
