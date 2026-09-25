@@ -165,6 +165,7 @@ func patchCNIPlugin(ctx context.Context, value types.Object) (any, diag.Diagnost
 	ciliumPatch := make(map[string]any)
 	setConfiguredBool(ciliumPatch, "enableHubble", cilium.EnableHubble)
 	setConfiguredBool(ciliumPatch, "enableL7Proxy", cilium.EnableL7Proxy)
+	setConfiguredBool(ciliumPatch, "bpfLbSockHostnsOnly", cilium.BPFLbSockHostnsOnly)
 	if cilium.Clustermesh.IsNull() {
 		ciliumPatch["clustermesh"] = nil
 	} else if !cilium.Clustermesh.IsUnknown() {
