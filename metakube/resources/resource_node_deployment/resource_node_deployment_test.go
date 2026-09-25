@@ -27,6 +27,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 	t.Parallel()
 	var ndepl models.NodeDeployment
 	var sgroupID string
+	var defaultServerGroupID string
 	clusterResourceName := "metakube_cluster.acctest_cluster"
 	distUpgradeOnBootPath := tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("operating_system").AtSliceIndex(0).AtMapKey("ubuntu").AtSliceIndex(0).AtMapKey("dist_upgrade_on_boot")
 	tagsPath := tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("cloud").AtSliceIndex(0).AtMapKey("openstack").AtSliceIndex(0).AtMapKey("tags")
@@ -154,7 +155,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.metakube-cluster"),
 					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.system-cluster"),
 					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.system-project"),
-					resource.TestMatchResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.server_group_id", regexp.MustCompile(`.+`)),
+					testMatchAndGetResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.server_group_id", regexp.MustCompile(`.+`), &defaultServerGroupID),
 				),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
@@ -372,7 +373,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.metakube-cluster"),
 					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.system-cluster"),
 					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.system-project"),
-					resource.TestMatchResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.server_group_id", regexp.MustCompile(`.+`)),
+					resource.TestCheckResourceAttrPtr(resourceName, "spec.0.template.0.cloud.0.openstack.0.server_group_id", &defaultServerGroupID),
 				),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.NotNull()),
