@@ -1553,8 +1553,9 @@ func TestClusterSpecPatchBody(t *testing.T) {
 			CniPlugin: &models.CNIPluginSettings{
 				Type: models.CNIPluginType("cilium"),
 				Cilium: &models.CiliumCNISettings{
-					EnableHubble:  false,
-					EnableL7Proxy: false,
+					EnableHubble:        false,
+					EnableL7Proxy:       false,
+					BpfLbSockHostnsOnly: false,
 				},
 			},
 		}
@@ -1592,6 +1593,37 @@ func TestClusterSpecPatchBody(t *testing.T) {
 		}
 		if cilium["enableL7Proxy"] != false {
 			t.Errorf("expected cniPlugin.cilium.enableL7Proxy=false, got: %#v", cilium["enableL7Proxy"])
+		}
+		if cilium["bpfLbSockHostnsOnly"] != false {
+			t.Errorf("expected cniPlugin.cilium.bpfLbSockHostnsOnly=false, got: %#v", cilium["bpfLbSockHostnsOnly"])
+		}
+	})
+
+	t.Run("cilium bpfLbSockHostnsOnly true is forced into the body", func(t *testing.T) {
+		spec := &models.ClusterSpec{
+			CniPlugin: &models.CNIPluginSettings{
+				Type: models.CNIPluginType("cilium"),
+				Cilium: &models.CiliumCNISettings{
+					BpfLbSockHostnsOnly: true,
+				},
+			},
+		}
+
+		got, err := clusterSpecPatchBody(spec, func(string) bool { return true })
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		cni, ok := got["cniPlugin"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected cniPlugin map, got: %#v", got["cniPlugin"])
+		}
+		cilium, ok := cni["cilium"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected cniPlugin.cilium map, got: %#v", cni["cilium"])
+		}
+		if cilium["bpfLbSockHostnsOnly"] != true {
+			t.Errorf("expected cniPlugin.cilium.bpfLbSockHostnsOnly=true, got: %#v", cilium["bpfLbSockHostnsOnly"])
 		}
 	})
 
@@ -1680,4 +1712,47 @@ func TestClusterSpecPatchBody(t *testing.T) {
 			t.Errorf("expected cniPlugin.cilium to remain absent, got: %#v", cni["cilium"])
 		}
 	})
+}
+
+func TestCiliumBPFLbSockHostnsOnlyConversion(t *testing.T) {
+	ctx := context.Background()
+	input := &models.ClusterSpec{
+		Version: "1.32.0",
+		CniPlugin: &models.CNIPluginSettings{
+			Type:   "cilium",
+			Cilium: &models.CiliumCNISettings{BpfLbSockHostnsOnly: true},
+		},
+	}
+
+	resourceModel := ClusterModel{}
+	diags := metakubeResourceClusterFlattenSpec(ctx, &resourceModel, input)
+	if diags.HasError() {
+		t.Fatal(diags)
+	}
+
+	spec, ok := getClusterSpecModel(ctx, &resourceModel)
+	if !ok {
+		t.Fatal("spec was not flattened")
+	}
+
+	var plugin CNIPluginModel
+	if d := spec.CNIPlugin.As(ctx, &plugin, basetypes.ObjectAsOptions{}); d.HasError() {
+		t.Fatalf("Failed to get CNI plugin: %v", d)
+	}
+
+	var cilium CiliumModel
+	if d := plugin.Cilium.As(ctx, &cilium, basetypes.ObjectAsOptions{}); d.HasError() {
+		t.Fatalf("Failed to get Cilium settings: %v", d)
+	}
+	if !cilium.BPFLbSockHostnsOnly.ValueBool() {
+		t.Fatalf("expected bpf_lb_sock_hostns_only=true after flatten, got %#v", cilium)
+	}
+
+	output := metakubeResourceClusterExpandSpec(ctx, &resourceModel, "dc-1", func(string) bool { return true })
+	if output.CniPlugin == nil || output.CniPlugin.Cilium == nil {
+		t.Fatalf("unexpected expanded cni plugin: %#v", output.CniPlugin)
+	}
+	if !output.CniPlugin.Cilium.BpfLbSockHostnsOnly {
+		t.Fatalf("expected expanded bpfLbSockHostnsOnly=true, got %#v", output.CniPlugin.Cilium)
+	}
 }
