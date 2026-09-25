@@ -494,6 +494,14 @@ func metakubeResourceClusterCNICiliumAttributes() map[string]schema.Attribute {
 				boolplanmodifier.UseNonNullStateForUnknown(),
 			},
 		},
+		"bpf_lb_sock_hostns_only": schema.BoolAttribute{
+			Optional:    true,
+			Computed:    true,
+			Description: "Sets the bpf-lb-sock-hostns-only option in the Cilium configuration. Needed e.g. for Istio.",
+			PlanModifiers: []planmodifier.Bool{
+				boolplanmodifier.UseNonNullStateForUnknown(),
+			},
+		},
 		"clustermesh": schema.SingleNestedAttribute{
 			Optional: true,
 			Attributes: map[string]schema.Attribute{
@@ -567,9 +575,10 @@ type CNIPluginModel struct {
 
 // CiliumModel
 type CiliumModel struct {
-	Clustermesh   types.Object `tfsdk:"clustermesh"` // CiliumClustermeshSpecModel
-	EnableHubble  types.Bool   `tfsdk:"enable_hubble"`
-	EnableL7Proxy types.Bool   `tfsdk:"enable_l7_proxy"`
+	Clustermesh         types.Object `tfsdk:"clustermesh"` // CiliumClustermeshSpecModel
+	EnableHubble        types.Bool   `tfsdk:"enable_hubble"`
+	EnableL7Proxy       types.Bool   `tfsdk:"enable_l7_proxy"`
+	BPFLbSockHostnsOnly types.Bool   `tfsdk:"bpf_lb_sock_hostns_only"`
 }
 
 // CiliumSpecModel
@@ -656,8 +665,9 @@ func ciliumAttrTypes() map[string]attr.Type {
 		"clustermesh": types.ObjectType{
 			AttrTypes: ciliumClustermeshAttrTypes(),
 		},
-		"enable_hubble":   types.BoolType,
-		"enable_l7_proxy": types.BoolType,
+		"enable_hubble":           types.BoolType,
+		"enable_l7_proxy":         types.BoolType,
+		"bpf_lb_sock_hostns_only": types.BoolType,
 	}
 }
 

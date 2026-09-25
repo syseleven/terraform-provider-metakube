@@ -127,6 +127,7 @@ When set, type must be configured. Currently, can be configured as `cilium`, `ca
 >   cilium = {
 >     enable_hubble = true
 >     enable_l7_proxy = true
+>     bpf_lb_sock_hostns_only = true
 >     clustermesh = {
 >         enable = true
 >         cluster_id = 1
@@ -146,6 +147,7 @@ When set, type must be configured. Currently, can be configured as `cilium`, `ca
 
 * `enable_hubble` - (Optional) Enable Hubble Relay/UI.
 * `enable_l7_proxy` - (Optional) Enable L7 Proxy.
+* `bpf_lb_sock_hostns_only` - (Optional) Sets the `bpf-lb-sock-hostns-only` option in the Cilium configuration. Needed e.g. for Istio.
 * `clustermesh` - (Optional) Cilium Clustermesh.
 
 ### `clustermesh`
