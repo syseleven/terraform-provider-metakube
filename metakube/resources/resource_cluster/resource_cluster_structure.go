@@ -177,9 +177,10 @@ func flattenCniPluginCilium(ctx context.Context, cniModel *CNIPluginModel, in *m
 	var diags diag.Diagnostics
 
 	ciliumModel := CiliumModel{
-		EnableHubble:  types.BoolValue(in.EnableHubble),
-		EnableL7Proxy: types.BoolValue(in.EnableL7Proxy),
-		Clustermesh:   types.ObjectNull(ciliumClustermeshAttrTypes()),
+		EnableHubble:        types.BoolValue(in.EnableHubble),
+		EnableL7Proxy:       types.BoolValue(in.EnableL7Proxy),
+		BPFLbSockHostnsOnly: types.BoolValue(in.BpfLbSockHostnsOnly),
+		Clustermesh:         types.ObjectNull(ciliumClustermeshAttrTypes()),
 	}
 
 	if in.Clustermesh != nil {
@@ -459,6 +460,9 @@ func expandCniPlugin(ctx context.Context, obj types.Object) *models.CNIPluginSet
 				}
 				if !cilium.EnableL7Proxy.IsNull() && !cilium.EnableL7Proxy.IsUnknown() {
 					cniPlugin.Cilium.EnableL7Proxy = cilium.EnableL7Proxy.ValueBool()
+				}
+				if !cilium.BPFLbSockHostnsOnly.IsNull() && !cilium.BPFLbSockHostnsOnly.IsUnknown() {
+					cniPlugin.Cilium.BpfLbSockHostnsOnly = cilium.BPFLbSockHostnsOnly.ValueBool()
 				}
 				if !cilium.Clustermesh.IsNull() && !cilium.Clustermesh.IsUnknown() {
 					var clustermesh CiliumClustermeshModel
