@@ -19,6 +19,20 @@ type RetryError struct {
 	Retryable bool
 }
 
+// clusterReadinessError separates the user-facing explanation from its error chain.
+type clusterReadinessError struct {
+	message string
+	cause   error
+}
+
+func (e *clusterReadinessError) Error() string {
+	return e.message
+}
+
+func (e *clusterReadinessError) Unwrap() error {
+	return e.cause
+}
+
 func (e *RetryError) Error() string {
 	if e.Err != nil {
 		return e.Err.Error()
@@ -46,12 +60,16 @@ type RetryFunc func() *RetryError
 func RetryContext(ctx context.Context, timeout time.Duration, f RetryFunc) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 
 	backoffPolicy := backoff.NewExponentialBackOff()
 	backoffPolicy.InitialInterval = 500 * time.Millisecond
 	backoffPolicy.MaxInterval = 10 * time.Second
 
 	var lastErr error
+	// The context owns the timeout; disable backoff's default 15-minute limit.
 	_, err := backoff.Retry(ctx, func() (struct{}, error) {
 		retryErr := f()
 		if retryErr == nil {
@@ -64,20 +82,20 @@ func RetryContext(ctx context.Context, timeout time.Duration, f RetryFunc) error
 		}
 
 		return struct{}{}, retryErr.Err
-	}, backoff.WithBackOff(backoffPolicy))
+	}, backoff.WithBackOff(backoffPolicy), backoff.WithMaxElapsedTime(0))
 	if err == nil {
 		return nil
 	}
 
 	if errors.Is(err, context.DeadlineExceeded) {
 		if lastErr != nil {
-			return fmt.Errorf("timeout while waiting: %w", lastErr)
+			return fmt.Errorf("timeout while waiting: %w: %w", err, lastErr)
 		}
 		return err
 	}
 	if errors.Is(err, context.Canceled) {
 		if lastErr != nil {
-			return fmt.Errorf("context canceled: %w", lastErr)
+			return fmt.Errorf("context canceled: %w: %w", err, lastErr)
 		}
 		return err
 	}
@@ -192,7 +210,15 @@ func metakubeResourceClusterBelongsToProject(ctx context.Context, prj, id string
 }
 
 func MetakubeResourceClusterWaitForReady(ctx context.Context, k *MetaKubeProviderMeta, timeout time.Duration, projectID, clusterID, configuredVersion string) error {
-	return RetryContext(ctx, timeout, func() *RetryError {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	var lastObservation string
+	retry := func(message string) *RetryError {
+		lastObservation = message
+		return RetryableError(errors.New(message))
+	}
+	err := RetryContext(ctx, timeout, func() *RetryError {
 
 		p := project.NewGetClusterV2Params()
 		p.SetContext(ctx)
@@ -201,7 +227,10 @@ func MetakubeResourceClusterWaitForReady(ctx context.Context, k *MetaKubeProvide
 
 		cluster, err := k.Client.Project.GetClusterV2(p, k.Auth)
 		if err != nil {
-			return RetryableError(fmt.Errorf("unable to get cluster '%s': %s", clusterID, StringifyResponseError(err)))
+			if ctx.Err() != nil {
+				return RetryableError(ctx.Err())
+			}
+			return retry(fmt.Sprintf("Could not read the cluster status from MetaKube: %s", StringifyResponseError(err)))
 		}
 
 		p1 := project.NewGetClusterHealthV2Params()
@@ -211,25 +240,84 @@ func MetakubeResourceClusterWaitForReady(ctx context.Context, k *MetaKubeProvide
 
 		clusterHealth, err := k.Client.Project.GetClusterHealthV2(p1, k.Auth)
 		if err != nil {
-			return RetryableError(fmt.Errorf("unable to get cluster '%s' health: %s", clusterID, StringifyResponseError(err)))
+			if ctx.Err() != nil {
+				return RetryableError(ctx.Err())
+			}
+			return retry(fmt.Sprintf("Could not read the cluster health from MetaKube: %s", StringifyResponseError(err)))
+		}
+		if cluster.Payload == nil || clusterHealth.Payload == nil {
+			return retry("MetaKube returned no cluster status or health information.")
 		}
 
-		const up models.HealthStatus = 1
-		if clusterHealth.Payload.Apiserver == up &&
-			clusterHealth.Payload.CloudProviderInfrastructure == up &&
-			clusterHealth.Payload.Controller == up &&
-			clusterHealth.Payload.Etcd == up &&
-			clusterHealth.Payload.MachineController == up &&
-			clusterHealth.Payload.Scheduler == up &&
-			clusterHealth.Payload.UserClusterControllerManager == up {
-			if configuredVersion == "" {
-				return nil
-			} else if cluster.Payload.Status.Version == models.Semver(configuredVersion) {
-				return nil
+		var currentVersion models.Semver
+		if cluster.Payload.Status != nil {
+			currentVersion = cluster.Payload.Status.Version
+		}
+		issues := clusterHealthIssues(clusterHealth.Payload)
+		if configuredVersion != "" && currentVersion != models.Semver(configuredVersion) {
+			if currentVersion == "" {
+				issues = append(issues, fmt.Sprintf("- MetaKube has not reported the running Kubernetes version. Expected version: %s.", configuredVersion))
+			} else {
+				issues = append(issues, fmt.Sprintf("- The cluster reports Kubernetes version %s. Expected version: %s.", currentVersion, configuredVersion))
 			}
 		}
+		if len(issues) == 0 {
+			return nil
+		}
 
-		k.Log.Debugf("waiting for cluster '%s' to be ready, %+v", clusterID, clusterHealth.Payload)
-		return RetryableError(fmt.Errorf("waiting for cluster '%s' to be ready", clusterID))
+		k.Log.Debugf("waiting for cluster '%s' to be ready: health=%+v, current version=%q, target version=%q", clusterID, *clusterHealth.Payload, currentVersion, configuredVersion)
+		return retry("Last reported status:\n" + strings.Join(issues, "\n"))
 	})
+	if err == nil {
+		return nil
+	}
+
+	message := fmt.Sprintf("Could not confirm that cluster %q is ready.", clusterID)
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		message = fmt.Sprintf("Timed out waiting for cluster %q to become ready.", clusterID)
+	case errors.Is(err, context.Canceled):
+		message = fmt.Sprintf("Stopped waiting for cluster %q because the operation was canceled.", clusterID)
+	}
+	if lastObservation != "" {
+		message += "\n\n" + lastObservation
+	}
+	message += fmt.Sprintf("\n\nOpen this cluster in project %q in the MetaKube dashboard.\nCheck the Events tab for provisioning errors.", projectID)
+	if !errors.Is(err, context.Canceled) {
+		message += "\nIf the cluster does not become ready, contact your MetaKube administrator or SysEleven support." +
+			"\nInclude the cluster ID, project ID, and this error message."
+	}
+	return &clusterReadinessError{message: message, cause: err}
+}
+
+// clusterHealthIssues translates API health codes and lists only components that are not ready.
+func clusterHealthIssues(health *models.ClusterHealth) []string {
+	var issues []string
+	for _, component := range []struct {
+		name   string
+		status models.HealthStatus
+	}{
+		{"Cloud infrastructure", health.CloudProviderInfrastructure},
+		{"Kubernetes API server", health.Apiserver},
+		{"Kubernetes controller", health.Controller},
+		{"etcd", health.Etcd},
+		{"Machine controller", health.MachineController},
+		{"Kubernetes scheduler", health.Scheduler},
+		{"User cluster controller manager", health.UserClusterControllerManager},
+	} {
+		// MetaKube defines 0 as down, 1 as up, and 2 as provisioning.
+		var status string
+		switch component.status {
+		case 0:
+			status = "not ready"
+		case 1:
+			continue
+		case 2:
+			status = "provisioning"
+		default:
+			status = "unrecognized health status"
+		}
+		issues = append(issues, fmt.Sprintf("- %s: %s.", component.name, status))
+	}
+	return issues
 }
