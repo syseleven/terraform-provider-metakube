@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
@@ -46,6 +47,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 		ClusterVersion:                        os.Getenv(common.TestEnvK8sVersionOpenstack),
 		KubeletVersion:                        os.Getenv(common.TestEnvK8sOlderVersion),
 		NodeFlavor:                            os.Getenv(common.TestEnvOpenstackFlavor),
+		OSDistro:                              "ubuntu",
 		OSVersion:                             os.Getenv(common.TestEnvOpenstackImage),
 		Replicas:                              2,
 		LabelKey:                              "a",
@@ -467,6 +469,7 @@ type nodeDeploymentBasicData struct {
 	ClusterVersion            string
 	KubeletVersion            string
 	NodeFlavor                string
+	OSDistro                  string
 	OSVersion                 string
 	Replicas                  int
 	LabelKey                  string
@@ -491,6 +494,18 @@ type nodeDeploymentBasicData struct {
 	DistUpgradeOnBoot bool
 }
 
+// UseUbuntuSysext enables the annotation only for Ubuntu 24.04 or newer.
+func (d *nodeDeploymentBasicData) UseUbuntuSysext() bool {
+	if d.OSDistro != "ubuntu" {
+		return false
+	}
+	osVersion, err := version.NewVersion(d.OSVersion)
+	if err != nil {
+		return false
+	}
+	return osVersion.GreaterThanOrEqual(version.Must(version.NewVersion("24.04")))
+}
+
 var nodeDeploymentBasicTemplate = testutil.MustParseTemplate("nodeDeploymentBasic", `
 	{{ if not .MinimalConfig }}
 	terraform {
@@ -512,7 +527,7 @@ var nodeDeploymentBasicTemplate = testutil.MustParseTemplate("nodeDeploymentBasi
 
 		visibility = "public"
 		properties = {
-		  os_distro  = "ubuntu"
+		  os_distro  = "{{ .OSDistro }}"
 		  os_version = "{{ .OSVersion }}"
 		}
 	}
@@ -605,7 +620,7 @@ var nodeDeploymentBasicTemplate = testutil.MustParseTemplate("nodeDeploymentBasi
 					"{{ .NodeAnnotationKey }}" = "{{ .NodeAnnotationValue }}"
 				}
 				machine_annotations = {
-					{{ if ne .OSVersion "22.04" }}
+					{{ if .UseUbuntuSysext }}
 					"machines.metakube.syseleven.de/user-data-plugin" = "ubuntu-sysext"
 					{{ end }}
 					"{{ .MachineAnnotationKey }}" = "{{ .MachineAnnotationValue }}"
@@ -622,7 +637,7 @@ func nodeDeploymentMachineAnnotationsCheck(data *nodeDeploymentBasicData) knownv
 	annotations := map[string]knownvalue.Check{
 		data.MachineAnnotationKey: knownvalue.StringExact(data.MachineAnnotationValue),
 	}
-	if data.OSVersion != "22.04" {
+	if data.UseUbuntuSysext() {
 		annotations["machines.metakube.syseleven.de/user-data-plugin"] = knownvalue.StringExact("ubuntu-sysext")
 	}
 	return knownvalue.MapExact(annotations)
