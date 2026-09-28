@@ -211,10 +211,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 						})),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("machine_annotations"),
-						knownvalue.MapExact(map[string]knownvalue.Check{
-							"machines.metakube.syseleven.de/user-data-plugin": knownvalue.StringExact("ubuntu-sysext"),
-							data.MachineAnnotationKey:                         knownvalue.StringExact(data.MachineAnnotationValue),
-						})),
+						nodeDeploymentMachineAnnotationsCheck(data)),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("versions").AtSliceIndex(0).AtMapKey("kubelet"),
 						knownvalue.NotNull()),
@@ -318,10 +315,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 						})),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("machine_annotations"),
-						knownvalue.MapExact(map[string]knownvalue.Check{
-							"machines.metakube.syseleven.de/user-data-plugin": knownvalue.StringExact("ubuntu-sysext"),
-							data2.MachineAnnotationKey:                        knownvalue.StringExact(data2.MachineAnnotationValue),
-						})),
+						nodeDeploymentMachineAnnotationsCheck(&data2)),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("versions").AtSliceIndex(0).AtMapKey("kubelet"),
 						knownvalue.NotNull()),
@@ -414,10 +408,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 						})),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("machine_annotations"),
-						knownvalue.MapExact(map[string]knownvalue.Check{
-							"machines.metakube.syseleven.de/user-data-plugin": knownvalue.StringExact("ubuntu-sysext"),
-							data3.MachineAnnotationKey:                        knownvalue.StringExact(data3.MachineAnnotationValue),
-						})),
+						nodeDeploymentMachineAnnotationsCheck(&data3)),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("versions").AtSliceIndex(0).AtMapKey("kubelet"),
 						knownvalue.NotNull()),
@@ -532,9 +523,9 @@ var nodeDeploymentBasicTemplate = testutil.MustParseTemplate("nodeDeploymentBasi
 		dc_name = "{{ .DatacenterName }}"
 		project_id = "{{ .ProjectID }}"
 	timeouts {
-		create = "40m"
-		update = "40m"
-		delete = "40m"
+		create = "20m"
+		update = "20m"
+		delete = "20m"
 	}
 		spec = {
 			version = "{{ .ClusterVersion }}"
@@ -562,9 +553,9 @@ var nodeDeploymentBasicTemplate = testutil.MustParseTemplate("nodeDeploymentBasi
 		project_id = "{{ .ProjectID }}"
 		name = "{{ .Name }}"
 		timeouts {
-			create = "40m"
-			update = "40m"
-			delete = "40m"
+			create = "20m"
+			update = "20m"
+			delete = "20m"
 		}
 		spec {
 			replicas = {{ if .MinimalConfig }}1{{ else }}{{ .Replicas }}{{ end }}
@@ -614,7 +605,9 @@ var nodeDeploymentBasicTemplate = testutil.MustParseTemplate("nodeDeploymentBasi
 					"{{ .NodeAnnotationKey }}" = "{{ .NodeAnnotationValue }}"
 				}
 				machine_annotations = {
+					{{ if ne .OSVersion "22.04" }}
 					"machines.metakube.syseleven.de/user-data-plugin" = "ubuntu-sysext"
+					{{ end }}
 					"{{ .MachineAnnotationKey }}" = "{{ .MachineAnnotationValue }}"
 				}
 				{{ end }}
@@ -624,6 +617,16 @@ var nodeDeploymentBasicTemplate = testutil.MustParseTemplate("nodeDeploymentBasi
 			}
 		}
 	}`)
+
+func nodeDeploymentMachineAnnotationsCheck(data *nodeDeploymentBasicData) knownvalue.Check {
+	annotations := map[string]knownvalue.Check{
+		data.MachineAnnotationKey: knownvalue.StringExact(data.MachineAnnotationValue),
+	}
+	if data.OSVersion != "22.04" {
+		annotations["machines.metakube.syseleven.de/user-data-plugin"] = knownvalue.StringExact("ubuntu-sysext")
+	}
+	return knownvalue.MapExact(annotations)
+}
 
 func testAccCheckMetaKubeNodeDeploymentDestroy(s *terraform.State) error {
 	return nil
