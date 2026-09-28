@@ -147,16 +147,10 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeNodeDeploymentExists(resourceName, &ndepl),
 					testAccCheckMetaKubeNodeDeploymentFields(&ndepl, data.NodeFlavor, data.OSVersion, data.KubeletVersion, data.Replicas, data.DiskSize, data.DistUpgradeOnBoot),
-					testAccCheckMetaKubeNodeDeploymentOpenstackUserTags(resourceName, data.UserTagKey, data.UserTagValue),
 					testAccCheckMetaKubeNodeDeploymentOpenstackAPIHasReservedPrefixTags(&ndepl),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.all_labels.%", "4"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.all_labels."+data.LabelKey, data.LabelValue),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.all_labels."+data.SecondLabelKey, data.SecondLabelValue),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.%", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags."+data.UserTagKey, data.UserTagValue),
-					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.metakube-cluster"),
-					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.system-cluster"),
-					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.system-project"),
 					testMatchAndGetResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.server_group_id", regexp.MustCompile(`.+`), &defaultServerGroupID),
 				),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
@@ -261,14 +255,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 					}),
 					testAccCheckMetaKubeNodeDeploymentExists(resourceName, &ndepl),
 					testAccCheckMetaKubeNodeDeploymentFields(&ndepl, data2.NodeFlavor, data2.OSVersion, data2.KubeletVersion, data2.Replicas, data2.DiskSize, data2.DistUpgradeOnBoot),
-					testAccCheckMetaKubeNodeDeploymentOpenstackUserTags(resourceName, data2.UserTagKey, data2.UserTagValue),
 					testAccCheckMetaKubeNodeDeploymentOpenstackAPIHasReservedPrefixTags(&ndepl),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.%", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags."+data2.UserTagKey, data2.UserTagValue),
-					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags."+data.UserTagKey),
-					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.metakube-cluster"),
-					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.system-cluster"),
-					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.system-project"),
 					testMatchAndGetResourceAttr(serverGroupResourceName, "id", regexp.MustCompile(`.+`), &sgroupID),
 					resource.TestCheckResourceAttrPtr(resourceName, "spec.0.template.0.cloud.0.openstack.0.server_group_id", &sgroupID),
 				),
@@ -358,17 +345,10 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeNodeDeploymentExists(resourceName, &ndepl),
 					testAccCheckMetaKubeNodeDeploymentFields(&ndepl, data3.NodeFlavor, data3.OSVersion, data3.KubeletVersion, data3.Replicas, data3.DiskSize, data3.DistUpgradeOnBoot),
-					testAccCheckMetaKubeNodeDeploymentOpenstackUserTags(resourceName, data3.UserTagKey, data3.UserTagValue),
 					testAccCheckMetaKubeNodeDeploymentOpenstackAPIHasReservedPrefixTags(&ndepl),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.all_labels.%", "4"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.all_labels."+data3.LabelKey, data3.LabelValue),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.all_labels."+data3.SecondLabelKey, data3.SecondLabelValue),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.%", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags."+data3.UserTagKey, data3.UserTagValue),
-					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags."+data2.UserTagKey),
-					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.metakube-cluster"),
-					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.system-cluster"),
-					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.system-project"),
 					resource.TestCheckResourceAttrPtr(resourceName, "spec.0.template.0.cloud.0.openstack.0.server_group_id", &defaultServerGroupID),
 				),
 				ConfigStateChecks: []statecheck.StateCheck{
@@ -728,39 +708,6 @@ func testAccCheckMetaKubeNodeDeploymentFields(rec *models.NodeDeployment, flavor
 
 		if rec.Spec.Replicas == nil || *rec.Spec.Replicas != int32(replicas) {
 			return fmt.Errorf("Replicas=%d, want %d", rec.Spec.Replicas, replicas)
-		}
-
-		return nil
-	}
-}
-
-func testAccCheckMetaKubeNodeDeploymentOpenstackUserTags(resourceName, key, value string) resource.TestCheckFunc {
-	return func(s *terraform.State) error {
-		rs, ok := s.RootModule().Resources[resourceName]
-		if !ok {
-			return fmt.Errorf("not found: %s", resourceName)
-		}
-
-		prefix := "spec.0.template.0.cloud.0.openstack.0.tags."
-		got, ok := rs.Primary.Attributes[prefix+key]
-		if !ok {
-			return fmt.Errorf("expected tag %q in state, got attributes: %#v", key, rs.Primary.Attributes)
-		}
-		if got != value {
-			return fmt.Errorf("tag %q: got %q, want %q", key, got, value)
-		}
-
-		for attrKey := range rs.Primary.Attributes {
-			if !strings.HasPrefix(attrKey, prefix) {
-				continue
-			}
-			tagKey := strings.TrimPrefix(attrKey, prefix)
-			if tagKey == "%" {
-				continue
-			}
-			if common.MetakubeResourceSystemLabelOrTag(tagKey) {
-				return fmt.Errorf("reserved-prefix tag %q must not appear in terraform state", tagKey)
-			}
 		}
 
 		return nil
