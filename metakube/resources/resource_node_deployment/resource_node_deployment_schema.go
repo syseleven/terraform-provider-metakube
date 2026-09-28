@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
@@ -253,6 +254,9 @@ func nodeDeploymentSpecAttributes() map[string]schema.Attribute {
 			Optional:    true,
 			Computed:    true,
 			Description: "Number of replicas",
+			PlanModifiers: []planmodifier.Int64{
+				int64planmodifier.UseStateForUnknown(),
+			},
 		},
 		"min_replicas": schema.Int64Attribute{
 			Optional:    true,
@@ -261,12 +265,18 @@ func nodeDeploymentSpecAttributes() map[string]schema.Attribute {
 			Validators: []validator.Int64{
 				int64validator.AtLeast(0),
 			},
+			PlanModifiers: []planmodifier.Int64{
+				int64planmodifier.UseStateForUnknown(),
+			},
 		},
 		"max_replicas": schema.Int64Attribute{
 			Optional:    true,
 			Description: "Maximum number of replicas to scale up",
 			Validators: []validator.Int64{
 				int64validator.AtLeast(1),
+			},
+			PlanModifiers: []planmodifier.Int64{
+				int64planmodifier.UseStateForUnknown(),
 			},
 		},
 	}
@@ -297,6 +307,9 @@ func nodeSpecAttributes() map[string]schema.Attribute {
 			Validators: []validator.Map{
 				noSystemManagedKeysValidator(),
 			},
+			PlanModifiers: []planmodifier.Map{
+				mapplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"all_labels": schema.MapAttribute{
 			Computed:    true,
@@ -307,11 +320,17 @@ func nodeSpecAttributes() map[string]schema.Attribute {
 			Optional:    true,
 			ElementType: types.StringType,
 			Description: "Map of annotations to set on nodes.",
+			PlanModifiers: []planmodifier.Map{
+				mapplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"machine_annotations": schema.MapAttribute{
 			Optional:    true,
 			ElementType: types.StringType,
 			Description: "Map of annotations to set on machine objects.",
+			PlanModifiers: []planmodifier.Map{
+				mapplanmodifier.UseStateForUnknown(),
+			},
 		},
 	}
 }
@@ -433,6 +452,7 @@ func openstackCloudSpecAttributes() map[string]schema.Attribute {
 			},
 		},
 		"server_group_id": schema.StringAttribute{
+			// Do not UseStateForUnknown so the API can restore the cluster default.
 			Optional:    true,
 			Computed:    true,
 			Description: "Specifies the ID of the server group for nodes in the nodes deployment. Defaults to the cluster setting",

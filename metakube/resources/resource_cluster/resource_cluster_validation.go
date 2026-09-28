@@ -384,7 +384,7 @@ func getNetwork(ctx context.Context, k *common.MetaKubeProviderMeta, data metaku
 
 func findNetwork(list []*models.OpenstackNetwork, network string, external bool) *models.OpenstackNetwork {
 	for _, item := range list {
-		if item.Name == network && item.External == external {
+		if (item.ID == network || item.Name == network) && item.External == external {
 			return item
 		}
 	}
