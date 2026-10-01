@@ -164,15 +164,16 @@ resource "metakube_cluster_role_binding" "acctest" {
 	cluster_id = metakube_cluster.acctest.id
 	cluster_role_name = "{{ .ClusterRoleName }}"
 
-    subject {
-		kind = "user"
-		name = "{{ .UserSubjectName }}"
-	}
-
-    subject {
-		kind = "group"
-		name = "{{ .GroupSubjectName }}"
-	}
+	subject = [
+		{
+			kind = "user"
+			name = "{{ .UserSubjectName }}"
+		},
+		{
+			kind = "group"
+			name = "{{ .GroupSubjectName }}"
+		},
+	]
 }
 `).Execute(&result, params)
 	if err != nil {
