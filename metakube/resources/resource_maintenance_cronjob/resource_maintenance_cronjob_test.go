@@ -27,7 +27,7 @@ func TestAccMetakubeCluster_MaintenanceCronJob_Basic(t *testing.T) {
 	var maintenanceCronJob models.MaintenanceCronJob
 
 	clusterResourceName := "metakube_cluster.acctest"
-	rollbackPath := tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("maintenance_job_template").AtSliceIndex(0).AtMapKey("rollback")
+	rollbackPath := tfjsonpath.New("spec").AtMapKey("maintenance_job_template").AtMapKey("rollback")
 	resourceName := "metakube_maintenance_cron_job.acctest"
 	params := &testAccCheckMetaKubeMaintenanceCronJobBasicParams{
 		ClusterName:                          testutil.MakeRandomName() + "-maint-cron-job",
@@ -37,15 +37,14 @@ func TestAccMetakubeCluster_MaintenanceCronJob_Basic(t *testing.T) {
 		OpenstackApplicationCredentialID:     common.GetSACredentialId(),
 		OpenstackApplicationCredentialSecret: os.Getenv(common.TestEnvServiceAccountCredential),
 
-		MaintenanceCronJobName:     testutil.RandomName("test-maintenancecronjob", 5),
-		MaintenanceJobTemplateName: testutil.RandomName("test-maintenancecronjob-template", 5),
-		MaintenanceJobType:         "kubernetesPatchUpdate",
-		Schedule:                   "5 4 * * *",
-		UpdatedSchedule:            "0 2 * * *",
-		OptionKey:                  "create",
-		OptionValue:                "initial",
-		UpdatedOptionKey:           "update",
-		UpdatedOptionValue:         "changed",
+		MaintenanceCronJobName: testutil.RandomName("test-maintenancecronjob", 5),
+		MaintenanceJobType:     "kubernetesPatchUpdate",
+		Schedule:               "5 4 * * *",
+		UpdatedSchedule:        "0 2 * * *",
+		OptionKey:              "create",
+		OptionValue:            "initial",
+		UpdatedOptionKey:       "update",
+		UpdatedOptionValue:     "changed",
 	}
 
 	resource.Test(t, resource.TestCase{
@@ -84,11 +83,11 @@ func TestAccMetakubeCluster_MaintenanceCronJob_Basic(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("creation_timestamp"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("deletion_timestamp"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName,
-						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("maintenance_job_template").AtSliceIndex(0).AtMapKey("rollback"),
+						tfjsonpath.New("spec").AtMapKey("maintenance_job_template").AtMapKey("rollback"),
 						knownvalue.Bool(false),
 					),
 					statecheck.ExpectKnownValue(resourceName,
-						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("maintenance_job_template").AtSliceIndex(0).AtMapKey("options").AtSliceIndex(0).AtMapKey("options"),
+						tfjsonpath.New("spec").AtMapKey("maintenance_job_template").AtMapKey("options").AtMapKey("options"),
 						knownvalue.MapExact(map[string]knownvalue.Check{
 							params.OptionKey: knownvalue.StringExact(params.OptionValue),
 						}),
@@ -124,11 +123,11 @@ func TestAccMetakubeCluster_MaintenanceCronJob_Basic(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("creation_timestamp"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("deletion_timestamp"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName,
-						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("maintenance_job_template").AtSliceIndex(0).AtMapKey("rollback"),
+						tfjsonpath.New("spec").AtMapKey("maintenance_job_template").AtMapKey("rollback"),
 						knownvalue.Bool(false),
 					),
 					statecheck.ExpectKnownValue(resourceName,
-						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("maintenance_job_template").AtSliceIndex(0).AtMapKey("options").AtSliceIndex(0).AtMapKey("options"),
+						tfjsonpath.New("spec").AtMapKey("maintenance_job_template").AtMapKey("options").AtMapKey("options"),
 						knownvalue.MapExact(map[string]knownvalue.Check{
 							params.UpdatedOptionKey: knownvalue.StringExact(params.UpdatedOptionValue),
 						}),
@@ -162,15 +161,14 @@ type testAccCheckMetaKubeMaintenanceCronJobBasicParams struct {
 	OpenstackApplicationCredentialID     string
 	OpenstackApplicationCredentialSecret string
 
-	MaintenanceCronJobName     string
-	MaintenanceJobTemplateName string
-	MaintenanceJobType         string
-	Schedule                   string
-	UpdatedSchedule            string
-	OptionKey                  string
-	OptionValue                string
-	UpdatedOptionKey           string
-	UpdatedOptionValue         string
+	MaintenanceCronJobName string
+	MaintenanceJobType     string
+	Schedule               string
+	UpdatedSchedule        string
+	OptionKey              string
+	OptionValue            string
+	UpdatedOptionKey       string
+	UpdatedOptionValue     string
 }
 
 func testAccCheckMetaKubeMaintenanceCronJobBasicConfig(t *testing.T, params *testAccCheckMetaKubeMaintenanceCronJobBasicParams) string {
@@ -201,11 +199,11 @@ func testAccCheckMetaKubeMaintenanceCronJobBasicConfig(t *testing.T, params *tes
 		name = "{{ .MaintenanceCronJobName }}"
 		project_id = "{{ .ProjectID }}"
 
-		spec {
+		spec = {
 			schedule		= "{{ .Schedule }}"
-			maintenance_job_template {
+			maintenance_job_template = {
 				type		= "{{ .MaintenanceJobType }}"
-				options {
+				options = {
 					options = {
 						"{{ .OptionKey }}" = "{{ .OptionValue }}"
 					}
@@ -248,11 +246,11 @@ func testAccCheckMetaKubeMaintenanceCronJobUpdateConfig(t *testing.T, params *te
 		name = "{{ .MaintenanceCronJobName }}"
 		project_id = "{{ .ProjectID }}"
 
-		spec {
+		spec = {
 			schedule		= "{{ .UpdatedSchedule }}"
-			maintenance_job_template {
+			maintenance_job_template = {
 				type		= "{{ .MaintenanceJobType }}"
-				options {
+				options = {
 					options = {
 						"{{ .UpdatedOptionKey }}" = "{{ .UpdatedOptionValue }}"
 					}

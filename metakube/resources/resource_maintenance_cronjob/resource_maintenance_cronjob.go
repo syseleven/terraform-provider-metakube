@@ -19,9 +19,10 @@ import (
 )
 
 var (
-	_ resource.Resource                = &metakubeMaintenanceCronJob{}
-	_ resource.ResourceWithConfigure   = &metakubeMaintenanceCronJob{}
-	_ resource.ResourceWithImportState = &metakubeMaintenanceCronJob{}
+	_ resource.Resource                 = &metakubeMaintenanceCronJob{}
+	_ resource.ResourceWithConfigure    = &metakubeMaintenanceCronJob{}
+	_ resource.ResourceWithImportState  = &metakubeMaintenanceCronJob{}
+	_ resource.ResourceWithUpgradeState = &metakubeMaintenanceCronJob{}
 )
 
 func NewMaintenanceCronJob() resource.Resource {
@@ -92,9 +93,15 @@ func (r *metakubeMaintenanceCronJob) Create(ctx context.Context, req resource.Cr
 		}
 	}
 
+	desiredSpec, diags := metakubeMaintenanceCronJobExpandSpec(ctx, plan.Spec)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	maintenanceCronJob := &models.MaintenanceCronJob{
 		Name: plan.Name.ValueString(),
-		Spec: metakubeMaintenanceCronJobExpandSpec(ctx, plan.Spec),
+		Spec: desiredSpec,
 	}
 
 	if err := common.MetakubeResourceClusterWaitForReady(ctx, r.meta, createTimeout, projectID, clusterID, ""); err != nil {
@@ -234,7 +241,12 @@ func (r *metakubeMaintenanceCronJob) Update(ctx context.Context, req resource.Up
 	clusterID := plan.ClusterID.ValueString()
 	cronJobID := plan.ID.ValueString()
 
-	if metakubeMaintenanceCronJobOptionsChanged(ctx, plan.Spec, state.Spec) {
+	optionsChanged, diags := metakubeMaintenanceCronJobOptionsChanged(ctx, plan.Spec, state.Spec)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if optionsChanged {
 		diags := r.replaceMaintenanceCronJob(ctx, &plan, projectID, clusterID, cronJobID, updateTimeout)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
@@ -246,8 +258,13 @@ func (r *metakubeMaintenanceCronJob) Update(ctx context.Context, req resource.Up
 		return
 	}
 
-	patchBody := metakubeMaintenanceCronJobBuildPatch(ctx, plan.Spec)
-	desiredSpec := metakubeMaintenanceCronJobExpandSpec(ctx, plan.Spec)
+	patchBody, diags := metakubeMaintenanceCronJobBuildPatch(ctx, plan.Spec)
+	resp.Diagnostics.Append(diags...)
+	desiredSpec, diags := metakubeMaintenanceCronJobExpandSpec(ctx, plan.Spec)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	p := project.NewPatchMaintenanceCronJobParams().
 		WithContext(ctx).
@@ -373,7 +390,10 @@ func maintenanceCronJobPatchClientOption(op *runtime.ClientOperation) {
 }
 
 func (r *metakubeMaintenanceCronJob) replaceMaintenanceCronJob(ctx context.Context, plan *MaintenanceCronJobModel, projectID, clusterID, cronJobID string, timeout time.Duration) diag.Diagnostics {
-	var diags diag.Diagnostics
+	desiredSpec, diags := metakubeMaintenanceCronJobExpandSpec(ctx, plan.Spec)
+	if diags.HasError() {
+		return diags
+	}
 
 	deleteParams := project.NewDeleteMaintenanceCronJobParams().
 		WithProjectID(projectID).
@@ -419,7 +439,7 @@ func (r *metakubeMaintenanceCronJob) replaceMaintenanceCronJob(ctx context.Conte
 
 	maintenanceCronJob := &models.MaintenanceCronJob{
 		Name: plan.Name.ValueString(),
-		Spec: metakubeMaintenanceCronJobExpandSpec(ctx, plan.Spec),
+		Spec: desiredSpec,
 	}
 
 	createParams := project.NewCreateMaintenanceCronJobParams().
