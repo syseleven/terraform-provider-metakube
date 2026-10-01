@@ -16,21 +16,24 @@ resource "metakube_role_binding" "example" {
   role_name = "kube-admin"
   namespace = "kube-system"
   
-  subject {
-    kind = "user"
-    name = "foo@example.com"
-  }
-  
-  subject {
-    kind = "group"
-    name = "SRE-team"
-  }
+  subject = [
+    {
+      kind = "user"
+      name = "foo@example.com"
+    },
+    {
+      kind = "group"
+      name = "SRE-team"
+    },
+  ]
 
   timeouts {
     create = "5m"
   }
 }
 ```
+
+The `subject` attribute uses `subject = [{ ... }]` syntax. See the [nested attribute migration guide](../guides/nested-attributes-migration.md) when upgrading an existing configuration.
 
 ## Argument Reference
 
@@ -42,7 +45,7 @@ The following arguments are supported:
 * `role_name` - (Required) The name of the role in the namespace to bind to.
 * `subject` - (Required) List of users and groups to bind cluster role to. At least one subject must be specified.
 
-## Nested Blocks
+## Nested Attributes
 
 ### `subject`
 
@@ -50,6 +53,8 @@ The following arguments are supported:
 
 * `kind` - (Required) Either 'group' or 'user'.
 * `name` - (Optional) Name of the group or user's email.
+
+## Timeout Block
 
 ### `timeouts`
 

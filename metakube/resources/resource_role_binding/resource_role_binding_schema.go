@@ -6,7 +6,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -16,14 +15,11 @@ import (
 )
 
 func RoleBindingSchema(ctx context.Context) schema.Schema {
-	blocks := metakubeRoleBindingSubjectBlock()
-	blocks["timeouts"] = timeouts.Block(ctx, timeouts.Opts{
-		Create: true,
-	})
-
 	return schema.Schema{
 		Attributes: metakubeRoleBindingAttributes(),
-		Blocks:     blocks,
+		Blocks: map[string]schema.Block{
+			"timeouts": timeouts.Block(ctx, timeouts.Opts{Create: true}),
+		},
 	}
 }
 
@@ -38,17 +34,10 @@ type RoleBindingModel struct {
 	Timeouts  timeouts.Value `tfsdk:"timeouts"`
 }
 
-// SubjectModel represents the subject block.
+// SubjectModel represents one subject in the subject attribute.
 type SubjectModel struct {
 	Kind types.String `tfsdk:"kind"`
 	Name types.String `tfsdk:"name"`
-}
-
-func metakubeSubjectAttrTypes() map[string]attr.Type {
-	return map[string]attr.Type{
-		"kind": types.StringType,
-		"name": types.StringType,
-	}
 }
 
 func metakubeRoleBindingAttributes() map[string]schema.Attribute {
@@ -97,12 +86,8 @@ func metakubeRoleBindingAttributes() map[string]schema.Attribute {
 			},
 			Description: "The name of the role to bind to",
 		},
-	}
-}
-
-func metakubeRoleBindingSubjectBlock() map[string]schema.Block {
-	return map[string]schema.Block{
-		"subject": schema.ListNestedBlock{
+		"subject": schema.ListNestedAttribute{
+			Required: true,
 			Validators: []validator.List{
 				listvalidator.SizeAtLeast(1),
 			},
@@ -110,7 +95,7 @@ func metakubeRoleBindingSubjectBlock() map[string]schema.Block {
 				listplanmodifier.RequiresReplace(),
 			},
 			Description: "Users and groups to bind for",
-			NestedObject: schema.NestedBlockObject{
+			NestedObject: schema.NestedAttributeObject{
 				Attributes: map[string]schema.Attribute{
 					"kind": schema.StringAttribute{
 						Required:    true,
