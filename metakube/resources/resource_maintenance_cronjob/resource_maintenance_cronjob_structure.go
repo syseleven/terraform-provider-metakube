@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/syseleven/go-metakube/models"
+	"github.com/syseleven/terraform-provider-metakube/metakube/common"
 )
 
 // flatteners
@@ -16,13 +17,16 @@ func metakubeMaintenanceCronJobFlattenSpec(ctx context.Context, model *Maintenan
 	var diags diag.Diagnostics
 
 	if in == nil {
-		model.Spec = types.ListNull(types.ObjectType{AttrTypes: specAttrTypes()})
+		model.Spec = types.ObjectNull(specAttrTypes())
 		return diags
 	}
 
-	specModel := SpecModel{
-		Schedule: types.StringValue(in.Schedule),
+	specModel, d := common.ObjectAs[SpecModel](ctx, model.Spec)
+	diags.Append(d...)
+	if diags.HasError() {
+		return diags
 	}
+	specModel.Schedule = types.StringValue(in.Schedule)
 
 	diags.Append(metakubeMaintenanceCronJobFlattenMaintenanceJobTemplate(ctx, &specModel, in.MaintenanceJobTemplate)...)
 	if diags.HasError() {
@@ -35,9 +39,7 @@ func metakubeMaintenanceCronJobFlattenSpec(ctx context.Context, model *Maintenan
 		return diags
 	}
 
-	specList, d := types.ListValue(types.ObjectType{AttrTypes: specAttrTypes()}, []attr.Value{specObj})
-	diags.Append(d...)
-	model.Spec = specList
+	model.Spec = specObj
 
 	return diags
 }
@@ -46,14 +48,17 @@ func metakubeMaintenanceCronJobFlattenMaintenanceJobTemplate(ctx context.Context
 	var diags diag.Diagnostics
 
 	if in == nil {
-		specModel.MaintenanceJobTemplate = types.ListNull(types.ObjectType{AttrTypes: maintenanceJobTemplateAttrTypes()})
+		specModel.MaintenanceJobTemplate = types.ObjectNull(maintenanceJobTemplateAttrTypes())
 		return diags
 	}
 
-	tmplModel := MaintenanceJobTemplateModel{
-		Rollback: types.BoolValue(in.Rollback),
-		Type:     types.StringValue(in.Type),
+	tmplModel, d := common.ObjectAs[MaintenanceJobTemplateModel](ctx, specModel.MaintenanceJobTemplate)
+	diags.Append(d...)
+	if diags.HasError() {
+		return diags
 	}
+	tmplModel.Rollback = types.BoolValue(in.Rollback)
+	tmplModel.Type = types.StringValue(in.Type)
 
 	diags.Append(metakubeMaintenanceCronJobFlattenOptions(ctx, &tmplModel, in.Options)...)
 	if diags.HasError() {
@@ -66,9 +71,7 @@ func metakubeMaintenanceCronJobFlattenMaintenanceJobTemplate(ctx context.Context
 		return diags
 	}
 
-	tmplList, d := types.ListValue(types.ObjectType{AttrTypes: maintenanceJobTemplateAttrTypes()}, []attr.Value{tmplObj})
-	diags.Append(d...)
-	specModel.MaintenanceJobTemplate = tmplList
+	specModel.MaintenanceJobTemplate = tmplObj
 
 	return diags
 }
@@ -77,8 +80,20 @@ func metakubeMaintenanceCronJobFlattenOptions(ctx context.Context, tmplModel *Ma
 	var diags diag.Diagnostics
 
 	if len(in) == 0 {
-		tmplModel.Options = types.ListNull(types.ObjectType{AttrTypes: optionsBlockAttrTypes()})
-		return diags
+		if tmplModel.Options.IsNull() || tmplModel.Options.IsUnknown() {
+			tmplModel.Options = types.ObjectNull(optionsAttrTypes())
+			return diags
+		}
+		previous, d := common.ObjectAs[OptionsModel](ctx, tmplModel.Options)
+		diags.Append(d...)
+		if diags.HasError() {
+			return diags
+		}
+		// The API represents omitted and explicitly empty options identically.
+		// Keep the configured empty shape, but never retain removed map entries.
+		if !previous.Options.IsUnknown() && len(previous.Options.Elements()) == 0 {
+			return diags
+		}
 	}
 
 	optionsMap := make(map[string]attr.Value, len(in))
@@ -92,62 +107,53 @@ func metakubeMaintenanceCronJobFlattenOptions(ctx context.Context, tmplModel *Ma
 		return diags
 	}
 
-	optionsBlockModel := OptionsBlockModel{
+	optionsModel := OptionsModel{
 		Options: mapVal,
 	}
 
-	optObj, d := types.ObjectValueFrom(ctx, optionsBlockAttrTypes(), optionsBlockModel)
+	optObj, d := types.ObjectValueFrom(ctx, optionsAttrTypes(), optionsModel)
 	diags.Append(d...)
 	if diags.HasError() {
 		return diags
 	}
 
-	optList, d := types.ListValue(types.ObjectType{AttrTypes: optionsBlockAttrTypes()}, []attr.Value{optObj})
-	diags.Append(d...)
-	tmplModel.Options = optList
+	tmplModel.Options = optObj
 
 	return diags
 }
 
-// metakubeMaintenanceCronJobBuildPatch builds a map[string]any patch from the plan spec.
-func metakubeMaintenanceCronJobBuildPatch(ctx context.Context, planSpecList types.List) map[string]any {
-	if planSpecList.IsNull() || planSpecList.IsUnknown() || len(planSpecList.Elements()) == 0 {
-		return map[string]any{}
+// metakubeMaintenanceCronJobBuildPatch builds a merge patch from the plan spec.
+func metakubeMaintenanceCronJobBuildPatch(ctx context.Context, value types.Object) (map[string]any, diag.Diagnostics) {
+	spec, diags := metakubeMaintenanceCronJobExpandSpec(ctx, value)
+	if diags.HasError() || spec == nil {
+		return nil, diags
 	}
-
-	var specModels []SpecModel
-	if diags := planSpecList.ElementsAs(ctx, &specModels, false); diags.HasError() || len(specModels) == 0 {
-		return map[string]any{}
-	}
-
-	spec := specModels[0]
 
 	tmpl := map[string]any{}
-	if !spec.MaintenanceJobTemplate.IsNull() && !spec.MaintenanceJobTemplate.IsUnknown() {
-		var tmplModels []MaintenanceJobTemplateModel
-		if diags := spec.MaintenanceJobTemplate.ElementsAs(ctx, &tmplModels, false); diags == nil || !diags.HasError() {
-			if len(tmplModels) > 0 {
-				t := tmplModels[0]
-				tmpl["type"] = t.Type.ValueString()
-				tmpl["rollback"] = t.Rollback.ValueBool()
-				if opts := metakubeMaintenanceCronJobExpandOptions(ctx, t.Options); opts != nil {
-					tmpl["options"] = opts
-				}
-			}
+	if spec.MaintenanceJobTemplate != nil {
+		t := spec.MaintenanceJobTemplate
+		tmpl["type"] = t.Type
+		tmpl["rollback"] = t.Rollback
+		if t.Options != nil {
+			tmpl["options"] = t.Options
 		}
 	}
 
 	return map[string]any{
 		"spec": map[string]any{
-			"schedule":               spec.Schedule.ValueString(),
+			"schedule":               spec.Schedule,
 			"maintenanceJobTemplate": tmpl,
 		},
-	}
+	}, diags
 }
 
-func metakubeMaintenanceCronJobOptionsChanged(ctx context.Context, planSpecList, stateSpecList types.List) bool {
-	planSpec := metakubeMaintenanceCronJobExpandSpec(ctx, planSpecList)
-	stateSpec := metakubeMaintenanceCronJobExpandSpec(ctx, stateSpecList)
+func metakubeMaintenanceCronJobOptionsChanged(ctx context.Context, planValue, stateValue types.Object) (bool, diag.Diagnostics) {
+	planSpec, diags := metakubeMaintenanceCronJobExpandSpec(ctx, planValue)
+	stateSpec, d := metakubeMaintenanceCronJobExpandSpec(ctx, stateValue)
+	diags.Append(d...)
+	if diags.HasError() {
+		return false, diags
+	}
 
 	var planOptions, stateOptions map[string]string
 	if planSpec != nil && planSpec.MaintenanceJobTemplate != nil {
@@ -157,73 +163,63 @@ func metakubeMaintenanceCronJobOptionsChanged(ctx context.Context, planSpecList,
 		stateOptions = stateSpec.MaintenanceJobTemplate.Options
 	}
 
-	return !maps.Equal(planOptions, stateOptions)
+	return !maps.Equal(planOptions, stateOptions), diags
 }
 
 // expanders
 
-func metakubeMaintenanceCronJobExpandSpec(ctx context.Context, specList types.List) *models.MaintenanceCronJobSpec {
-	if specList.IsNull() || specList.IsUnknown() || len(specList.Elements()) == 0 {
-		return nil
+func metakubeMaintenanceCronJobExpandSpec(ctx context.Context, value types.Object) (*models.MaintenanceCronJobSpec, diag.Diagnostics) {
+	if value.IsNull() || value.IsUnknown() {
+		return nil, nil
 	}
 
-	var specModels []SpecModel
-	if diags := specList.ElementsAs(ctx, &specModels, false); diags.HasError() || len(specModels) == 0 {
-		return nil
+	spec, diags := common.ObjectAs[SpecModel](ctx, value)
+	if diags.HasError() {
+		return nil, diags
 	}
 
-	spec := specModels[0]
-	obj := &models.MaintenanceCronJobSpec{
-		Schedule: spec.Schedule.ValueString(),
+	template, d := metakubeMaintenanceCronJobExpandMaintenanceJobTemplate(ctx, spec.MaintenanceJobTemplate)
+	diags.Append(d...)
+	if diags.HasError() {
+		return nil, diags
 	}
 
-	obj.MaintenanceJobTemplate = metakubeMaintenanceCronJobExpandMaintenanceJobTemplate(ctx, spec.MaintenanceJobTemplate)
-
-	return obj
+	return &models.MaintenanceCronJobSpec{
+		Schedule:               spec.Schedule.ValueString(),
+		MaintenanceJobTemplate: template,
+	}, diags
 }
 
-func metakubeMaintenanceCronJobExpandMaintenanceJobTemplate(ctx context.Context, tmplList types.List) *models.MaintenanceJobTemplate {
-	if tmplList.IsNull() || tmplList.IsUnknown() || len(tmplList.Elements()) == 0 {
-		return nil
+func metakubeMaintenanceCronJobExpandMaintenanceJobTemplate(ctx context.Context, value types.Object) (*models.MaintenanceJobTemplate, diag.Diagnostics) {
+	if value.IsNull() || value.IsUnknown() {
+		return nil, nil
 	}
 
-	var tmplModels []MaintenanceJobTemplateModel
-	if diags := tmplList.ElementsAs(ctx, &tmplModels, false); diags.HasError() || len(tmplModels) == 0 {
-		return nil
+	tmpl, diags := common.ObjectAs[MaintenanceJobTemplateModel](ctx, value)
+	if diags.HasError() {
+		return nil, diags
 	}
 
-	tmpl := tmplModels[0]
-	obj := &models.MaintenanceJobTemplate{
+	options, d := metakubeMaintenanceCronJobExpandOptions(ctx, tmpl.Options)
+	diags.Append(d...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	return &models.MaintenanceJobTemplate{
 		Rollback: tmpl.Rollback.ValueBool(),
 		Type:     tmpl.Type.ValueString(),
-	}
-
-	obj.Options = metakubeMaintenanceCronJobExpandOptions(ctx, tmpl.Options)
-
-	return obj
+		Options:  options,
+	}, diags
 }
 
-func metakubeMaintenanceCronJobExpandOptions(ctx context.Context, optionsList types.List) map[string]string {
-	if optionsList.IsNull() || optionsList.IsUnknown() || len(optionsList.Elements()) == 0 {
-		return nil
+func metakubeMaintenanceCronJobExpandOptions(ctx context.Context, value types.Object) (map[string]string, diag.Diagnostics) {
+	opts, diags := common.ObjectAs[OptionsModel](ctx, value)
+	if diags.HasError() || opts.Options.IsNull() || opts.Options.IsUnknown() {
+		return nil, diags
 	}
 
-	var optModels []OptionsBlockModel
-	if diags := optionsList.ElementsAs(ctx, &optModels, false); diags.HasError() || len(optModels) == 0 {
-		return nil
-	}
-
-	opts := optModels[0]
-	if opts.Options.IsNull() || opts.Options.IsUnknown() {
-		return nil
-	}
-
-	result := make(map[string]string)
-	for k, v := range opts.Options.Elements() {
-		if sv, ok := v.(types.String); ok {
-			result[k] = sv.ValueString()
-		}
-	}
-
-	return result
+	var result map[string]string
+	diags.Append(opts.Options.ElementsAs(ctx, &result, false)...)
+	return result, diags
 }

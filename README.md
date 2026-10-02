@@ -2,6 +2,7 @@
 
 - Documentation: https://registry.terraform.io/providers/syseleven/metakube/latest/docs
 - Check the [examples](./examples) for quick start.
+- When upgrading from block-based resource configuration, see the [nested attribute migration guide](docs/guides/nested-attributes-migration.md).
 
 ## Overview
 

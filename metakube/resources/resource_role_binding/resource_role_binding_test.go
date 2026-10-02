@@ -161,15 +161,16 @@ resource "metakube_role_binding" "acctest" {
     namespace = "{{ .Namespace }}"
 	role_name = "{{ .RoleName }}"
 
-    subject {
-		kind = "user"
-		name = "{{ .UserSubjectName }}"
-	}
-
-    subject {
-		kind = "group"
-		name = "{{ .GroupSubjectName }}"
-	}
+	subject = [
+		{
+			kind = "user"
+			name = "{{ .UserSubjectName }}"
+		},
+		{
+			kind = "group"
+			name = "{{ .GroupSubjectName }}"
+		},
+	]
 }
 `).Execute(&result, params)
 	if err != nil {
