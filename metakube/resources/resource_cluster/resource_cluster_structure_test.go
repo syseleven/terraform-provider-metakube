@@ -93,6 +93,41 @@ func TestClusterStateValuesAreExplicitlyReconciled(t *testing.T) {
 	}
 }
 
+func TestCiliumBPFLbSockHostnsOnlyConversion(t *testing.T) {
+	ctx := context.Background()
+	input := &models.ClusterSpec{
+		Version: "1.32.0",
+		CniPlugin: &models.CNIPluginSettings{
+			Type:   "cilium",
+			Cilium: &models.CiliumCNISettings{BpfLbSockHostnsOnly: true},
+		},
+	}
+
+	resourceModel := ClusterModel{}
+	diags := metakubeResourceClusterFlattenSpec(ctx, &resourceModel, input)
+	if diags.HasError() {
+		t.Fatal(diags)
+	}
+
+	spec, ok := getClusterSpecModel(ctx, &resourceModel)
+	if !ok {
+		t.Fatal("spec was not flattened")
+	}
+	cni := objectModel[CNIPluginModel](t, spec.CNIPlugin)
+	cilium := objectModel[CiliumModel](t, cni.Cilium)
+	if !cilium.BPFLbSockHostnsOnly.ValueBool() {
+		t.Fatalf("expected bpf_lb_sock_hostns_only=true after flatten, got %#v", cilium)
+	}
+
+	output := metakubeResourceClusterExpandSpec(ctx, &resourceModel, "dc-1", func(string) bool { return true })
+	if output.CniPlugin == nil || output.CniPlugin.Cilium == nil {
+		t.Fatalf("unexpected expanded cni plugin: %#v", output.CniPlugin)
+	}
+	if !output.CniPlugin.Cilium.BpfLbSockHostnsOnly {
+		t.Fatalf("expected expanded bpfLbSockHostnsOnly=true, got %#v", output.CniPlugin.Cilium)
+	}
+}
+
 func TestBuildClusterPatch(t *testing.T) {
 	t.Run("map deletion uses JSON merge patch null", func(t *testing.T) {
 		spec := objectValue(t, clusterSpecAttrTypes(), baseClusterSpec(types.ObjectNull(clusterCloudSpecAttrTypes())))
@@ -132,6 +167,26 @@ func TestBuildClusterPatch(t *testing.T) {
 		specPatch := patch["spec"].(map[string]any)
 		if got := specPatch["usePodNodeSelectorAdmissionPlugin"]; got != false {
 			t.Fatalf("expected explicit false, got %#v", got)
+		}
+	})
+
+	t.Run("cilium bpf_lb_sock_hostns_only change is patched", func(t *testing.T) {
+		stateSpec := baseClusterSpec(types.ObjectNull(clusterCloudSpecAttrTypes()))
+		stateSpec.CNIPlugin = cniPluginCiliumValue(t, false)
+		planSpec := baseClusterSpec(types.ObjectNull(clusterCloudSpecAttrTypes()))
+		planSpec.CNIPlugin = cniPluginCiliumValue(t, true)
+		state := clusterModel(t, stateSpec)
+		plan := clusterModel(t, planSpec)
+
+		patch, diags := buildClusterPatch(context.Background(), plan, state)
+		if diags.HasError() {
+			t.Fatal(diags)
+		}
+		specPatch := patch["spec"].(map[string]any)
+		cniPatch := specPatch["cniPlugin"].(map[string]any)
+		ciliumPatch := cniPatch["cilium"].(map[string]any)
+		if got := ciliumPatch["bpfLbSockHostnsOnly"]; got != true {
+			t.Fatalf("expected explicit true, got %#v", ciliumPatch)
 		}
 	})
 
@@ -177,6 +232,20 @@ func TestUpgradeClusterLegacyNestedSpecState(t *testing.T) {
 	if _, ok := openstack["application_credentials"].(map[string]any); !ok {
 		t.Fatalf("credentials were not upgraded: %#v", openstack)
 	}
+}
+
+func cniPluginCiliumValue(t *testing.T, bpfLbSockHostnsOnly bool) types.Object {
+	t.Helper()
+	cilium := objectValue(t, ciliumAttrTypes(), CiliumModel{
+		Clustermesh:         types.ObjectNull(ciliumClustermeshAttrTypes()),
+		EnableHubble:        types.BoolValue(false),
+		EnableL7Proxy:       types.BoolValue(false),
+		BPFLbSockHostnsOnly: types.BoolValue(bpfLbSockHostnsOnly),
+	})
+	return objectValue(t, cniPluginAttrTypes(), CNIPluginModel{
+		Type:   types.StringValue("cilium"),
+		Cilium: cilium,
+	})
 }
 
 func baseClusterSpec(cloud types.Object) ClusterSpecModel {
