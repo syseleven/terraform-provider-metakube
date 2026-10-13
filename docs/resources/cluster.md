@@ -180,6 +180,8 @@ When using password based auth
 
 Openstack user credentials.
 
+Either this or `application_credentials` is needed in the old regions (cbk/dbl/fes). In the new regions, Openstack credentials for a cluster are managed automatically by Metakube, and this field will be ignored if set.
+
 #### Arguments
 * `project_id` - (Required) The id of project to use for billing. You can set it using environment variable `OS_PROJECT_ID`.
 * `project_name` - (Optional) _Deprecated: use project_id or switch to application_credentials_ The name of openstack project. You can set it using environment variable `OS_PROJECT_NAME`.
@@ -189,6 +191,8 @@ Openstack user credentials.
 ### `application_credentials`
 
 Openstack Application Credentials.
+
+Either this or `user_credentials` is needed in the old regions (cbk/dbl/fes). In the new regions, Openstack credentials for a cluster are managed automatically by Metakube, and this field will be ignored if set.
 
 #### Arguments
 * `id` - (Required) Application Credentials id to use. You can set it using environment variable `OS_APPLICATION_CREDENTIAL_ID`.
