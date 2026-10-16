@@ -27,6 +27,8 @@ type metakubeResourceClusterOpenstackValidationData struct {
 	applicationCredentialsSecret *string
 	network                      *string
 	subnetID                     *string
+	subnetV6ID                   *string
+	podSubnetV6ID                *string
 }
 
 type metakubeResourceClusterGeneralOpenstackRequestParams interface {
@@ -104,6 +106,8 @@ func newOpenstackValidationData(ctx context.Context, model *ClusterModel) metaku
 
 	data.network = stringValueToPtr(os.Network)
 	data.subnetID = stringValueToPtr(os.SubnetID)
+	data.subnetV6ID = stringValueToPtr(os.SubnetV6ID)
+	data.podSubnetV6ID = stringValueToPtr(os.PodSubnetV6ID)
 
 	if !os.UserCredentials.IsNull() && !os.UserCredentials.IsUnknown() {
 		var uc OpenstackUserCredentialsModel
@@ -150,7 +154,7 @@ func metakubeResourceClusterValidateClusterFields(ctx context.Context, model *Cl
 	if data.canValidateAgainstOpenstack() {
 		ret.Append(metakubeResourceClusterValidateFloatingIPPool(ctx, model, k)...)
 		ret.Append(metakubeResourceClusterValidateOpenstackNetwork(ctx, model, k)...)
-		ret.Append(diagnoseOpenstackSubnetWithIDExistsIfSet(ctx, model, k)...)
+		ret.Append(diagnoseOpenstackSubnets(ctx, model, k)...)
 	}
 	ret.Append(metakubeResourceClusterValidateAccessCredentialsSet(ctx, model)...)
 	return ret
@@ -311,35 +315,55 @@ func metakubeResourceClusterValidateOpenstackNetwork(ctx context.Context, model 
 	return nil
 }
 
-func diagnoseOpenstackSubnetWithIDExistsIfSet(ctx context.Context, model *ClusterModel, k *common.MetaKubeProviderMeta) diag.Diagnostics {
+func diagnoseOpenstackSubnets(ctx context.Context, model *ClusterModel, k *common.MetaKubeProviderMeta) diag.Diagnostics {
 	data := newOpenstackValidationData(ctx, model)
-	if data.network == nil || data.subnetID == nil {
+	if data.network == nil || (data.subnetID == nil && data.subnetV6ID == nil && data.podSubnetV6ID == nil) {
 		return nil
 	}
-	network, _, err := getNetwork(ctx, k, data, *data.network, true)
+	// The network may be reported as internal or external, check both.
+	network, _, err := getNetwork(ctx, k, data, *data.network, false)
 	if err != nil {
-		return nil
-	}
-
-	subnets, ok, err := getSubnet(ctx, k, data, network.ID)
-	if ok {
-		return nil
-	}
-	var diagnoseDetail string
-	if len(subnets) > 0 {
-		tmp := make([]string, 0)
-		for _, i := range subnets {
-			tmp = append(tmp, fmt.Sprintf("%s/%s", i.Name, i.ID))
+		network, _, err = getNetwork(ctx, k, data, *data.network, true)
+		if err != nil {
+			return nil
 		}
-		diagnoseDetail = fmt.Sprintf("We found following subnets (name/id): %v", tmp)
 	}
 	var ret diag.Diagnostics
-	ret.AddAttributeError(
-		path.Root("spec").AtName("cloud").AtName("openstack").AtName("subnet_id"),
-		fmt.Sprintf("Invalid value: %v", err),
-		diagnoseDetail,
-	)
+	subnets, err := listSubnets(ctx, k, data, network.ID)
+	if err != nil {
+		ret.AddError("Unable to list OpenStack subnets", err.Error())
+		return ret
+	}
+	diagnoseDetail := openstackSubnetDiagnoseDetail(subnets)
+	for _, field := range []struct {
+		attribute string
+		id        *string
+	}{
+		{attribute: "subnet_id", id: data.subnetID},
+		{attribute: "subnet_v6_id", id: data.subnetV6ID},
+		{attribute: "pod_subnet_v6_id", id: data.podSubnetV6ID},
+	} {
+		if field.id == nil || findSubnet(subnets, *field.id) != nil {
+			continue
+		}
+		ret.AddAttributeError(
+			path.Root("spec").AtName("cloud").AtName("openstack").AtName(field.attribute),
+			fmt.Sprintf("subnet %q not found on network %q", *field.id, network.Name),
+			diagnoseDetail,
+		)
+	}
 	return ret
+}
+
+func openstackSubnetDiagnoseDetail(subnets []*models.OpenstackSubnet) string {
+	if len(subnets) == 0 {
+		return ""
+	}
+	tmp := make([]string, 0)
+	for _, i := range subnets {
+		tmp = append(tmp, fmt.Sprintf("%s/%s", i.Name, i.ID))
+	}
+	return fmt.Sprintf("We found following subnets (name/id): %v", tmp)
 }
 
 func getOpenstackFieldString(ctx context.Context, model *ClusterModel, getter func(OpenstackCloudSpecModel) types.String) (string, bool) {
@@ -391,15 +415,15 @@ func findNetwork(list []*models.OpenstackNetwork, network string, external bool)
 	return nil
 }
 
-func getSubnet(ctx context.Context, k *common.MetaKubeProviderMeta, data metakubeResourceClusterOpenstackValidationData, networkID string) ([]*models.OpenstackSubnet, bool, error) {
+func listSubnets(ctx context.Context, k *common.MetaKubeProviderMeta, data metakubeResourceClusterOpenstackValidationData, networkID string) ([]*models.OpenstackSubnet, error) {
 	p := openstack.NewListOpenstackSubnetsParams()
 	data.setParams(ctx, p)
 	p.SetNetworkID(&networkID)
 	res, err := k.Client.Openstack.ListOpenstackSubnets(p, k.Auth)
 	if err != nil {
-		return nil, false, fmt.Errorf("list network subnets: %v", common.StringifyResponseError(err))
+		return nil, fmt.Errorf("list network subnets: %v", common.StringifyResponseError(err))
 	}
-	return res.Payload, findSubnet(res.Payload, *data.subnetID) != nil, nil
+	return res.Payload, nil
 }
 
 func findSubnet(list []*models.OpenstackSubnet, id string) *models.OpenstackSubnet {
