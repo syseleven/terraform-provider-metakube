@@ -169,6 +169,10 @@ Currently, can be configured as `IPv4` or `IPv4+IPv6`.
 * `network` - (Optional) When specified, all worker nodes will be attached to this network. If not specified, a network, subnet & router will be created.
 * `subnet_id` - (Optional) When specified, all worker nodes will be attached to this subnet of specified network. If not specified, a network, subnet & router will be created.
 * `subnet_cidr` - (Optional) Change this to configure a different internal IP range for Nodes. Default: `192.168.1.0/24`.
+* `subnet_v6_id` - (Optional) When specified, worker nodes will be attached to this existing IPv6 subnet of the specified network. Requires `network` and `subnet_id`. If not specified, an IPv6 subnet will be created from the default IPv6 subnet pool for dual-stack clusters.
+* `subnet_v6_cidr` - (Optional) CIDR of the node IPv6 subnet. When `subnet_v6_id` is set, set this to the CIDR of that subnet. When `subnet_v6_id` is not set, MetaKube allocates the IPv6 subnet from the default IPv6 subnet pool and reports the allocated CIDR here after cluster creation.
+* `create_pod_subnet_v6` - (Optional) When `true` and `pod_subnet_v6_id` is not set, an additional IPv6 subnet for pods will be created on the specified network. Default: `false`.
+* `pod_subnet_v6_id` - (Optional) When specified, this existing IPv6 subnet of the specified network will be used for the pod IPv6 network. Takes precedence over `create_pod_subnet_v6`.
 When using password based auth
 * `server_group_id` - (Optional) Server group id to use for all machines within a cluster. You can use openstack server groups to group or seperate servers using soft/hard affinity/anti-affinity rules. When not set explicitly, the default soft anti-affinity server group will be created and used. 
 * `application_credentials` - (Conditional) connect to Openstack using Application Credentials. Required at cluster create unless `user_credentials` used. Required when switching from `user_credentials` or when explicitly updating to new values. May be omitted for imported clusters. May be omitted if `user_credentials` being used.

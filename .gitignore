@@ -5,8 +5,8 @@ dist
 .DS_Store
 example.tf
 kubeconfig
-terraform.tfplan
-terraform.tfstate
+terraform.tfplan*
+terraform.tfstate*
 bin/
 modules-dev/
 /pkg/
