@@ -27,7 +27,14 @@ func TestClusterSpecConversion(t *testing.T) {
 		CniPlugin: &models.CNIPluginSettings{Type: "canal"},
 		Cloud: &models.CloudSpec{
 			DatacenterName: "dc-1",
-			Openstack:      &models.OpenstackCloudSpec{Network: "network-id"},
+			Openstack: &models.OpenstackCloudSpec{
+				Domain:            "Default",
+				Network:           "network-id",
+				SubnetV6ID:        "subnet-v6",
+				SubnetV6CIDR:      "2001:db8:1::/64",
+				CreatePodSubnetV6: true,
+				PodSubnetV6ID:     "pod-subnet-v6",
+			},
 		},
 	}
 
@@ -43,6 +50,9 @@ func TestClusterSpecConversion(t *testing.T) {
 	}
 	if output.Cloud == nil || output.Cloud.Openstack == nil || output.Cloud.Openstack.Network != "network-id" {
 		t.Fatalf("unexpected expanded cloud: %#v", output.Cloud)
+	}
+	if diff := cmp.Diff(input.Cloud.Openstack, output.Cloud.Openstack); diff != "" {
+		t.Errorf("OpenStack conversion mismatch (-want +got):\n%s", diff)
 	}
 	if output.ClusterNetwork == nil || output.ClusterNetwork.Pods.CIDRBlocks[0] != "10.0.0.0/16" {
 		t.Fatalf("unexpected expanded network: %#v", output.ClusterNetwork)
@@ -63,6 +73,9 @@ func TestClusterStateValuesAreExplicitlyReconciled(t *testing.T) {
 		Network:                types.StringNull(),
 		SubnetID:               types.StringNull(),
 		SubnetCIDR:             types.StringNull(),
+		SubnetV6ID:             types.StringValue("subnet-v6"),
+		SubnetV6CIDR:           types.StringValue("2001:db8:1::/64"),
+		PodSubnetV6ID:          types.StringValue("pod-subnet-v6"),
 		ServerGroupID:          types.StringValue("server-group"),
 	})
 	cloud := objectValue(t, clusterCloudSpecAttrTypes(), ClusterCloudSpecModel{Openstack: openstack})
@@ -90,6 +103,134 @@ func TestClusterStateValuesAreExplicitlyReconciled(t *testing.T) {
 	}
 	if flattenedOpenstack.ServerGroupID.ValueString() != "server-group" {
 		t.Fatalf("server group was not reconciled: %#v", flattenedOpenstack.ServerGroupID)
+	}
+	if got := flattenedOpenstack.SubnetV6ID; got.ValueString() != "subnet-v6" {
+		t.Errorf("reconcileClusterOmittedState(subnet_v6_id=subnet-v6) = %v, want subnet-v6", got)
+	}
+	if got := flattenedOpenstack.SubnetV6CIDR; got.ValueString() != "2001:db8:1::/64" {
+		t.Errorf("reconcileClusterOmittedState(subnet_v6_cidr=2001:db8:1::/64) = %v, want 2001:db8:1::/64", got)
+	}
+	if got := flattenedOpenstack.PodSubnetV6ID; got.ValueString() != "pod-subnet-v6" {
+		t.Errorf("reconcileClusterOmittedState(pod_subnet_v6_id=pod-subnet-v6) = %v, want pod-subnet-v6", got)
+	}
+}
+
+func TestClusterIPv6StateReconciliation(t *testing.T) {
+	ctx := context.Background()
+	for _, tt := range []struct {
+		name  string
+		prior types.String
+		api   string
+		want  types.String
+	}{
+		{name: "API takes precedence", prior: types.StringValue("prior"), api: "reported", want: types.StringValue("reported")},
+		{name: "unknown state is not restored", prior: types.StringUnknown(), want: types.StringNull()},
+		{name: "null state is not restored", prior: types.StringNull(), want: types.StringNull()},
+		{name: "empty state is not restored", prior: types.StringValue(""), want: types.StringNull()},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			openstack := objectValue(t, openstackCloudSpecAttrTypes(), OpenstackCloudSpecModel{
+				SubnetV6ID:             tt.prior,
+				SubnetV6CIDR:           tt.prior,
+				PodSubnetV6ID:          tt.prior,
+				UserCredentials:        types.ObjectNull(openstackUserCredentialsAttrTypes()),
+				ApplicationCredentials: types.ObjectNull(openstackApplicationCredentialsAttrTypes()),
+			})
+			cloud := objectValue(t, clusterCloudSpecAttrTypes(), ClusterCloudSpecModel{Openstack: openstack})
+			model := clusterModel(t, baseClusterSpec(cloud))
+			omitted := clusterOmittedStateValues(ctx, &model)
+			diags := metakubeResourceClusterFlattenSpec(ctx, &model, &models.ClusterSpec{
+				Cloud: &models.CloudSpec{Openstack: &models.OpenstackCloudSpec{
+					SubnetV6ID:    tt.api,
+					SubnetV6CIDR:  tt.api,
+					PodSubnetV6ID: tt.api,
+				}},
+			})
+			diags.Append(reconcileClusterOmittedState(ctx, &model, omitted)...)
+			if diags.HasError() {
+				t.Fatalf("reconcileClusterOmittedState(prior=%v, API=%q) = %v, want no diagnostics", tt.prior, tt.api, diags)
+			}
+			spec := objectModel[ClusterSpecModel](t, model.Spec)
+			gotCloud := objectModel[ClusterCloudSpecModel](t, spec.Cloud)
+			got := objectModel[OpenstackCloudSpecModel](t, gotCloud.Openstack)
+			if !got.SubnetV6ID.Equal(tt.want) || !got.SubnetV6CIDR.Equal(tt.want) || !got.PodSubnetV6ID.Equal(tt.want) {
+				t.Errorf("reconcileClusterOmittedState(prior=%v, API=%q) = (%v, %v, %v), want %v for all IPv6 strings", tt.prior, tt.api, got.SubnetV6ID, got.SubnetV6CIDR, got.PodSubnetV6ID, tt.want)
+			}
+		})
+	}
+}
+
+func TestPatchOpenstackIPv6(t *testing.T) {
+	ctx := context.Background()
+	state := OpenstackCloudSpecModel{
+		SubnetV6ID:             types.StringValue("old-node-subnet"),
+		SubnetV6CIDR:           types.StringValue("2001:db8:1::/64"),
+		CreatePodSubnetV6:      types.BoolValue(true),
+		PodSubnetV6ID:          types.StringValue("old-pod-subnet"),
+		UserCredentials:        types.ObjectNull(openstackUserCredentialsAttrTypes()),
+		ApplicationCredentials: types.ObjectNull(openstackApplicationCredentialsAttrTypes()),
+	}
+	for _, tt := range []struct {
+		name              string
+		subnetV6ID        types.String
+		subnetV6CIDR      types.String
+		createPodSubnetV6 types.Bool
+		podSubnetV6ID     types.String
+		want              map[string]any
+	}{
+		{
+			name:              "changes include explicit false",
+			subnetV6ID:        types.StringValue("new-node-subnet"),
+			subnetV6CIDR:      types.StringValue("2001:db8:2::/64"),
+			createPodSubnetV6: types.BoolValue(false),
+			podSubnetV6ID:     types.StringValue("new-pod-subnet"),
+			want: map[string]any{
+				"subnetV6ID": "new-node-subnet", "subnetV6CIDR": "2001:db8:2::/64",
+				"createPodSubnetV6": false, "podSubnetV6ID": "new-pod-subnet",
+			},
+		},
+		{
+			name:              "null deletes prior values",
+			subnetV6ID:        types.StringNull(),
+			subnetV6CIDR:      types.StringNull(),
+			createPodSubnetV6: types.BoolNull(),
+			podSubnetV6ID:     types.StringNull(),
+			want: map[string]any{
+				"subnetV6ID": nil, "subnetV6CIDR": nil,
+				"createPodSubnetV6": nil, "podSubnetV6ID": nil,
+			},
+		},
+		{
+			name:              "unknown values are omitted",
+			subnetV6ID:        types.StringUnknown(),
+			subnetV6CIDR:      types.StringUnknown(),
+			createPodSubnetV6: types.BoolUnknown(),
+			podSubnetV6ID:     types.StringUnknown(),
+			want:              map[string]any{},
+		},
+		{
+			name:              "unchanged values are omitted",
+			subnetV6ID:        state.SubnetV6ID,
+			subnetV6CIDR:      state.SubnetV6CIDR,
+			createPodSubnetV6: state.CreatePodSubnetV6,
+			podSubnetV6ID:     state.PodSubnetV6ID,
+			want:              map[string]any{},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			plan := state
+			plan.SubnetV6ID = tt.subnetV6ID
+			plan.SubnetV6CIDR = tt.subnetV6CIDR
+			plan.CreatePodSubnetV6 = tt.createPodSubnetV6
+			plan.PodSubnetV6ID = tt.podSubnetV6ID
+			got, diags := patchOpenstack(ctx, objectValue(t, openstackCloudSpecAttrTypes(), plan), objectValue(t, openstackCloudSpecAttrTypes(), state))
+			if diags.HasError() {
+				t.Fatalf("patchOpenstack(%s) = %v, want no diagnostics", tt.name, diags)
+			}
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("patchOpenstack(%s) mismatch (-want +got):\n%s", tt.name, diff)
+			}
+		})
 	}
 }
 

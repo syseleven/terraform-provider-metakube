@@ -604,6 +604,9 @@ type clusterOpenstackOmittedState struct {
 	openstackApplicationCredentialsID     types.String
 	openstackApplicationCredentialsSecret types.String
 	openstackServerGroupID                types.String
+	openstackSubnetV6ID                   types.String
+	openstackSubnetV6CIDR                 types.String
+	openstackPodSubnetV6ID                types.String
 }
 
 func clusterOmittedStateValues(ctx context.Context, model *ClusterModel) clusterOmittedState {
@@ -625,6 +628,9 @@ func clusterOmittedStateValues(ctx context.Context, model *ClusterModel) cluster
 	}
 	values.openstack = &clusterOpenstackOmittedState{
 		openstackServerGroupID: openstack.ServerGroupID,
+		openstackSubnetV6ID:    openstack.SubnetV6ID,
+		openstackSubnetV6CIDR:  openstack.SubnetV6CIDR,
+		openstackPodSubnetV6ID: openstack.PodSubnetV6ID,
 	}
 
 	if !openstack.UserCredentials.IsNull() && !openstack.UserCredentials.IsUnknown() {
@@ -672,6 +678,16 @@ func reconcileClusterOmittedState(ctx context.Context, model *ClusterModel, omit
 	values := omitted.openstack
 	if openstack.ServerGroupID.IsNull() && knownString(values.openstackServerGroupID) {
 		openstack.ServerGroupID = values.openstackServerGroupID
+	}
+	// Older API versions omit IPv6 subnet fields, so retain known state values.
+	if openstack.SubnetV6ID.IsNull() && knownString(values.openstackSubnetV6ID) {
+		openstack.SubnetV6ID = values.openstackSubnetV6ID
+	}
+	if openstack.SubnetV6CIDR.IsNull() && knownString(values.openstackSubnetV6CIDR) {
+		openstack.SubnetV6CIDR = values.openstackSubnetV6CIDR
+	}
+	if openstack.PodSubnetV6ID.IsNull() && knownString(values.openstackPodSubnetV6ID) {
+		openstack.PodSubnetV6ID = values.openstackPodSubnetV6ID
 	}
 	if knownString(values.openstackProjectID) || knownString(values.openstackProjectName) ||
 		knownString(values.openstackUsername) || knownString(values.openstackPassword) {
