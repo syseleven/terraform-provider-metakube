@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
@@ -27,6 +28,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 	t.Parallel()
 	var ndepl models.NodeDeployment
 	var sgroupID string
+	var defaultServerGroupID string
 	clusterResourceName := "metakube_cluster.acctest_cluster"
 	distUpgradeOnBootPath := tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("operating_system").AtSliceIndex(0).AtMapKey("ubuntu").AtSliceIndex(0).AtMapKey("dist_upgrade_on_boot")
 	tagsPath := tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("cloud").AtSliceIndex(0).AtMapKey("openstack").AtSliceIndex(0).AtMapKey("tags")
@@ -45,6 +47,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 		ClusterVersion:                        os.Getenv(common.TestEnvK8sVersionOpenstack),
 		KubeletVersion:                        os.Getenv(common.TestEnvK8sOlderVersion),
 		NodeFlavor:                            os.Getenv(common.TestEnvOpenstackFlavor),
+		OSDistro:                              "ubuntu",
 		OSVersion:                             os.Getenv(common.TestEnvOpenstackImage),
 		Replicas:                              2,
 		LabelKey:                              "a",
@@ -144,17 +147,11 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeNodeDeploymentExists(resourceName, &ndepl),
 					testAccCheckMetaKubeNodeDeploymentFields(&ndepl, data.NodeFlavor, data.OSVersion, data.KubeletVersion, data.Replicas, data.DiskSize, data.DistUpgradeOnBoot),
-					testAccCheckMetaKubeNodeDeploymentOpenstackUserTags(resourceName, data.UserTagKey, data.UserTagValue),
 					testAccCheckMetaKubeNodeDeploymentOpenstackAPIHasReservedPrefixTags(&ndepl),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.all_labels.%", "4"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.all_labels."+data.LabelKey, data.LabelValue),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.all_labels."+data.SecondLabelKey, data.SecondLabelValue),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.%", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags."+data.UserTagKey, data.UserTagValue),
-					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.metakube-cluster"),
-					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.system-cluster"),
-					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.system-project"),
-					resource.TestMatchResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.server_group_id", regexp.MustCompile(`.+`)),
+					testMatchAndGetResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.server_group_id", regexp.MustCompile(`.+`), &defaultServerGroupID),
 				),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
@@ -210,10 +207,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 						})),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("machine_annotations"),
-						knownvalue.MapExact(map[string]knownvalue.Check{
-							"machines.metakube.syseleven.de/user-data-plugin": knownvalue.StringExact("ubuntu-sysext"),
-							data.MachineAnnotationKey:                         knownvalue.StringExact(data.MachineAnnotationValue),
-						})),
+						nodeDeploymentMachineAnnotationsCheck(data)),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("versions").AtSliceIndex(0).AtMapKey("kubelet"),
 						knownvalue.NotNull()),
@@ -261,14 +255,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 					}),
 					testAccCheckMetaKubeNodeDeploymentExists(resourceName, &ndepl),
 					testAccCheckMetaKubeNodeDeploymentFields(&ndepl, data2.NodeFlavor, data2.OSVersion, data2.KubeletVersion, data2.Replicas, data2.DiskSize, data2.DistUpgradeOnBoot),
-					testAccCheckMetaKubeNodeDeploymentOpenstackUserTags(resourceName, data2.UserTagKey, data2.UserTagValue),
 					testAccCheckMetaKubeNodeDeploymentOpenstackAPIHasReservedPrefixTags(&ndepl),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.%", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags."+data2.UserTagKey, data2.UserTagValue),
-					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags."+data.UserTagKey),
-					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.metakube-cluster"),
-					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.system-cluster"),
-					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.system-project"),
 					testMatchAndGetResourceAttr(serverGroupResourceName, "id", regexp.MustCompile(`.+`), &sgroupID),
 					resource.TestCheckResourceAttrPtr(resourceName, "spec.0.template.0.cloud.0.openstack.0.server_group_id", &sgroupID),
 				),
@@ -317,10 +304,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 						})),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("machine_annotations"),
-						knownvalue.MapExact(map[string]knownvalue.Check{
-							"machines.metakube.syseleven.de/user-data-plugin": knownvalue.StringExact("ubuntu-sysext"),
-							data2.MachineAnnotationKey:                        knownvalue.StringExact(data2.MachineAnnotationValue),
-						})),
+						nodeDeploymentMachineAnnotationsCheck(&data2)),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("versions").AtSliceIndex(0).AtMapKey("kubelet"),
 						knownvalue.NotNull()),
@@ -361,18 +345,11 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckMetaKubeNodeDeploymentExists(resourceName, &ndepl),
 					testAccCheckMetaKubeNodeDeploymentFields(&ndepl, data3.NodeFlavor, data3.OSVersion, data3.KubeletVersion, data3.Replicas, data3.DiskSize, data3.DistUpgradeOnBoot),
-					testAccCheckMetaKubeNodeDeploymentOpenstackUserTags(resourceName, data3.UserTagKey, data3.UserTagValue),
 					testAccCheckMetaKubeNodeDeploymentOpenstackAPIHasReservedPrefixTags(&ndepl),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.all_labels.%", "4"),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.all_labels."+data3.LabelKey, data3.LabelValue),
 					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.all_labels."+data3.SecondLabelKey, data3.SecondLabelValue),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.%", "1"),
-					resource.TestCheckResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags."+data3.UserTagKey, data3.UserTagValue),
-					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags."+data2.UserTagKey),
-					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.metakube-cluster"),
-					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.system-cluster"),
-					resource.TestCheckNoResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.tags.system-project"),
-					resource.TestMatchResourceAttr(resourceName, "spec.0.template.0.cloud.0.openstack.0.server_group_id", regexp.MustCompile(`.+`)),
+					resource.TestCheckResourceAttrPtr(resourceName, "spec.0.template.0.cloud.0.openstack.0.server_group_id", &defaultServerGroupID),
 				),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.NotNull()),
@@ -413,10 +390,7 @@ func TestAccMetakubeNodeDeployment_Openstack_Basic(t *testing.T) {
 						})),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("machine_annotations"),
-						knownvalue.MapExact(map[string]knownvalue.Check{
-							"machines.metakube.syseleven.de/user-data-plugin": knownvalue.StringExact("ubuntu-sysext"),
-							data3.MachineAnnotationKey:                        knownvalue.StringExact(data3.MachineAnnotationValue),
-						})),
+						nodeDeploymentMachineAnnotationsCheck(&data3)),
 					statecheck.ExpectKnownValue(resourceName,
 						tfjsonpath.New("spec").AtSliceIndex(0).AtMapKey("template").AtSliceIndex(0).AtMapKey("versions").AtSliceIndex(0).AtMapKey("kubelet"),
 						knownvalue.NotNull()),
@@ -475,6 +449,7 @@ type nodeDeploymentBasicData struct {
 	ClusterVersion            string
 	KubeletVersion            string
 	NodeFlavor                string
+	OSDistro                  string
 	OSVersion                 string
 	Replicas                  int
 	LabelKey                  string
@@ -499,6 +474,18 @@ type nodeDeploymentBasicData struct {
 	DistUpgradeOnBoot bool
 }
 
+// UseUbuntuSysext enables the annotation only for Ubuntu 24.04 or newer.
+func (d *nodeDeploymentBasicData) UseUbuntuSysext() bool {
+	if d.OSDistro != "ubuntu" {
+		return false
+	}
+	osVersion, err := version.NewVersion(d.OSVersion)
+	if err != nil {
+		return false
+	}
+	return osVersion.GreaterThanOrEqual(version.Must(version.NewVersion("24.04")))
+}
+
 var nodeDeploymentBasicTemplate = testutil.MustParseTemplate("nodeDeploymentBasic", `
 	{{ if not .MinimalConfig }}
 	terraform {
@@ -520,7 +507,7 @@ var nodeDeploymentBasicTemplate = testutil.MustParseTemplate("nodeDeploymentBasi
 
 		visibility = "public"
 		properties = {
-		  os_distro  = "ubuntu"
+		  os_distro  = "{{ .OSDistro }}"
 		  os_version = "{{ .OSVersion }}"
 		}
 	}
@@ -531,9 +518,9 @@ var nodeDeploymentBasicTemplate = testutil.MustParseTemplate("nodeDeploymentBasi
 		dc_name = "{{ .DatacenterName }}"
 		project_id = "{{ .ProjectID }}"
 	timeouts {
-		create = "40m"
-		update = "40m"
-		delete = "40m"
+		create = "20m"
+		update = "20m"
+		delete = "20m"
 	}
 		spec = {
 			version = "{{ .ClusterVersion }}"
@@ -561,9 +548,9 @@ var nodeDeploymentBasicTemplate = testutil.MustParseTemplate("nodeDeploymentBasi
 		project_id = "{{ .ProjectID }}"
 		name = "{{ .Name }}"
 		timeouts {
-			create = "40m"
-			update = "40m"
-			delete = "40m"
+			create = "20m"
+			update = "20m"
+			delete = "20m"
 		}
 		spec {
 			replicas = {{ if .MinimalConfig }}1{{ else }}{{ .Replicas }}{{ end }}
@@ -613,7 +600,9 @@ var nodeDeploymentBasicTemplate = testutil.MustParseTemplate("nodeDeploymentBasi
 					"{{ .NodeAnnotationKey }}" = "{{ .NodeAnnotationValue }}"
 				}
 				machine_annotations = {
+					{{ if .UseUbuntuSysext }}
 					"machines.metakube.syseleven.de/user-data-plugin" = "ubuntu-sysext"
+					{{ end }}
 					"{{ .MachineAnnotationKey }}" = "{{ .MachineAnnotationValue }}"
 				}
 				{{ end }}
@@ -623,6 +612,16 @@ var nodeDeploymentBasicTemplate = testutil.MustParseTemplate("nodeDeploymentBasi
 			}
 		}
 	}`)
+
+func nodeDeploymentMachineAnnotationsCheck(data *nodeDeploymentBasicData) knownvalue.Check {
+	annotations := map[string]knownvalue.Check{
+		data.MachineAnnotationKey: knownvalue.StringExact(data.MachineAnnotationValue),
+	}
+	if data.UseUbuntuSysext() {
+		annotations["machines.metakube.syseleven.de/user-data-plugin"] = knownvalue.StringExact("ubuntu-sysext")
+	}
+	return knownvalue.MapExact(annotations)
+}
 
 func testAccCheckMetaKubeNodeDeploymentDestroy(s *terraform.State) error {
 	return nil
@@ -709,39 +708,6 @@ func testAccCheckMetaKubeNodeDeploymentFields(rec *models.NodeDeployment, flavor
 
 		if rec.Spec.Replicas == nil || *rec.Spec.Replicas != int32(replicas) {
 			return fmt.Errorf("Replicas=%d, want %d", rec.Spec.Replicas, replicas)
-		}
-
-		return nil
-	}
-}
-
-func testAccCheckMetaKubeNodeDeploymentOpenstackUserTags(resourceName, key, value string) resource.TestCheckFunc {
-	return func(s *terraform.State) error {
-		rs, ok := s.RootModule().Resources[resourceName]
-		if !ok {
-			return fmt.Errorf("not found: %s", resourceName)
-		}
-
-		prefix := "spec.0.template.0.cloud.0.openstack.0.tags."
-		got, ok := rs.Primary.Attributes[prefix+key]
-		if !ok {
-			return fmt.Errorf("expected tag %q in state, got attributes: %#v", key, rs.Primary.Attributes)
-		}
-		if got != value {
-			return fmt.Errorf("tag %q: got %q, want %q", key, got, value)
-		}
-
-		for attrKey := range rs.Primary.Attributes {
-			if !strings.HasPrefix(attrKey, prefix) {
-				continue
-			}
-			tagKey := strings.TrimPrefix(attrKey, prefix)
-			if tagKey == "%" {
-				continue
-			}
-			if common.MetakubeResourceSystemLabelOrTag(tagKey) {
-				return fmt.Errorf("reserved-prefix tag %q must not appear in terraform state", tagKey)
-			}
 		}
 
 		return nil

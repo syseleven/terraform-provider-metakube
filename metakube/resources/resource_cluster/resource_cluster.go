@@ -186,7 +186,7 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 		resp.Diagnostics.Append(r.readClusterIntoModel(ctx, &plan)...)
 		resp.Diagnostics.AddError(
 			"Cluster not ready",
-			fmt.Sprintf("Cluster '%s' is not ready: %v", result.Payload.ID, err),
+			err.Error(),
 		)
 		resp.State.Set(ctx, &plan)
 		return
@@ -286,7 +286,7 @@ func (r *clusterResource) Update(ctx context.Context, req resource.UpdateRequest
 	if err := common.MetakubeResourceClusterWaitForReady(ctx, r.meta, updateTimeout, projectID, state.ID.ValueString(), configuredVersion); err != nil {
 		resp.Diagnostics.AddError(
 			"Cluster not ready",
-			fmt.Sprintf("Cluster '%s' is not ready: %v", state.ID.ValueString(), err),
+			err.Error(),
 		)
 		return
 	}

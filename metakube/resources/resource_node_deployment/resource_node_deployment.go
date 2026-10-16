@@ -505,88 +505,128 @@ func (r *nodeDeploymentResource) readIntoModel(ctx context.Context, model *NodeD
 // generation, to report all desired replicas ready, no unavailable replicas,
 // an exact node-count match, and kernel information for every node.
 func (r *nodeDeploymentResource) waitForReady(ctx context.Context, timeout time.Duration, projectID, clusterID, nodeDeploymentID string) error {
-	deadline := time.Now().Add(timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	started := time.Now()
+	lastObservation := "no readiness information received"
+	var lastAPIError string
 
-	for {
-		if time.Now().After(deadline) {
-			return fmt.Errorf("timeout waiting for node deployment '%s' to be ready", nodeDeploymentID)
+	for ctx.Err() == nil {
+		ready, observation, err := r.checkNodeDeploymentReadiness(ctx, projectID, clusterID, nodeDeploymentID)
+		if observation != "" {
+			lastObservation = observation
+		}
+		if ctx.Err() != nil {
+			// Preserve the preceding API failure if this request exhausted the deadline.
+			if err != nil && lastAPIError == "" {
+				lastAPIError = err.Error()
+			}
+			break
+		}
+		if err == nil && ready {
+			return nil
 		}
 
-		p := project.NewGetMachineDeploymentParams().
-			WithContext(ctx).
-			WithProjectID(projectID).
-			WithClusterID(clusterID).
-			WithMachineDeploymentID(nodeDeploymentID)
-
-		resp, err := r.meta.Client.Project.GetMachineDeployment(p, r.meta.Auth)
+		delay := 10 * time.Second
+		lastAPIError = ""
 		if err != nil {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(5 * time.Second):
-				continue
-			}
+			lastAPIError = err.Error()
+			delay = 5 * time.Second
 		}
+		r.meta.Log.Debugw("waiting for node deployment to be ready",
+			"project_id", projectID, "cluster_id", clusterID, "node_deployment_id", nodeDeploymentID,
+			"last_observation", lastObservation, "last_api_error", lastAPIError)
 
-		nd := resp.Payload
-		if nd.Spec.Replicas == nil || nd.Status == nil ||
-			nd.Status.ObservedGeneration != nd.Generation ||
-			nd.Status.ReadyReplicas < *nd.Spec.Replicas ||
-			nd.Status.UnavailableReplicas != 0 {
-			r.meta.Log.Debugf("waiting for node deployment '%s' to be ready, generation %d, status %+v", nodeDeploymentID, nd.Generation, nd.Status)
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(10 * time.Second):
-				continue
-			}
+		select {
+		case <-ctx.Done():
+		case <-time.After(delay):
 		}
-
-		p2 := project.NewListMachineDeploymentNodesParams().
-			WithContext(ctx).
-			WithProjectID(projectID).
-			WithClusterID(clusterID).
-			WithMachineDeploymentID(nodeDeploymentID)
-		nodesResp, err := r.meta.Client.Project.ListMachineDeploymentNodes(p2, r.meta.Auth)
-		if err != nil {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(5 * time.Second):
-				continue
-			}
-		}
-
-		if len(nodesResp.Payload) != int(*nd.Spec.Replicas) {
-			r.meta.Log.Debug("node count mismatch, want %v got %v", *nd.Spec.Replicas, len(nodesResp.Payload))
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(10 * time.Second):
-				continue
-			}
-		}
-
-		allReady := true
-		for _, node := range nodesResp.Payload {
-			if node.Status == nil || node.Status.NodeInfo == nil || node.Status.NodeInfo.KernelVersion == "" {
-				allReady = false
-				break
-			}
-		}
-
-		if !allReady {
-			r.meta.Log.Debug("found not ready node")
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(10 * time.Second):
-				continue
-			}
-		}
-
-		return nil
 	}
+
+	message := "stopped waiting"
+	if ctx.Err() == context.DeadlineExceeded {
+		message = "timeout waiting"
+	}
+	if lastAPIError != "" {
+		lastObservation += "\nLast API error: " + lastAPIError
+	}
+	return fmt.Errorf("%s for node deployment %q in cluster %q (project %q) to be ready after %s\nLast observation: %s\n%w",
+		message, nodeDeploymentID, clusterID, projectID, time.Since(started).Round(time.Second), lastObservation, ctx.Err())
+}
+
+// checkNodeDeploymentReadiness collects node diagnostics even while the deployment
+// reports unavailable replicas, so provisioning errors appear in the timeout.
+func (r *nodeDeploymentResource) checkNodeDeploymentReadiness(ctx context.Context, projectID, clusterID, nodeDeploymentID string) (bool, string, error) {
+	p := project.NewGetMachineDeploymentParams().
+		WithContext(ctx).
+		WithProjectID(projectID).
+		WithClusterID(clusterID).
+		WithMachineDeploymentID(nodeDeploymentID)
+	resp, err := r.meta.Client.Project.GetMachineDeployment(p, r.meta.Auth)
+	if err != nil {
+		return false, "", fmt.Errorf("get node deployment: %s", common.StringifyResponseError(err))
+	}
+	if resp == nil || resp.Payload == nil || resp.Payload.Spec == nil || resp.Payload.Spec.Replicas == nil || resp.Payload.Status == nil {
+		return false, "node deployment response is missing the deployment, spec, desired replicas, or status", nil
+	}
+
+	nd := resp.Payload
+	status := nd.Status
+	observation := fmt.Sprintf("generation=%d, observedGeneration=%d, desiredReplicas=%d, replicas=%d, updatedReplicas=%d, readyReplicas=%d, unavailableReplicas=%d",
+		nd.Generation, status.ObservedGeneration, *nd.Spec.Replicas, status.Replicas, status.UpdatedReplicas, status.ReadyReplicas, status.UnavailableReplicas)
+	if !time.Time(nd.DeletionTimestamp).IsZero() {
+		observation += fmt.Sprintf(", deletionTimestamp=%s", nd.DeletionTimestamp)
+	}
+	ready := status.ObservedGeneration == nd.Generation &&
+		status.ReadyReplicas >= *nd.Spec.Replicas && status.UnavailableReplicas == 0
+
+	nodesParams := project.NewListMachineDeploymentNodesParams().
+		WithContext(ctx).
+		WithProjectID(projectID).
+		WithClusterID(clusterID).
+		WithMachineDeploymentID(nodeDeploymentID)
+	nodesResp, err := r.meta.Client.Project.ListMachineDeploymentNodes(nodesParams, r.meta.Auth)
+	if err != nil {
+		return false, observation, fmt.Errorf("list node deployment nodes: %s", common.StringifyResponseError(err))
+	}
+	if nodesResp == nil {
+		return false, observation + "; node list response is missing", nil
+	}
+
+	nodes := nodesResp.Payload
+	observation += fmt.Sprintf(", listedNodes=%d", len(nodes))
+	if len(nodes) != int(*nd.Spec.Replicas) {
+		ready = false
+	}
+	// Keep diagnostics bounded while checking every node for readiness.
+	const maxNodeDetails = 10
+	for i, node := range nodes {
+		if node == nil || node.Status == nil || node.Status.NodeInfo == nil || node.Status.NodeInfo.KernelVersion == "" {
+			ready = false
+		}
+		if i >= maxNodeDetails {
+			continue
+		}
+		if node == nil {
+			observation += fmt.Sprintf("\nnode at index %d is missing", i)
+			continue
+		}
+		switch {
+		case node.Status == nil:
+			observation += fmt.Sprintf("\nnode %q has no status", node.ID)
+		case node.Status.NodeInfo == nil || node.Status.NodeInfo.KernelVersion == "":
+			observation += fmt.Sprintf("\nnode %q has no kernel information (errorReason=%q, errorMessage=%q)", node.ID, node.Status.ErrorReason, node.Status.ErrorMessage)
+		default:
+			observation += fmt.Sprintf("\nnode %q: kernelVersion=%q, errorReason=%q, errorMessage=%q", node.ID, node.Status.NodeInfo.KernelVersion, node.Status.ErrorReason, node.Status.ErrorMessage)
+		}
+		if !time.Time(node.DeletionTimestamp).IsZero() {
+			observation += fmt.Sprintf(", deletionTimestamp=%s", node.DeletionTimestamp)
+		}
+	}
+	if len(nodes) > maxNodeDetails {
+		observation += fmt.Sprintf("\n%d additional nodes omitted from diagnostics", len(nodes)-maxNodeDetails)
+	}
+	return ready, observation, nil
 }
 
 // validateProviderMatchesCluster validates that the node deployment cloud provider matches the cluster

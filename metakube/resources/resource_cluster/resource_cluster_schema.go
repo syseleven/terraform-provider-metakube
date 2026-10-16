@@ -197,12 +197,18 @@ func metakubeResourceClusterSpecAttributes() map[string]schema.Attribute {
 			Validators: []validator.String{
 				stringvalidator.LengthAtLeast(1),
 			},
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"enable_ssh_agent": schema.BoolAttribute{
 			Computed:    true,
 			Default:     booldefault.StaticBool(true),
 			Optional:    true,
 			Description: "SSH Agent as a daemon running on each node that can manage ssh keys. Disable it if you want to manage keys manually",
+			PlanModifiers: []planmodifier.Bool{
+				boolplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"audit_logging": schema.BoolAttribute{
 			Optional:    true,
@@ -228,16 +234,25 @@ func metakubeResourceClusterSpecAttributes() map[string]schema.Attribute {
 			Computed:    true,
 			Default:     booldefault.StaticBool(false),
 			Description: "Configure PodNodeSelector admission plugin at the apiserver",
+			PlanModifiers: []planmodifier.Bool{
+				boolplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"services_cidr": schema.StringAttribute{
 			Optional:    true,
 			Computed:    true,
 			Description: "Internal IP range for ClusterIP Services",
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"pods_cidr": schema.StringAttribute{
 			Optional:    true,
 			Computed:    true,
 			Description: "Internal IP range for Pods",
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"ip_family": schema.StringAttribute{
 			Optional:    true,
@@ -291,12 +306,18 @@ func metakubeResourceClusterSpecAttributes() map[string]schema.Attribute {
 					Validators: []validator.String{
 						stringvalidator.RegexMatches(regexp.MustCompile("(Mon |Tue |Wed |Thu |Fri |Sat )*([0-1][0-9]|2[0-4]):[0-5][0-9]"), "Example: 'Thu 02:00' or '02:00'"),
 					},
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
 				},
 				"length": schema.StringAttribute{
 					Required:    true,
 					Description: "Node reboot window duration",
 					Validators: []validator.String{
 						DurationValidator(),
+					},
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
 					},
 				},
 			},
@@ -365,6 +386,9 @@ func metakubeResourceClusterOpenstackCloudSpecFields() map[string]schema.Attribu
 			Computed:    true,
 			Optional:    true,
 			Description: "When specified, all worker nodes will be attached to this network. If not specified, a network, subnet & router will be created.",
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"subnet_id": schema.StringAttribute{
 			Computed:    true,
@@ -536,6 +560,14 @@ func metakubeResourceClusterCNICiliumAttributes() map[string]schema.Attribute {
 				boolplanmodifier.UseNonNullStateForUnknown(),
 			},
 		},
+		"bpf_lb_sock_hostns_only": schema.BoolAttribute{
+			Optional:    true,
+			Computed:    true,
+			Description: "Sets the bpf-lb-sock-hostns-only option in the Cilium configuration. Needed e.g. for Istio.",
+			PlanModifiers: []planmodifier.Bool{
+				boolplanmodifier.UseNonNullStateForUnknown(),
+			},
+		},
 		"clustermesh": schema.SingleNestedAttribute{
 			Optional: true,
 			Attributes: map[string]schema.Attribute{
@@ -609,9 +641,10 @@ type CNIPluginModel struct {
 
 // CiliumModel
 type CiliumModel struct {
-	Clustermesh   types.Object `tfsdk:"clustermesh"` // CiliumClustermeshSpecModel
-	EnableHubble  types.Bool   `tfsdk:"enable_hubble"`
-	EnableL7Proxy types.Bool   `tfsdk:"enable_l7_proxy"`
+	Clustermesh         types.Object `tfsdk:"clustermesh"` // CiliumClustermeshSpecModel
+	EnableHubble        types.Bool   `tfsdk:"enable_hubble"`
+	EnableL7Proxy       types.Bool   `tfsdk:"enable_l7_proxy"`
+	BPFLbSockHostnsOnly types.Bool   `tfsdk:"bpf_lb_sock_hostns_only"`
 }
 
 // CiliumSpecModel
@@ -702,8 +735,9 @@ func ciliumAttrTypes() map[string]attr.Type {
 		"clustermesh": types.ObjectType{
 			AttrTypes: ciliumClustermeshAttrTypes(),
 		},
-		"enable_hubble":   types.BoolType,
-		"enable_l7_proxy": types.BoolType,
+		"enable_hubble":           types.BoolType,
+		"enable_l7_proxy":         types.BoolType,
+		"bpf_lb_sock_hostns_only": types.BoolType,
 	}
 }
 

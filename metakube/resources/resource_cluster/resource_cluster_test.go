@@ -67,6 +67,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 	data2.Clustermesh = true
 	data2.CiliumEnableHubble = true
 	data2.CiliumEnableL7Proxy = true
+	data2.CiliumBPFLbSockHostnsOnly = true
 	data2.ClustermeshClusterID = 1
 	data2.ClustermeshIPv4NativeRoutingCIDR = "172.0.0.0/15"
 	if err := clusterOpenstackBasicTemplate.Execute(&config2, &data2); err != nil {
@@ -80,6 +81,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 	data3.Clustermesh = false
 	data3.CiliumEnableHubble = false
 	data3.CiliumEnableL7Proxy = false
+	data3.CiliumBPFLbSockHostnsOnly = false
 	data3.ClustermeshClusterID = 2
 	data3.ClustermeshIPv4NativeRoutingCIDR = "172.2.0.0/16"
 	data3.IPFamily = "IPv4"
@@ -167,6 +169,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.cilium.clustermesh.enable", "true"),
 					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.cilium.enable_hubble", "true"),
 					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.cilium.enable_l7_proxy", "true"),
+					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.cilium.bpf_lb_sock_hostns_only", "true"),
 					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.cilium.clustermesh.cluster_id", fmt.Sprintf("%d", data2.ClustermeshClusterID)),
 					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.cilium.clustermesh.ipv4_native_routing_cidr", data2.ClustermeshIPv4NativeRoutingCIDR),
 				),
@@ -196,6 +199,7 @@ func TestAccMetakubeCluster_Openstack_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.type", "cilium"),
 					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.cilium.enable_hubble", "false"),
 					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.cilium.enable_l7_proxy", "false"),
+					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.cilium.bpf_lb_sock_hostns_only", "false"),
 					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.cilium.clustermesh.enable", "false"),
 					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.cilium.clustermesh.cluster_id", fmt.Sprintf("%d", data3.ClustermeshClusterID)),
 					resource.TestCheckResourceAttr(resourceName, "spec.cni_plugin.cilium.clustermesh.ipv4_native_routing_cidr", data3.ClustermeshIPv4NativeRoutingCIDR),
@@ -465,6 +469,7 @@ type clusterOpenstackBasicData struct {
 	Clustermesh                      bool
 	CiliumEnableHubble               bool
 	CiliumEnableL7Proxy              bool
+	CiliumBPFLbSockHostnsOnly        bool
 	ClustermeshClusterID             int
 	ClustermeshIPv4NativeRoutingCIDR string
 	IPFamily                         string
@@ -557,6 +562,7 @@ resource "metakube_cluster" "acctest_cluster" {
 			cilium = {
 				enable_hubble = {{ .CiliumEnableHubble }}
 				enable_l7_proxy = {{ .CiliumEnableL7Proxy }}
+				bpf_lb_sock_hostns_only = {{ .CiliumBPFLbSockHostnsOnly }}
 				clustermesh = {
 					enable = {{ .Clustermesh }}
 					cluster_id = {{ .ClustermeshClusterID }}
