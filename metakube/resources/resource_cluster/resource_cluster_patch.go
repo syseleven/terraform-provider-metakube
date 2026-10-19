@@ -249,6 +249,10 @@ func patchOpenstack(ctx context.Context, plan, state types.Object) (any, diag.Di
 	common.SetChangedString(result, "network", planModel.Network, stateModel.Network)
 	common.SetChangedString(result, "subnetID", planModel.SubnetID, stateModel.SubnetID)
 	common.SetChangedString(result, "subnetCIDR", planModel.SubnetCIDR, stateModel.SubnetCIDR)
+	common.SetChangedString(result, "subnetV6ID", planModel.SubnetV6ID, stateModel.SubnetV6ID)
+	common.SetChangedString(result, "subnetV6CIDR", planModel.SubnetV6CIDR, stateModel.SubnetV6CIDR)
+	common.SetChangedBool(result, "createPodSubnetV6", planModel.CreatePodSubnetV6, stateModel.CreatePodSubnetV6)
+	common.SetChangedString(result, "podSubnetV6ID", planModel.PodSubnetV6ID, stateModel.PodSubnetV6ID)
 	common.SetChangedString(result, "serverGroupID", planModel.ServerGroupID, stateModel.ServerGroupID)
 
 	userPatch, childDiags := patchUserCredentials(ctx, planModel.UserCredentials, stateModel.UserCredentials)
