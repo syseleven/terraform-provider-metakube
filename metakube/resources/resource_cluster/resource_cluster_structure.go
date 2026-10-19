@@ -27,6 +27,9 @@ type clusterOpenstackPreservedValues struct {
 	openstackApplicationCredentialsID     types.String
 	openstackApplicationCredentialsSecret types.String
 	openstackServerGroupID                types.String
+	openstackSubnetV6ID                   types.String
+	openstackSubnetV6CIDR                 types.String
+	openstackPodSubnetV6ID                types.String
 }
 
 // flatteners
@@ -162,6 +165,9 @@ func getPreservedValuesFromModel(ctx context.Context, model *ClusterModel) clust
 		if diags := cloud.Openstack.As(ctx, &osSpec, basetypes.ObjectAsOptions{}); !diags.HasError() {
 			values.openstack = &clusterOpenstackPreservedValues{
 				openstackServerGroupID: osSpec.ServerGroupID,
+				openstackSubnetV6ID:    osSpec.SubnetV6ID,
+				openstackSubnetV6CIDR:  osSpec.SubnetV6CIDR,
+				openstackPodSubnetV6ID: osSpec.PodSubnetV6ID,
 			}
 
 			if !osSpec.UserCredentials.IsNull() && !osSpec.UserCredentials.IsUnknown() {
@@ -366,6 +372,35 @@ func flattenOpenstackSpec(ctx context.Context, cloudModel *ClusterCloudSpecModel
 		osModel.SubnetCIDR = types.StringValue(in.SubnetCIDR)
 	} else {
 		osModel.SubnetCIDR = types.StringNull()
+	}
+
+	// Older API versions omit these fields in cluster responses. Preserve the
+	// known values from state so a create or refresh does not replace them
+	// with null; the API value takes precedence when it is reported.
+	if in.SubnetV6ID != "" {
+		osModel.SubnetV6ID = types.StringValue(in.SubnetV6ID)
+	} else if values != nil && !values.openstackSubnetV6ID.IsNull() && values.openstackSubnetV6ID.ValueString() != "" {
+		osModel.SubnetV6ID = values.openstackSubnetV6ID
+	} else {
+		osModel.SubnetV6ID = types.StringNull()
+	}
+
+	if in.SubnetV6CIDR != "" {
+		osModel.SubnetV6CIDR = types.StringValue(in.SubnetV6CIDR)
+	} else if values != nil && !values.openstackSubnetV6CIDR.IsNull() && values.openstackSubnetV6CIDR.ValueString() != "" {
+		osModel.SubnetV6CIDR = values.openstackSubnetV6CIDR
+	} else {
+		osModel.SubnetV6CIDR = types.StringNull()
+	}
+
+	osModel.CreatePodSubnetV6 = types.BoolValue(in.CreatePodSubnetV6)
+
+	if in.PodSubnetV6ID != "" {
+		osModel.PodSubnetV6ID = types.StringValue(in.PodSubnetV6ID)
+	} else if values != nil && !values.openstackPodSubnetV6ID.IsNull() && values.openstackPodSubnetV6ID.ValueString() != "" {
+		osModel.PodSubnetV6ID = values.openstackPodSubnetV6ID
+	} else {
+		osModel.PodSubnetV6ID = types.StringNull()
 	}
 
 	if in.ServerGroupID != "" {
@@ -681,6 +716,31 @@ func expandOpenstackCloudSpec(ctx context.Context, obj types.Object, include fun
 		v := os.SubnetCIDR.ValueString()
 		if v != "" {
 			ret.SubnetCIDR = v
+		}
+	}
+
+	if !os.SubnetV6ID.IsNull() && !os.SubnetV6ID.IsUnknown() && include("subnet_v6_id") {
+		v := os.SubnetV6ID.ValueString()
+		if v != "" {
+			ret.SubnetV6ID = v
+		}
+	}
+
+	if !os.SubnetV6CIDR.IsNull() && !os.SubnetV6CIDR.IsUnknown() && include("subnet_v6_cidr") {
+		v := os.SubnetV6CIDR.ValueString()
+		if v != "" {
+			ret.SubnetV6CIDR = v
+		}
+	}
+
+	if !os.CreatePodSubnetV6.IsNull() && !os.CreatePodSubnetV6.IsUnknown() && include("create_pod_subnet_v6") {
+		ret.CreatePodSubnetV6 = os.CreatePodSubnetV6.ValueBool()
+	}
+
+	if !os.PodSubnetV6ID.IsNull() && !os.PodSubnetV6ID.IsUnknown() && include("pod_subnet_v6_id") {
+		v := os.PodSubnetV6ID.ValueString()
+		if v != "" {
+			ret.PodSubnetV6ID = v
 		}
 	}
 

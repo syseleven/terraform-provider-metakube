@@ -647,6 +647,35 @@ func TestExpandOpenstackCloudSpec(t *testing.T) {
 			},
 		},
 		{
+			name: "with dual stack IPv6 fields",
+			setupObject: func() types.Object {
+				osModel := OpenstackCloudSpecModel{
+					FloatingIPPool:         types.StringValue("FloatingIPPool"),
+					Network:                types.StringValue("Network"),
+					SubnetID:               types.StringValue("SubnetID"),
+					SubnetV6ID:             types.StringValue("SubnetV6ID"),
+					SubnetV6CIDR:           types.StringValue("2001:db8:1::/64"),
+					CreatePodSubnetV6:      types.BoolValue(true),
+					PodSubnetV6ID:          types.StringValue("PodSubnetV6ID"),
+					ServerGroupID:          types.StringNull(),
+					UserCredentials:        types.ObjectNull(openstackUserCredentialsAttrTypes()),
+					ApplicationCredentials: types.ObjectNull(openstackApplicationCredentialsAttrTypes()),
+				}
+				objVal, _ := types.ObjectValueFrom(ctx, openstackCloudSpecAttrTypes(), osModel)
+				return objVal
+			},
+			ExpectedOutput: &models.OpenstackCloudSpec{
+				Domain:            "Default",
+				FloatingIPPool:    "FloatingIPPool",
+				Network:           "Network",
+				SubnetID:          "SubnetID",
+				SubnetV6ID:        "SubnetV6ID",
+				SubnetV6CIDR:      "2001:db8:1::/64",
+				CreatePodSubnetV6: true,
+				PodSubnetV6ID:     "PodSubnetV6ID",
+			},
+		},
+		{
 			name: "empty openstack spec",
 			setupObject: func() types.Object {
 				osModel := OpenstackCloudSpecModel{
@@ -655,6 +684,10 @@ func TestExpandOpenstackCloudSpec(t *testing.T) {
 					Network:                types.StringNull(),
 					SubnetID:               types.StringNull(),
 					SubnetCIDR:             types.StringNull(),
+					SubnetV6ID:             types.StringNull(),
+					SubnetV6CIDR:           types.StringNull(),
+					CreatePodSubnetV6:      types.BoolNull(),
+					PodSubnetV6ID:          types.StringNull(),
 					ServerGroupID:          types.StringNull(),
 					UserCredentials:        types.ObjectNull(openstackUserCredentialsAttrTypes()),
 					ApplicationCredentials: types.ObjectNull(openstackApplicationCredentialsAttrTypes()),
@@ -736,6 +769,41 @@ func TestGetPreservedValuesFromModel(t *testing.T) {
 			},
 		},
 		{
+			name: "model with IPv6 subnet fields preserves them",
+			setupModel: func() *ClusterModel {
+				osModel := OpenstackCloudSpecModel{
+					FloatingIPPool:         types.StringNull(),
+					SecurityGroup:          types.StringNull(),
+					Network:                types.StringValue("my-network"),
+					SubnetID:               types.StringValue("subnet-v4"),
+					SubnetCIDR:             types.StringNull(),
+					SubnetV6ID:             types.StringValue("subnet-v6"),
+					SubnetV6CIDR:           types.StringValue("2001:db8:1::/64"),
+					CreatePodSubnetV6:      types.BoolValue(true),
+					PodSubnetV6ID:          types.StringValue("pod-subnet-v6"),
+					ServerGroupID:          types.StringNull(),
+					UserCredentials:        types.ObjectNull(openstackUserCredentialsAttrTypes()),
+					ApplicationCredentials: types.ObjectNull(openstackApplicationCredentialsAttrTypes()),
+				}
+				osObjVal, _ := types.ObjectValueFrom(ctx, openstackCloudSpecAttrTypes(), osModel)
+				cloudModel := ClusterCloudSpecModel{Openstack: osObjVal}
+				cloudObjVal, _ := types.ObjectValueFrom(ctx, clusterCloudSpecAttrTypes(), cloudModel)
+				specModel := ClusterSpecModel{
+					Version:       types.StringValue("1.18.8"),
+					Cloud:         cloudObjVal,
+					UpdateWindow:  types.ObjectNull(updateWindowAttrTypes()),
+					CNIPlugin:     createCNIPluginObject(ctx, t, "canal"),
+					SyselevenAuth: types.ObjectNull(syselevenAuthAttrTypes()),
+				}
+				return createTestClusterModel(ctx, t, specModel)
+			},
+			expectOS: &clusterOpenstackPreservedValues{
+				openstackSubnetV6ID:    types.StringValue("subnet-v6"),
+				openstackSubnetV6CIDR:  types.StringValue("2001:db8:1::/64"),
+				openstackPodSubnetV6ID: types.StringValue("pod-subnet-v6"),
+			},
+		},
+		{
 			name: "model with null cloud returns empty values",
 			setupModel: func() *ClusterModel {
 				specModel := ClusterSpecModel{
@@ -783,6 +851,15 @@ func TestGetPreservedValuesFromModel(t *testing.T) {
 				if result.openstack.openstackApplicationCredentialsSecret.ValueString() != tc.expectOS.openstackApplicationCredentialsSecret.ValueString() {
 					t.Errorf("OpenStack AppCredSecret mismatch: got %v, want %v", result.openstack.openstackApplicationCredentialsSecret.ValueString(), tc.expectOS.openstackApplicationCredentialsSecret.ValueString())
 				}
+				if result.openstack.openstackSubnetV6ID.ValueString() != tc.expectOS.openstackSubnetV6ID.ValueString() {
+					t.Errorf("OpenStack SubnetV6ID mismatch: got %v, want %v", result.openstack.openstackSubnetV6ID.ValueString(), tc.expectOS.openstackSubnetV6ID.ValueString())
+				}
+				if result.openstack.openstackSubnetV6CIDR.ValueString() != tc.expectOS.openstackSubnetV6CIDR.ValueString() {
+					t.Errorf("OpenStack SubnetV6CIDR mismatch: got %v, want %v", result.openstack.openstackSubnetV6CIDR.ValueString(), tc.expectOS.openstackSubnetV6CIDR.ValueString())
+				}
+				if result.openstack.openstackPodSubnetV6ID.ValueString() != tc.expectOS.openstackPodSubnetV6ID.ValueString() {
+					t.Errorf("OpenStack PodSubnetV6ID mismatch: got %v, want %v", result.openstack.openstackPodSubnetV6ID.ValueString(), tc.expectOS.openstackPodSubnetV6ID.ValueString())
+				}
 			}
 		})
 	}
@@ -792,18 +869,22 @@ func TestFlattenOpenstackSpecPreservesCredentials(t *testing.T) {
 	ctx := context.Background()
 
 	cases := []struct {
-		name                  string
-		apiResponse           *models.OpenstackCloudSpec
-		preservedValues       *clusterOpenstackPreservedValues
-		expectedUsername      string
-		expectedPassword      string
-		expectedProjectID     string
-		expectedProjectName   string
-		expectedAppCredID     string
-		expectedAppCredSecret string
-		expectedServerGroupID string
-		expectUserCredentials bool
-		expectAppCredentials  bool
+		name                      string
+		apiResponse               *models.OpenstackCloudSpec
+		preservedValues           *clusterOpenstackPreservedValues
+		expectedUsername          string
+		expectedPassword          string
+		expectedProjectID         string
+		expectedProjectName       string
+		expectedAppCredID         string
+		expectedAppCredSecret     string
+		expectedServerGroupID     string
+		expectedSubnetV6ID        string
+		expectedSubnetV6CIDR      string
+		expectedPodSubnetV6ID     string
+		expectedCreatePodSubnetV6 bool
+		expectUserCredentials     bool
+		expectAppCredentials      bool
 	}{
 		{
 			name: "preserves user credentials when API returns empty",
@@ -866,6 +947,41 @@ func TestFlattenOpenstackSpecPreservesCredentials(t *testing.T) {
 			expectAppCredentials:  false,
 		},
 		{
+			name: "preserves IPv6 subnet fields when API omits them",
+			apiResponse: &models.OpenstackCloudSpec{
+				FloatingIPPool: "ext-net",
+				Network:        "my-network",
+				SubnetID:       "subnet-v4",
+			},
+			preservedValues: &clusterOpenstackPreservedValues{
+				openstackSubnetV6ID:    types.StringValue("preserved-subnet-v6"),
+				openstackSubnetV6CIDR:  types.StringValue("2001:db8:1::/64"),
+				openstackPodSubnetV6ID: types.StringValue("preserved-pod-subnet-v6"),
+			},
+			expectedSubnetV6ID:    "preserved-subnet-v6",
+			expectedSubnetV6CIDR:  "2001:db8:1::/64",
+			expectedPodSubnetV6ID: "preserved-pod-subnet-v6",
+		},
+		{
+			name: "API IPv6 subnet values take precedence over preserved values",
+			apiResponse: &models.OpenstackCloudSpec{
+				FloatingIPPool:    "ext-net",
+				SubnetV6ID:        "api-subnet-v6",
+				SubnetV6CIDR:      "2001:db8:2::/64",
+				PodSubnetV6ID:     "api-pod-subnet-v6",
+				CreatePodSubnetV6: true,
+			},
+			preservedValues: &clusterOpenstackPreservedValues{
+				openstackSubnetV6ID:    types.StringValue("preserved-subnet-v6"),
+				openstackSubnetV6CIDR:  types.StringValue("2001:db8:1::/64"),
+				openstackPodSubnetV6ID: types.StringValue("preserved-pod-subnet-v6"),
+			},
+			expectedSubnetV6ID:        "api-subnet-v6",
+			expectedSubnetV6CIDR:      "2001:db8:2::/64",
+			expectedPodSubnetV6ID:     "api-pod-subnet-v6",
+			expectedCreatePodSubnetV6: true,
+		},
+		{
 			name: "nil preserved values results in null credentials",
 			apiResponse: &models.OpenstackCloudSpec{
 				FloatingIPPool: "ext-net",
@@ -909,6 +1025,20 @@ func TestFlattenOpenstackSpecPreservesCredentials(t *testing.T) {
 				if os.ServerGroupID.ValueString() != tc.expectedServerGroupID {
 					t.Errorf("ServerGroupID mismatch: got %v, want %v", os.ServerGroupID.ValueString(), tc.expectedServerGroupID)
 				}
+			}
+
+			// Check IPv6 subnet fields (null flattens to empty string)
+			if os.SubnetV6ID.ValueString() != tc.expectedSubnetV6ID {
+				t.Errorf("SubnetV6ID mismatch: got %v, want %v", os.SubnetV6ID.ValueString(), tc.expectedSubnetV6ID)
+			}
+			if os.SubnetV6CIDR.ValueString() != tc.expectedSubnetV6CIDR {
+				t.Errorf("SubnetV6CIDR mismatch: got %v, want %v", os.SubnetV6CIDR.ValueString(), tc.expectedSubnetV6CIDR)
+			}
+			if os.PodSubnetV6ID.ValueString() != tc.expectedPodSubnetV6ID {
+				t.Errorf("PodSubnetV6ID mismatch: got %v, want %v", os.PodSubnetV6ID.ValueString(), tc.expectedPodSubnetV6ID)
+			}
+			if os.CreatePodSubnetV6.ValueBool() != tc.expectedCreatePodSubnetV6 {
+				t.Errorf("CreatePodSubnetV6 mismatch: got %v, want %v", os.CreatePodSubnetV6.ValueBool(), tc.expectedCreatePodSubnetV6)
 			}
 
 			// Check user credentials
@@ -1217,6 +1347,10 @@ func createOpenstackCloudList(ctx context.Context, t *testing.T) types.Object {
 		Network:                types.StringNull(),
 		SubnetID:               types.StringNull(),
 		SubnetCIDR:             types.StringNull(),
+		SubnetV6ID:             types.StringNull(),
+		SubnetV6CIDR:           types.StringNull(),
+		CreatePodSubnetV6:      types.BoolNull(),
+		PodSubnetV6ID:          types.StringNull(),
 		ServerGroupID:          types.StringNull(),
 		UserCredentials:        types.ObjectNull(openstackUserCredentialsAttrTypes()),
 		ApplicationCredentials: types.ObjectNull(openstackApplicationCredentialsAttrTypes()),
