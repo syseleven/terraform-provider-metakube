@@ -103,7 +103,7 @@ resource "metakube_node_deployment" "example" {
 
 #### Arguments
 
-* `replicas` - (Optional) Number of replicas, default = 1.
+* `replicas` - (Optional, Computed) Number of replicas, default = 1 on creation. When omitted, the provider reads the current count from the API. Leave this unset when an autoscaler manages the count. It may appear as `(known after apply)` during updates. An explicitly configured value remains managed by Terraform.
 * `template` - (Required) Template specification.
 * `min_replicas` - (Optional) Minimum number of replicas to downscale node deployment to. Be aware that:
   * downscaling is not supported for kubernetes versions below `1.18.0`.
