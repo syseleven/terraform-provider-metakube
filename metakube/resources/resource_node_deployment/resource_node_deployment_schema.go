@@ -252,10 +252,7 @@ func nodeDeploymentSpecAttributes() map[string]schema.Attribute {
 		"replicas": schema.Int64Attribute{
 			Optional:    true,
 			Computed:    true,
-			Description: "Number of replicas",
-			PlanModifiers: []planmodifier.Int64{
-				int64planmodifier.UseStateForUnknown(),
-			},
+			Description: "Number of replicas. When omitted, the current count is read from the API and may change during autoscaling. Defaults to 1 on creation.",
 		},
 		"min_replicas": schema.Int64Attribute{
 			Optional:    true,
